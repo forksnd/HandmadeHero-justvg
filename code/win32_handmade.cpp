@@ -1,4 +1,4 @@
-#include <windows.h>
+#include <Windows.h>
 
 LRESULT CALLBACK
 MainWindowCallback(HWND Window,
