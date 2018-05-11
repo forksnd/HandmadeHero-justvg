@@ -74,10 +74,10 @@ int CALLBACK WinMain(HINSTANCE Instance,
 	//	WindowClass.hIcon = ;
 	WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
-	if (RegisterClass(&WindowClass))
+	if (RegisterClassA(&WindowClass))
 	{
 
-		HWND WindowHandle = CreateWindowEx(
+		HWND WindowHandle = CreateWindowExA(
 			0,
 			WindowClass.lpszClassName,
 			"Handmade Hero",
@@ -96,11 +96,11 @@ int CALLBACK WinMain(HINSTANCE Instance,
 			for (;;)
 			{
 				MSG Message;
-				BOOL MessageResult = GetMessage(&Message, 0, 0, 0);
+				BOOL MessageResult = GetMessageA(&Message, 0, 0, 0);
 				if (MessageResult > 0)
 				{
 					TranslateMessage(&Message);
-					DispatchMessage(&Message);
+					DispatchMessageA(&Message);
 				}
 				else
 				{
