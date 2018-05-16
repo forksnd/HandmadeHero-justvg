@@ -8,44 +8,43 @@ global_variable bool Running;
 
 global_variable BITMAPINFO BitmapInfo;
 global_variable void *BitmapMemory;
-global_variable HBITMAP BitmapHandle;
-global_variable HDC BitmapDeviceContext;
+global_variable int BitmapWidth;
+global_variable int BitmapHeight;
 
 internal void Win32ResizeDIBSection(int Width, int Height)
 {
-	// TODO(george): Bulletprof this.
-	// Maybe don't free first, free after, then free first if that fails.
-	
-	if (BitmapHandle)
+	if (BitmapMemory)
 	{
-		DeleteObject(BitmapHandle);
-	}
-	
-	if (!BitmapDeviceContext)
-	{
-		// TODO(george): Should we recreate these under certain special circumstances
-		BitmapDeviceContext = CreateCompatibleDC(0);
+		VirtualFree(BitmapMemory, 0, MEM_RELEASE);
 	}
 
+	BitmapWidth = Width;
+	BitmapHeight = Height;
+
 	BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-	BitmapInfo.bmiHeader.biWidth = Width;
-	BitmapInfo.bmiHeader.biHeight = Height;
+	BitmapInfo.bmiHeader.biWidth = BitmapWidth;
+	BitmapInfo.bmiHeader.biHeight = -BitmapHeight;
 	BitmapInfo.bmiHeader.biPlanes = 1;
 	BitmapInfo.bmiHeader.biBitCount = 32;
 	BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-	BitmapHandle = CreateDIBSection(
-		BitmapDeviceContext, &BitmapInfo,
-		DIB_RGB_COLORS,
-		&BitmapMemory,
-		0, 0);
+	int BytesPerPixel = 4;
+	int BitmapMemorySize = Width * Height * BytesPerPixel;
+
+	BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void Win32UpdateWindow(HDC DeviceContext, int X, int Y, int Width, int Height)
+internal void Win32UpdateWindow(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Width, int Height)
 {
+	int WindowWidth = WindowRect->right - WindowRect->left;
+	int WindowHeight = WindowRect->bottom - WindowRect->top;
 	StretchDIBits(DeviceContext,
+				  /*
 				  X, Y, Width, Height,
 				  X, Y, Width, Height,
+				  */
+				  0, 0, BitmapWidth, BitmapHeight,
+				  0, 0, WindowWidth, WindowHeight,
 				  BitmapMemory, &BitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -89,7 +88,11 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WPara
 			int Y = Paint.rcPaint.top;
 			int Width = Paint.rcPaint.right - Paint.rcPaint.left;
 			int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
-			Win32UpdateWindow(DeviceContext, X, Y, Width, Height);
+
+			RECT ClientRect;
+			GetClientRect(Window, &ClientRect);
+
+			Win32UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
 			EndPaint(Window, &Paint);
 		} break;
 
@@ -116,7 +119,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 	if (RegisterClassA(&WindowClass))
 	{
 
-		HWND WindowHandle = CreateWindowExA(
+		HWND Window = CreateWindowExA(
 			0,
 			WindowClass.lpszClassName,
 			"Handmade Hero",
@@ -130,7 +133,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 			Instance,
 			0);
 
-		if (WindowHandle)
+		if (Window)
 		{
 			Running = true;
 			while (Running)
