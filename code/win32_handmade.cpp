@@ -1,15 +1,51 @@
 #include <Windows.h>
+#include <stdint.h>
 
 #define internal static
 #define local_persist static
 #define global_variable static
 
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+
+// TODO(george): This is a global for now.
 global_variable bool Running;
 
 global_variable BITMAPINFO BitmapInfo;
 global_variable void *BitmapMemory;
 global_variable int BitmapWidth;
 global_variable int BitmapHeight;
+global_variable int BytesPerPixel = 4;
+
+internal void RenderWeirdGradient(int BlueOffset, int GreenOffset)
+{
+	int Width = BitmapWidth;
+	int Height = BitmapHeight;
+
+	int Pitch = Width * BytesPerPixel;
+	uint8 *Row = (uint8 *)BitmapMemory;
+	for (int Y = 0; Y < Height; Y++)
+	{
+		uint32 *Pixel = (uint32 *) Row;
+
+		for (int X = 0; X < Width; X++)
+		{
+			uint8 Blue = (X + BlueOffset);
+			uint8 Green = (Y + GreenOffset);
+			
+			*Pixel++ = ((Green << 8) | Blue);
+		}
+
+		Row += Pitch;
+	}
+}
 
 internal void Win32ResizeDIBSection(int Width, int Height)
 {
@@ -28,16 +64,15 @@ internal void Win32ResizeDIBSection(int Width, int Height)
 	BitmapInfo.bmiHeader.biBitCount = 32;
 	BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-	int BytesPerPixel = 4;
 	int BitmapMemorySize = Width * Height * BytesPerPixel;
-
 	BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+	// TODO(george): Probably clear this to black
 }
 
-internal void Win32UpdateWindow(HDC DeviceContext, RECT *WindowRect, int X, int Y, int Width, int Height)
+internal void Win32UpdateWindow(HDC DeviceContext, RECT *ClientRect, int X, int Y, int Width, int Height)
 {
-	int WindowWidth = WindowRect->right - WindowRect->left;
-	int WindowHeight = WindowRect->bottom - WindowRect->top;
+	int WindowWidth = ClientRect->right - ClientRect->left;
+	int WindowHeight = ClientRect->bottom - ClientRect->top;
 	StretchDIBits(DeviceContext,
 				  /*
 				  X, Y, Width, Height,
@@ -65,14 +100,14 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WPara
 
 		case WM_DESTROY:
 		{
+			// TODO(george): Handle this as an error - recreate window?
 			Running = false;
-			OutputDebugStringA("WM_DESTROY\n");
 		} break;
 
 		case WM_CLOSE:
 		{
+			// TODO(george): Handle this with a message to the user?
 			Running = false;
-			OutputDebugStringA("WM_CLOSE\n");
 		} break;
 
 		case WM_ACTIVATEAPP:
@@ -135,20 +170,35 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 
 		if (Window)
 		{
+			int BlueOffset = 0;
+			int GreenOffset = 0;
 			Running = true;
 			while (Running)
 			{
 				MSG Message;
-				BOOL MessageResult = GetMessageA(&Message, 0, 0, 0);
-				if (MessageResult > 0)
+				while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
 				{
+					if (Message.message == WM_QUIT)
+					{
+						Running = false;
+					}
+
 					TranslateMessage(&Message);
 					DispatchMessageA(&Message);
 				}
-				else
-				{
-					break;
-				}
+
+				RenderWeirdGradient(BlueOffset, GreenOffset);
+
+				HDC DeviceContext = GetDC(Window);
+				RECT ClientRect;
+				GetClientRect(Window, &ClientRect);
+				int WindowWidth = ClientRect.right - ClientRect.left;
+				int WindowHeight = ClientRect.bottom - ClientRect.top;
+				Win32UpdateWindow(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+				ReleaseDC(Window, DeviceContext);
+
+				BlueOffset++; 
+				GreenOffset += 2;
 			}
 		}
 		else
