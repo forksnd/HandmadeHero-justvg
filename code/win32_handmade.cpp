@@ -1,6 +1,7 @@
 #include <Windows.h>
 #include <stdint.h>
 #include <Xinput.h>
+#include <dsound.h>
 
 #define internal static
 #define local_persist static
@@ -32,6 +33,13 @@ struct win32_window_dimension
 	int Height;
 };
 
+// TODO(george): This is a global for now.
+global_variable bool GlobalRunning;
+global_variable win32_offscreen_buffer GlobalBackbuffer;
+		
+#define D_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef D_SOUND_CREATE(d_sound_create);
+
 // NOTE(george): XInputGetState
 #define X_INPUT_GET_STATE(name) DWORD WINAPI name(DWORD dwUserIndex, XINPUT_STATE *pState)
 typedef X_INPUT_GET_STATE(x_input_get_state);
@@ -58,6 +66,7 @@ internal void Win32LoadInput(void)
 	HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
 	if (!XInputLibrary)
 	{
+		// TODO(george): Diagnostic		
 		XInputLibrary = LoadLibraryA("xinput1_3.dll");
 	}
 
@@ -67,13 +76,86 @@ internal void Win32LoadInput(void)
 		if (!XInputGetState){XInputGetState = XInputGetStateStub;}
 		XInputSetState = (x_input_set_state *) GetProcAddress(XInputLibrary, "XInputSetState");
 		if (!XInputSetState){XInputSetState = XInputSetStateStub;}
+
+		// TODO(george): Diagnostic
 	}
+	else
+	{
+		// TODO(george): Diagnostic
+	}
+	
 } 
 
-// TODO(george): This is a global for now.
-global_variable bool GlobalRunning;
-global_variable win32_offscreen_buffer GlobalBackbuffer;
+internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
+{
+	// NOTE(george): Load the library
+	HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
+	if (DSoundLibrary)
+	{
+		// NOTE(george): Get a DirectSound object! - cooperative
+		d_sound_create *DirectSoundCreate = (d_sound_create*) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
 
+		LPDIRECTSOUND DirectSound;
+		if (DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
+		{
+			WAVEFORMATEX WaveFormat = {};
+			WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
+			WaveFormat.nChannels = 2;
+			WaveFormat.nSamplesPerSec = SamplesPerSecond;
+			WaveFormat.wBitsPerSample = 16;
+			WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+			WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+
+			if (SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+			{
+				DSBUFFERDESC BufferDescription = {sizeof(DSBUFFERDESC)};
+				BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+				// NOTE(george): "Create" a primary buffer
+				// TODO(george): DSBCAPS_GLOBALFOCUS?
+				LPDIRECTSOUNDBUFFER PrimaryBuffer;
+				if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
+				{
+					if (SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
+					{
+						// NOTE(george): We have finally set the format!
+						OutputDebugStringA("Primary buffer format was set.\n");
+					}
+					else
+					{
+						// TODO(george): Diagnostic
+					}
+				}
+				else
+				{
+					// TODO(george): Diagnostic
+				}
+			}
+			else
+			{
+				// TODO(george): Diagnostic				
+			}
+
+			// NOTE(george): Create a secondary buffer	
+			DSBUFFERDESC BufferDescription = {sizeof(DSBUFFERDESC)};
+			BufferDescription.dwBufferBytes = BufferSize;
+			BufferDescription.lpwfxFormat = &WaveFormat;
+			LPDIRECTSOUNDBUFFER SecondaryBuffer;
+			if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0)))
+			{
+				OutputDebugStringA("Secondary buffer created\n");
+			}
+		}
+		else
+		{
+			// TODO(george): Diagnostic
+		}
+	}
+	else
+	{
+		// TODO(george): Diagnostic
+	}
+}
 
 internal win32_window_dimension GetWindowDimenstion(HWND Window)
 {
@@ -128,7 +210,7 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
 	Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
 	int BitmapMemorySize = Width * Height * BytesPerPixel;
-	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
+	Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 	// TODO(george): Probably clear this to black
 }
 
@@ -296,6 +378,9 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 
 			int BlueOffset = 0;
 			int GreenOffset = 0;
+
+			Win32InitDSound(Window, 48000, 48000*sizeof(int16)*2);
+
 			GlobalRunning = true;
 			while (GlobalRunning)
 			{
