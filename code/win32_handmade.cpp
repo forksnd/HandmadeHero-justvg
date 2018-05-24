@@ -36,6 +36,7 @@ struct win32_window_dimension
 // TODO(george): This is a global for now.
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
+LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 		
 #define D_SOUND_CREATE(name) HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef D_SOUND_CREATE(d_sound_create);
@@ -140,8 +141,7 @@ internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferS
 			DSBUFFERDESC BufferDescription = {sizeof(DSBUFFERDESC)};
 			BufferDescription.dwBufferBytes = BufferSize;
 			BufferDescription.lpwfxFormat = &WaveFormat;
-			LPDIRECTSOUNDBUFFER SecondaryBuffer;
-			if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &SecondaryBuffer, 0)))
+			if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0)))
 			{
 				OutputDebugStringA("Secondary buffer created\n");
 			}
@@ -376,10 +376,16 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 			// are not sharing it with anyone
 			HDC DeviceContext = GetDC(Window);
 
+			// NOTE(george): Graphics test
 			int BlueOffset = 0;
 			int GreenOffset = 0;
 
-			Win32InitDSound(Window, 48000, 48000*sizeof(int16)*2);
+			// NOTE(george): DirestSound output test
+			int32 SamplesPerSecond = 48000;
+			int32 BytesPerSample = sizeof(int16)*2;
+			int32 SecondaryBufferSize = SamplesPerSecond*BytesPerSample;
+
+			Win32InitDSound(Window, SamplesPerSecond, SecondaryBufferSize);
 
 			GlobalRunning = true;
 			while (GlobalRunning)
@@ -421,6 +427,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 
 						int16 StickX = Pad->sThumbLX;
 						int16 StrickY = Pad->sThumbLY;
+
+						if (AButton)
+						{
+							BlueOffset++; 
+							GreenOffset += 2;
+						}
 					}
 					else
 					{
@@ -434,11 +446,48 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 
 				RenderWeirdGradient(&GlobalBackbuffer, BlueOffset, GreenOffset);
 
+				DWORD PlayCursor;
+				DWORD WriteCursor;
+				if (GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
+				{
+					DWORD BytesToWrite;
+					if (WriteCursor > PlayCursor)
+					{
+						BytesToWrite = SecondaryBufferSize - WriteCursor;
+						BytesToWrite += PlayCursor;
+					}
+					else 
+					{
+						BytesToWrite = PlayCursor - WriteCursor;
+					}
+					
+					VOID *Region1;
+					DWORD Region1Size;
+					VOID *Region2;
+					DWORD Region2Size;
+					// CASEY USED ByteToLock instead of WriteCursos
+					if(GlobalSecondaryBuffer->Lock(WriteCursor, BytesToWrite, &Region1, &Region1Size, &Region2, &Region2Size, 0) == DS_OK)
+					{
+						DWORD Region1SampleCount = Region1Size/BytesPerSample;
+						int16 *SampleOut = (int16 *) Region1;
+						for(DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; SampleIndex++)
+						{
+
+						}
+
+						DWORD Region2SampleCount = Region2Size/BytesPerSample;
+						SampleOut = (int16 *) Region2;
+						for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; SampleIndex++)
+						{
+							
+						}
+
+						GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+					}
+				}
+
 				win32_window_dimension Dimension = GetWindowDimenstion(Window);
 				Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
-
-				BlueOffset++; 
-				GreenOffset += 2;
 			}
 		}
 		else
