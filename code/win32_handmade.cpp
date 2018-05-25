@@ -376,16 +376,22 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 			// are not sharing it with anyone
 			HDC DeviceContext = GetDC(Window);
 
-			// NOTE(george): Graphics test
+			// NOTE(george): Graphics output test
 			int BlueOffset = 0;
 			int GreenOffset = 0;
 
 			// NOTE(george): DirestSound output test
-			int32 SamplesPerSecond = 48000;
+			int SamplesPerSecond = 48000;
+			int ToneHz = 256;
+			uint32 RunningSampleIndex = 0;
+			int ToneVolume = 5000;
+			int SquareWavePeriod = SamplesPerSecond/ToneHz;
+			int HalfSquareWavePeriod = SquareWavePeriod / 2;
 			int32 BytesPerSample = sizeof(int16)*2;
 			int32 SecondaryBufferSize = SamplesPerSecond*BytesPerSample;
 
 			Win32InitDSound(Window, SamplesPerSecond, SecondaryBufferSize);
+			bool32 SoundIsPlaying = false;
 
 			GlobalRunning = true;
 			while (GlobalRunning)
@@ -430,7 +436,6 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 
 						if (AButton)
 						{
-							BlueOffset++; 
 							GreenOffset += 2;
 						}
 					}
@@ -450,15 +455,20 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 				DWORD WriteCursor;
 				if (GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor) == DS_OK)
 				{
+					DWORD ByteToLock = RunningSampleIndex*BytesPerSample % SecondaryBufferSize;
 					DWORD BytesToWrite;
-					if (WriteCursor > PlayCursor)
+					if (ByteToLock == PlayCursor)
 					{
-						BytesToWrite = SecondaryBufferSize - WriteCursor;
+						BytesToWrite = SecondaryBufferSize;
+					}
+					else if (ByteToLock > PlayCursor)
+					{
+						BytesToWrite = SecondaryBufferSize - ByteToLock;
 						BytesToWrite += PlayCursor;
 					}
 					else 
 					{
-						BytesToWrite = PlayCursor - WriteCursor;
+						BytesToWrite = PlayCursor - ByteToLock;
 					}
 					
 					VOID *Region1;
@@ -466,28 +476,39 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
 					VOID *Region2;
 					DWORD Region2Size;
 					// CASEY USED ByteToLock instead of WriteCursos
-					if(GlobalSecondaryBuffer->Lock(WriteCursor, BytesToWrite, &Region1, &Region1Size, &Region2, &Region2Size, 0) == DS_OK)
+					if(GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite, &Region1, &Region1Size, &Region2, &Region2Size, 0) == DS_OK)
 					{
 						DWORD Region1SampleCount = Region1Size/BytesPerSample;
 						int16 *SampleOut = (int16 *) Region1;
 						for(DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; SampleIndex++)
 						{
-
+							int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
+							*SampleOut++ = SampleValue;
+							*SampleOut++ = SampleValue;
 						}
 
 						DWORD Region2SampleCount = Region2Size/BytesPerSample;
 						SampleOut = (int16 *) Region2;
 						for (DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; SampleIndex++)
 						{
-							
+							int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
+							*SampleOut++ = SampleValue;
+							*SampleOut++ = SampleValue;
 						}
 
 						GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
 					}
 				}
+				if (!SoundIsPlaying)
+				{
+					GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
+					SoundIsPlaying = true;
+				}
 
 				win32_window_dimension Dimension = GetWindowDimenstion(Window);
 				Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
+
+				BlueOffset++; 				
 			}
 		}
 		else
