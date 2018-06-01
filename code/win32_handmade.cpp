@@ -1,17 +1,4 @@
-#include <Windows.h>
 #include <stdint.h>
-#include <Xinput.h>
-#include <dsound.h>
-
-// TODO(george): Implement sine ourselves
-#include <math.h>
-#include <stdio.h>
-
-#define internal static
-#define local_persist static
-#define global_variable static
-
-#define Pi32 3.14159265359f
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -26,6 +13,21 @@ typedef int32_t bool32;
 
 typedef float real32;
 typedef double real64;
+
+#define internal static
+#define local_persist static
+#define global_variable static
+
+#include "handmade.cpp"
+
+#include <Windows.h>
+#include <Xinput.h>
+#include <dsound.h>
+
+// TODO(george): Implement sine ourselves
+#include <math.h>
+
+#define Pi32 3.14159265359f
 
 struct win32_offscreen_buffer
 {
@@ -70,7 +72,8 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-internal void Win32LoadInput(void)
+internal void 
+Win32LoadInput(void)
 {
     // TODO(george): Test this on Windows8
     HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
@@ -103,7 +106,8 @@ internal void Win32LoadInput(void)
     
 } 
 
-internal void Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
+internal void 
+Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
 {
     // NOTE(george): Load the library
     HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
@@ -185,28 +189,8 @@ internal win32_window_dimension GetWindowDimenstion(HWND Window)
     return (Result);
 }
 
-internal void RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
-{
-    int BytesPerPixel = 4;
-    Buffer->Pitch = Buffer->Width * BytesPerPixel;
-    uint8 *Row = (uint8 *)Buffer->Memory;
-    for (int Y = 0; Y < Buffer->Height; Y++)
-    {
-        uint32 *Pixel = (uint32 *) Row;
-        
-        for (int X = 0; X < Buffer->Width; X++)
-        {
-            uint8 Blue = (X + BlueOffset);
-            uint8 Green = (Y + GreenOffset);
-            
-            *Pixel++ = ((Green << 8) | Blue);
-        }
-        
-        Row += Buffer->Pitch;
-    }
-}
-
-internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
+internal void 
+Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 {
     if (Buffer->Memory)
     {
@@ -230,7 +214,8 @@ internal void Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, i
     // TODO(george): Probably clear this to black
 }
 
-internal void Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int WindowWidth, int WindowHeight)
+internal void 
+Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int WindowWidth, int WindowHeight)
 {
     StretchDIBits(DeviceContext,
                   0, 0, WindowWidth, WindowHeight,
@@ -251,7 +236,8 @@ struct win32_sound_output
     int LatencySampleCount;
 };
 
-internal void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
+internal void 
+Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
 {
     VOID *Region1;
     DWORD Region1Size;
@@ -291,7 +277,8 @@ internal void Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteTo
     }
 }
 
-LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
+LRESULT CALLBACK 
+Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
 {
     LRESULT Result = 0;
     
@@ -408,7 +395,8 @@ LRESULT CALLBACK Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WPara
     return (Result);
 }
 
-int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
+int CALLBACK 
+WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
@@ -488,7 +476,7 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
                     DispatchMessageA(&Message);
                 }
                 
-                // TODO(george): Should we poll this more frequently
+                // TODO(george): Should we poll this more frequently?
                 for (DWORD ControllerIndex = 0; ControllerIndex < XUSER_MAX_COUNT; ControllerIndex++)
                 {
                     XINPUT_STATE ControllerState;
@@ -530,7 +518,12 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
                     XInputSetState(ControllerIndex, &Vibration);
                 }
                 
-                RenderWeirdGradient(&GlobalBackbuffer, BlueOffset, GreenOffset);
+                game_offscreen_buffer Buffer = {};
+                Buffer.Memory = GlobalBackbuffer.Memory;
+                Buffer.Height = GlobalBackbuffer.Height;
+                Buffer.Width = GlobalBackbuffer.Width;
+                Buffer.Pitch = GlobalBackbuffer.Pitch;
+                GameUpdateAndRender(&Buffer, BlueOffset, GreenOffset);
                 
                 DWORD PlayCursor;
                 DWORD WriteCursor;
@@ -570,9 +563,10 @@ int CALLBACK WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLi
                 real64 FPS = (real64) ((real64)PerfCounterFrequency / (real64)CounterElapsed);
                 real64 MCPF = (real64) ((real64)CyclesElapsed / (1000.0f * 1000.0f));
 
-                char Buffer[256];
+            /*  char Buffer[256];
                 sprintf(Buffer, "%.2fms/f,  %.2ff/s %.2fmc/f\n", MSPerFrame, FPS, MCPF);
-                OutputDebugStringA(Buffer);
+                OutputDebugStringA(Buffer); 
+            */
 
                 LastCounter = EndCounter;
                 LastCycleCount = EndCycleCount;
