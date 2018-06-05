@@ -18,6 +18,13 @@ struct game_offscreen_buffer
     int Pitch;
 };
 
+struct game_sound_output_buffer
+{
+    int16 *Samples;
+    int SamplesPerSecond;
+    int SampleCount;
+};
+
 internal void
 GameUpdateAndRender(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset);
 
