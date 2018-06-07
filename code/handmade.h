@@ -1,5 +1,8 @@
 #if !defined(HANDMADE_H)
 
+#define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
+// TODO(george): swap, min, max... Macros?
+
 /*
 	TODO(george): Services that the platform layer provides to the game
 */
