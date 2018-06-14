@@ -1,4 +1,5 @@
 #if !defined(HANDMADE_H)
+#define HANDMADE_H
 
 /*
     NOTE(george):
@@ -24,14 +25,40 @@
 
 #define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
 
-// TODO(george): swap, min, max... Macros?
+inline uint32
+SafeTruncateUInt64(uint64 Value)
+{
+    Assert(Value <= 0xFFFFFFFF);
+    uint32 Result = (uint32) Value;
+    return (Result);
+}
 
 /*
-	TODO(george): Services that the platform layer provides to the game
+	NOTE(george): Services that the platform layer provides to the game
 */
 
+#if HANDMADE_INTERNAL
+
+/* IMPORTANT(george):
+
+    These are NOT for doing anything in the shipping game - they are
+    blocking and the write doesn't protect against lost data!
+*/
+
+struct debug_read_file_result
+{
+    uint32 ContentsSize;
+    void *Contents;
+};
+
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char *Filename);
+internal void DEBUGPlatformFreeFileMemory(void *Memory);
+internal bool32 DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory);
+
+#endif
+
 /*
-	TODO(george): Services that the game provides to the platform layer
+	NOTE(george): Services that the game provides to the platform layer
 	(this may expand in the future - sound on separate thread, etc.)
 */
 
@@ -105,7 +132,7 @@ struct game_memory
 };
 
 internal void
-GameUpdateAndRender(game_input *Input, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
+GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer, game_sound_output_buffer *SoundBuffer);
 
 //
 //
@@ -118,5 +145,4 @@ struct game_state
     int ToneHz;
 };
 
-#define HANDMADE_H
 #endif
