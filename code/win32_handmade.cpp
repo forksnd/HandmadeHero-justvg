@@ -92,17 +92,17 @@ Win32LoadInput(void)
 } 
 
 internal real32
-Win32ProcessXInputStickValue(SHORT Value, SHORT DeadzoneThreshhold)
+Win32ProcessXInputStickValue(SHORT Value, SHORT DeadzoneThreshold)
 {
     real32 Result = 0;
 
-    if (Value < -DeadzoneThreshhold)
+    if (Value < -DeadzoneThreshold)
     {
-        Result = (real32)Value / 32768.0f;
+        Result = ((real32)(Value + DeadzoneThreshold) / (32768.0f - DeadzoneThreshold));
     }
-    else if (Value > DeadzoneThreshhold)
+    else if (Value > DeadzoneThreshold)
     {
-        Result = (real32)Value / 32767.0f;
+        Result = ((real32)(Value - DeadzoneThreshold) / (32767.0f - DeadzoneThreshold));
     }
 
     return(Result);
@@ -392,7 +392,7 @@ internal void
 Win32ProcessPendingMessages(game_controller_input *KeyboardController)
 {
     MSG Message;
-    while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
+    while (PeekMessage(&Message, 0, 0, 0, PM_REMOVE)) 
     {
         switch(Message.message) 
         {
@@ -454,10 +454,11 @@ Win32ProcessPendingMessages(game_controller_input *KeyboardController)
                     }
                     else if (VKCode == VK_ESCAPE)
                     {
-                        GlobalRunning = false;
+                        Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
                     }
                     else if (VKCode == VK_SPACE)
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
                     }
                     
                     bool32 AltKeyWasDown = (Message.lParam & (1 << 29));
@@ -620,11 +621,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 GlobalRunning = true;
                 while (GlobalRunning)
                 {   
-                    game_controller_input *OldKeyboardController = &OldInput->Controllers[0];
-                    game_controller_input *NewKeyboardController = &NewInput->Controllers[0];
-                    // TODO(george): Zeroing macro
-                    game_controller_input ZeroController = {};
-                    *NewKeyboardController = ZeroController;
+                    game_controller_input *OldKeyboardController = GetController(OldInput, 0);
+                    game_controller_input *NewKeyboardController = GetController(NewInput, 0);
+                    *NewKeyboardController = {};
+                    NewKeyboardController->IsConnected = true;
                     for(int ButtonIndex = 0; ButtonIndex < ArrayCount(NewKeyboardController->Buttons); ButtonIndex++)
                     {
                         NewKeyboardController->Buttons[ButtonIndex].EndedDown =
@@ -637,26 +637,31 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     // xinput frame rate hit on older libraries...
                     // TODO(george): Should we poll this more frequently?
                     DWORD MaxControllerCount = XUSER_MAX_COUNT;
-                    if (MaxControllerCount > ArrayCount(NewInput->Controllers))
+                    if (MaxControllerCount > ArrayCount(NewInput->Controllers) - 1)
                     {
-                        MaxControllerCount = ArrayCount(NewInput->Controllers);
+                        MaxControllerCount = ArrayCount(NewInput->Controllers) - 1;
                     }
                     for (DWORD ControllerIndex = 0; ControllerIndex < MaxControllerCount; ControllerIndex++)
                     {
                         DWORD OurControllerIndex = ControllerIndex + 1;
-                        game_controller_input *OldController = &OldInput->Controllers[OurControllerIndex];
-                        game_controller_input *NewController = &NewInput->Controllers[OurControllerIndex];
+                        game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
+                        game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
                         XINPUT_STATE ControllerState;
                         if (XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
                         {
                             // NOTE(george): This controller is plugged in
+                            NewController->IsConnected = true;
+
                             // TODO(george): See if ControllerState.dwPacketNumber increments too rapidly
                             XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
 
-                            NewController->IsAnalog = true;
                             NewController->StickAverageX =  Win32ProcessXInputStickValue(Pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
                             NewController->StickAverageY = Win32ProcessXInputStickValue(Pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                            if(NewController->StickAverageX || NewController->StickAverageY)
+                            {
+                                NewController->IsAnalog = true;
+                            }
 
                             real32 Threshold = 0.5f;
                             Win32ProcessXInputDigitalButton((NewController->StickAverageX < -Threshold) ? 1 : 0, OldController->MoveLeft, 1, &NewController->MoveLeft);
@@ -667,20 +672,25 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
                             {
                                 NewController->StickAverageY = 1.0f;
+                                NewController->IsAnalog = false;
                             }
 
                             if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
                             {
                                 NewController->StickAverageY = -1.0f;                                
+                                NewController->IsAnalog = false;
                             }
-                            
+
                             if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
                             {
                                 NewController->StickAverageX = -1.0f;
+                                NewController->IsAnalog = false;
                             }
+
                             if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
                             {
                                 NewController->StickAverageX = 1.0f;                                
+                                NewController->IsAnalog = false;
                             }
 
                             Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionDown, XINPUT_GAMEPAD_A, &NewController->ActionDown);
@@ -696,6 +706,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         else
                         {
                             // NOTE(george): This controller is not available
+                            NewController->IsConnected = false;
                         }
                     }
                     
