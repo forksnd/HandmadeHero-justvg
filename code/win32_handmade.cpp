@@ -1,4 +1,4 @@
-    #include <stdint.h>
+#include <stdint.h>
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
@@ -551,7 +551,7 @@ Win32GetWallClock(void)
 inline real32
 Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 {
-    real32 Result = (real32)(End.QuadPart - Start.QuadPart) / (real32)GlobalPerfCounterFrequency;
+    real32 Result = (End.QuadPart - Start.QuadPart) / (real32)GlobalPerfCounterFrequency;
     return(Result);
 }
 
@@ -561,6 +561,11 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
+
+    // NOTE(george): Set the Windows scheduler granularity to 1 ms
+    // so that out Sleep() can be more granular
+    UINT DesiredSchedulerMS = 1;
+    bool32 SleepIsGranular = (timeBeginPeriod(DesiredSchedulerMS) == TIMERR_NOERROR);
 
     Win32LoadInput();
     
@@ -757,6 +762,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         SoundIsValid = true;
                     }
                     
+                    // TODO(george): Sound is wrong now, because we haven't updated
+                    // it to go with the new frame loop
                     game_sound_output_buffer SoundBuffer = {};
                     SoundBuffer.Samples = Samples;
                     SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
@@ -777,10 +784,33 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     LARGE_INTEGER WorkCounter = Win32GetWallClock();
                     real32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
                     
+                    // TODO(george): Not tested yet! Probably buggy!
                     real32 SecondsElapsedForFrame = WorkSecondsElapsed;
-                    while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                    if (SecondsElapsedForFrame < TargetSecondsPerFrame)
                     {
-                        SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        if (SleepIsGranular)
+                        {
+                            DWORD SleepMS = (DWORD)(1000.f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+
+                            if(SleepMS > 0)
+                            {
+                                Sleep(SleepMS);
+                            }
+                        }
+				
+                        real32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+
+                        //Assert(TestSecondsElapsedForFrame < TargetSecondsPerFrame);
+
+                        while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                        {
+                            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        }
+                    }
+                    else
+                    {
+                        // TODO(george): MISSED FRAME RATE
+                        // TODO(george): Logging
                     }
 
                     win32_window_dimension Dimension = GetWindowDimenstion(Window);
@@ -795,10 +825,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     sprintf(Buffer, "%.2fms/f,  %.2ff/s %.2fmc/f\n", MSPerFrame, FPS, MCPF);
                     OutputDebugStringA(Buffer); 
 #endif
+                    // TODO(george): Should I clean this?
                     game_input *Temp = NewInput;
                     NewInput = OldInput;
                     OldInput = Temp;
-                    // TODO(george): Should I clean this?
 
                     LARGE_INTEGER EndCounter = Win32GetWallClock();  
 					real64 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
