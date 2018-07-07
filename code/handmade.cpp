@@ -3,8 +3,6 @@
 internal void 
 RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 {
-    int BytesPerPixel = 4;
-    Buffer->Pitch = Buffer->Width * BytesPerPixel;
     uint8 *Row = (uint8 *)Buffer->Memory;
     for (int Y = 0; Y < Buffer->Height; Y++)
     {
