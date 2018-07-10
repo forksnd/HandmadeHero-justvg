@@ -7,6 +7,8 @@ struct win32_sound_output
     int32 BytesPerSample;
     DWORD SecondaryBufferSize;
     int LatencySampleCount;
+    // TODO(george): Should running sample index be in bytes as well
+    // TODO(george): Math gets simpler if we add a "bytes per second" field?
 };
 
 struct win32_offscreen_buffer
