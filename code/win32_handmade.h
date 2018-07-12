@@ -34,6 +34,7 @@ struct win32_debug_time_marker
     DWORD OutputWriteCursor;
     DWORD OutputLocation;
     DWORD OutputByteCount;
+    DWORD ExpectedFlipCursor;
 
     DWORD FlipPlayCursor;
     DWORD FlipWriteCursor;

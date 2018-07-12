@@ -36,6 +36,11 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
         *SampleOut++ = SampleValue;
 
 		tSine += 2.0f*Pi32*1.0f / (real32)WavePeriod;
+
+        if (tSine > 2.0f*Pi32)
+        {
+            tSine -= 2.0f*Pi32;
+        }
     }
 }
 
@@ -58,7 +63,7 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffe
             DEBUGPlatformFreeFileMemory(FileMemory.Contents);
         }
 
-        GameState->ToneHz = 256; 
+        GameState->ToneHz = 512; 
         Memory->IsInitialized = true;
     }
 

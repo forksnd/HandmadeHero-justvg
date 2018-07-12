@@ -33,7 +33,8 @@ typedef double real64;
 #include <stdio.h>
 
 // TODO(george): It is global for bow
-global_variable bool GlobalRunning;
+global_variable bool32 GlobalRunning;
+global_variable bool32 GlobalPause;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 global_variable int64 GlobalPerfCounterFrequency;
@@ -467,6 +468,13 @@ Win32ProcessPendingMessages(game_controller_input *KeyboardController)
                     {
                         Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
                     }
+                    else if (VKCode == 'P')
+                    {
+                        if (IsDown)
+                        {
+                            GlobalPause = !GlobalPause;
+                        }
+                    }
                     
                     bool32 AltKeyWasDown = (Message.lParam & (1 << 29));
                     if ((VKCode == VK_F4) && AltKeyWasDown)
@@ -563,12 +571,26 @@ Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 internal void 
 Win32DebugDrawVertical(win32_offscreen_buffer *Backbuffer, int X, int Top, int Bottom, uint32 Color)
 {
-    uint8 *Pixel = (uint8 *)Backbuffer->Memory + X*Backbuffer->BytesPerPixel + Top*Backbuffer->Pitch;
-    for (int Y = Top; Y < Bottom; Y++)
+    Top = Top <= 0 ? 0 : Top;
+    Bottom = Bottom > Backbuffer->Height ? Backbuffer->Height : Bottom;     
+
+    if ((X >= 0) && (X < Backbuffer->Width))
     {
-        *(uint32 *)Pixel = Color;
-        Pixel += Backbuffer->Pitch;
+        uint8 *Pixel = (uint8 *)Backbuffer->Memory + X*Backbuffer->BytesPerPixel + Top*Backbuffer->Pitch;
+        for (int Y = Top; Y < Bottom; Y++)
+        {
+            *(uint32 *)Pixel = Color;
+            Pixel += Backbuffer->Pitch;
+        }
     }
+}
+
+inline void
+Win32DrawSoundBufferMarker(win32_offscreen_buffer *Backbuffer, win32_sound_output *SoundOutput,
+                           real32 C, int PadX, int Top, int Bottom, DWORD Value, uint32 Color)
+{
+    int X = PadX + (int)(C * (real32)Value);
+    Win32DebugDrawVertical(Backbuffer, X, Top, Bottom, Color);
 }
 
 internal void
@@ -576,8 +598,6 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
                       int MarkerCount, win32_debug_time_marker *Markers, int CurrentMarkerIndex,
                       win32_sound_output *SoundOutput, real32 TargetSecondsPerFrame)
 {
-    // TODO(george): Draw where we're writing out sound
-
     int PadX = 16;
     int PadY = 16;
 
@@ -586,8 +606,18 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
     real32 C = (real32)(Backbuffer->Width - 2*PadX) / (real32)SoundOutput->SecondaryBufferSize;
     for(int MarkerIndex = 0; MarkerIndex < MarkerCount; MarkerIndex++)
     {
+        win32_debug_time_marker *ThisMarker = &Markers[MarkerIndex];        
+        Assert(ThisMarker->OutputPlayCursor < SoundOutput->SecondaryBufferSize);
+        Assert(ThisMarker->OutputWriteCursor < SoundOutput->SecondaryBufferSize);
+        Assert(ThisMarker->OutputLocation < SoundOutput->SecondaryBufferSize);
+        Assert(ThisMarker->OutputByteCount < SoundOutput->SecondaryBufferSize);
+        Assert(ThisMarker->FlipPlayCursor < SoundOutput->SecondaryBufferSize);
+        Assert(ThisMarker->FlipWriteCursor < SoundOutput->SecondaryBufferSize);
+
         DWORD PlayColor = 0xFFFFFFFF;
         DWORD WriteColor = 0xFFFF0000;
+        DWORD ExpectedFlipColor = 0xFFFFFF00;
+        DWORD PlayWindowColor = 0xFFFF00FF;
 
         int Top = PadY;
         int Bottom = PadY + LineHeight;
@@ -595,14 +625,27 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
         {
             Top += LineHeight;
             Bottom += LineHeight;
+            
+            int FirstTop = Top;
+
+            Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->OutputPlayCursor, PlayColor);
+            Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->OutputWriteCursor, WriteColor);
+
+            Top += LineHeight;
+            Bottom += LineHeight;
+            
+            Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->OutputLocation, PlayColor);
+            Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->OutputLocation + ThisMarker->OutputByteCount, WriteColor);
+            
+            Top += LineHeight;
+            Bottom += LineHeight;
+
+            Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, FirstTop, Bottom, ThisMarker->ExpectedFlipCursor, ExpectedFlipColor);            
         }
 
-        Assert(Markers[MarkerIndex].FlipPlayCursor < SoundOutput->SecondaryBufferSize);
-        int PlayCursorX = PadX + (int)(C * (real32)Markers[MarkerIndex].FlipPlayCursor);
-        int WriteCursorX = PadX + (int)(C * (real32)Markers[MarkerIndex].FlipWriteCursor);
-
-        Win32DebugDrawVertical(Backbuffer, PlayCursorX, Top, Bottom, PlayColor);
-        Win32DebugDrawVertical(Backbuffer, WriteCursorX, Top, Bottom, WriteColor);
+        Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->FlipPlayCursor, PlayColor);
+        Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->FlipPlayCursor + 480*SoundOutput->BytesPerSample, PlayWindowColor);
+        Win32DrawSoundBufferMarker(Backbuffer, SoundOutput, C, PadX, Top, Bottom, ThisMarker->FlipWriteCursor, WriteColor);
     }
 }
 
@@ -712,6 +755,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 game_input *OldInput = &Input[1];
 
                 LARGE_INTEGER LastCounter = Win32GetWallClock();
+                LARGE_INTEGER FlipWallClock = Win32GetWallClock();
 
                 int DebugTimeMarkerIndex = 0;
                 win32_debug_time_marker DebugTimeMarkers[GameUpdateHz / 2] = {};
@@ -734,293 +778,302 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     }
                     
                     Win32ProcessPendingMessages(NewKeyboardController);
-                    
-                    // TODO(george): Need to not poll disconnected controllers to avoid
-                    // xinput frame rate hit on older libraries...
-                    // TODO(george): Should we poll this more frequently?
-                    DWORD MaxControllerCount = XUSER_MAX_COUNT;
-                    if (MaxControllerCount > ArrayCount(NewInput->Controllers) - 1)
-                    {
-                        MaxControllerCount = ArrayCount(NewInput->Controllers) - 1;
-                    }
-                    for (DWORD ControllerIndex = 0; ControllerIndex < MaxControllerCount; ControllerIndex++)
-                    {
-                        DWORD OurControllerIndex = ControllerIndex + 1;
-                        game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
-                        game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
-                        XINPUT_STATE ControllerState;
-                        if (XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                    if (!GlobalPause) {
+                        
+                        // TODO(george): Need to not poll disconnected controllers to avoid
+                        // xinput frame rate hit on older libraries...
+                        // TODO(george): Should we poll this more frequently?
+                        DWORD MaxControllerCount = XUSER_MAX_COUNT;
+                        if (MaxControllerCount > ArrayCount(NewInput->Controllers) - 1)
                         {
-                            // NOTE(george): This controller is plugged in
-                            NewController->IsConnected = true;
+                            MaxControllerCount = ArrayCount(NewInput->Controllers) - 1;
+                        }
+                        for (DWORD ControllerIndex = 0; ControllerIndex < MaxControllerCount; ControllerIndex++)
+                        {
+                            DWORD OurControllerIndex = ControllerIndex + 1;
+                            game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
+                            game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
-                            // TODO(george): See if ControllerState.dwPacketNumber increments too rapidly
-                            XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
-
-                            NewController->StickAverageX =  Win32ProcessXInputStickValue(Pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-                            NewController->StickAverageY = Win32ProcessXInputStickValue(Pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
-                            if(NewController->StickAverageX || NewController->StickAverageY)
+                            XINPUT_STATE ControllerState;
+                            if (XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
                             {
-                                NewController->IsAnalog = true;
+                                // NOTE(george): This controller is plugged in
+                                NewController->IsConnected = true;
+
+                                // TODO(george): See if ControllerState.dwPacketNumber increments too rapidly
+                                XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
+
+                                NewController->StickAverageX =  Win32ProcessXInputStickValue(Pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                                NewController->StickAverageY = Win32ProcessXInputStickValue(Pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+                                if(NewController->StickAverageX || NewController->StickAverageY)
+                                {
+                                    NewController->IsAnalog = true;
+                                }
+
+                                real32 Threshold = 0.5f;
+                                Win32ProcessXInputDigitalButton((NewController->StickAverageX < -Threshold) ? 1 : 0, OldController->MoveLeft, 1, &NewController->MoveLeft);
+                                Win32ProcessXInputDigitalButton((NewController->StickAverageX > Threshold) ? 1 : 0, OldController->MoveRight, 1, &NewController->MoveLeft);
+                                Win32ProcessXInputDigitalButton((NewController->StickAverageY < -Threshold) ? 1 : 0, OldController->MoveDown, 1, &NewController->MoveLeft);
+                                Win32ProcessXInputDigitalButton((NewController->StickAverageY > Threshold) ? 1 : 0, OldController->MoveUp, 1, &NewController->MoveLeft);
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+                                {
+                                    NewController->StickAverageY = 1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+                                {
+                                    NewController->StickAverageY = -1.0f;                                
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+                                {
+                                    NewController->StickAverageX = -1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+                                {
+                                    NewController->StickAverageX = 1.0f;                                
+                                    NewController->IsAnalog = false;
+                                }
+
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionDown, XINPUT_GAMEPAD_A, &NewController->ActionDown);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionRight, XINPUT_GAMEPAD_B, &NewController->ActionRight);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionLeft, XINPUT_GAMEPAD_X, &NewController->ActionLeft);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionUp, XINPUT_GAMEPAD_Y, &NewController->ActionUp);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->LeftShoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &NewController->LeftShoulder);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->RightShoulder, XINPUT_GAMEPAD_RIGHT_SHOULDER, &NewController->RightShoulder);
+
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->Start, XINPUT_GAMEPAD_START, &NewController->Start);
+                                Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->Back, XINPUT_GAMEPAD_BACK, &NewController->Back);
                             }
-
-                            real32 Threshold = 0.5f;
-                            Win32ProcessXInputDigitalButton((NewController->StickAverageX < -Threshold) ? 1 : 0, OldController->MoveLeft, 1, &NewController->MoveLeft);
-                            Win32ProcessXInputDigitalButton((NewController->StickAverageX > Threshold) ? 1 : 0, OldController->MoveRight, 1, &NewController->MoveLeft);
-                            Win32ProcessXInputDigitalButton((NewController->StickAverageY < -Threshold) ? 1 : 0, OldController->MoveDown, 1, &NewController->MoveLeft);
-                            Win32ProcessXInputDigitalButton((NewController->StickAverageY > Threshold) ? 1 : 0, OldController->MoveUp, 1, &NewController->MoveLeft);
-
-                            if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+                            else
                             {
-                                NewController->StickAverageY = 1.0f;
-                                NewController->IsAnalog = false;
+                                // NOTE(george): This controller is not available
+                                NewController->IsConnected = false;
                             }
-
-                            if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
-                            {
-                                NewController->StickAverageY = -1.0f;                                
-                                NewController->IsAnalog = false;
-                            }
-
-                            if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
-                            {
-                                NewController->StickAverageX = -1.0f;
-                                NewController->IsAnalog = false;
-                            }
-
-                            if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
-                            {
-                                NewController->StickAverageX = 1.0f;                                
-                                NewController->IsAnalog = false;
-                            }
-
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionDown, XINPUT_GAMEPAD_A, &NewController->ActionDown);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionRight, XINPUT_GAMEPAD_B, &NewController->ActionRight);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionLeft, XINPUT_GAMEPAD_X, &NewController->ActionLeft);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->ActionUp, XINPUT_GAMEPAD_Y, &NewController->ActionUp);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->LeftShoulder, XINPUT_GAMEPAD_LEFT_SHOULDER, &NewController->LeftShoulder);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->RightShoulder, XINPUT_GAMEPAD_RIGHT_SHOULDER, &NewController->RightShoulder);
-
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->Start, XINPUT_GAMEPAD_START, &NewController->Start);
-                            Win32ProcessXInputDigitalButton(Pad->wButtons, OldController->Back, XINPUT_GAMEPAD_BACK, &NewController->Back);
-                        }
-                        else
-                        {
-                            // NOTE(george): This controller is not available
-                            NewController->IsConnected = false;
-                        }
-                    }
-
-                    game_offscreen_buffer Buffer = {};
-                    Buffer.Memory = GlobalBackbuffer.Memory;
-                    Buffer.Height = GlobalBackbuffer.Height;
-                    Buffer.Width = GlobalBackbuffer.Width;
-                    Buffer.Pitch = GlobalBackbuffer.Pitch;
-                    GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
-
-                    DWORD PlayCursor;
-                    DWORD WriteCursor;
-                    if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
-                    {
-                        /*  NOTE(george): 
-
-                            Here is how sound output computation works.
-
-                            We define a safety value that is the number
-                            of samples we think out game update loop
-                            may vary by (let's say up to 2ms).
-
-                            When we wake up to write audio, we will look
-                            and see what the play cursor position is and we 
-                            will forecast ahead where we think the
-                            play cursor will be on the next frame boundary.
-
-                            We will then look to see if the write cursor is
-                            before that by at least our safety value. If it is, the 
-                            target fill position is that frame boundary
-                            plus one frame. This gives us perfect audio
-                            sync in the case of a card that has low enough 
-                            latency.
-
-                            If the write cursor is after that safety margin,
-                            then we assume we can never sync the
-                            audio perfectly, so we will write one frame's
-                            worth of audio plus some number of guard samples.
-                        */
-
-                        if (!SoundIsValid)
-                        {
-                            SoundOutput.RunningSampleIndex = WriteCursor / SoundOutput.BytesPerSample;
-                            SoundIsValid = true;
                         }
 
-                        DWORD ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % 
-                                            SoundOutput.SecondaryBufferSize;
+                        game_offscreen_buffer Buffer = {};
+                        Buffer.Memory = GlobalBackbuffer.Memory;
+                        Buffer.Height = GlobalBackbuffer.Height;
+                        Buffer.Width = GlobalBackbuffer.Width;
+                        Buffer.Pitch = GlobalBackbuffer.Pitch;
+                        GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
 
-                        DWORD ExpectedSoundBytesPerFrame = (SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) / GameUpdateHz;
-                        DWORD ExpectedFrameBoundaryByte = PlayCursor + ExpectedSoundBytesPerFrame;
+                        LARGE_INTEGER AudioWallClock = Win32GetWallClock();
+                        real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock);                        
 
-                        DWORD SafeWriteCursor = WriteCursor;
-                        if (SafeWriteCursor < PlayCursor)
-                        {
-                            SafeWriteCursor += SoundOutput.SecondaryBufferSize;
-                        }
-                        Assert(SafeWriteCursor >= PlayCursor);
-                        SafeWriteCursor += SoundOutput.SafetyBytes;
-
-                        bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
-
-                        DWORD TargetCursor = 0;
-                        if (AudioCardIsLowLatency)
-                        {
-                            TargetCursor = (ExpectedFrameBoundaryByte + ExpectedSoundBytesPerFrame);
-                        }
-                        else
-                        {
-                            TargetCursor = (WriteCursor + ExpectedSoundBytesPerFrame + SoundOutput.SafetyBytes);
-                        }
-                        TargetCursor %= SoundOutput.SecondaryBufferSize;
-
-                        DWORD BytesToWrite = 0;
-                        if (ByteToLock > TargetCursor)
-                        {
-                            BytesToWrite = SoundOutput.SecondaryBufferSize - ByteToLock;
-                            BytesToWrite += TargetCursor;
-                        }
-                        else 
-                        {
-                            BytesToWrite = TargetCursor - ByteToLock;   
-                        }
-
-                        game_sound_output_buffer SoundBuffer = {};
-                        SoundBuffer.Samples = Samples;
-                        SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-                        SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
-
-                        GameGetSoundSamples(&GameMemory, &SoundBuffer);
-                    
-#if HANDMADE_INTERNAL
-                        DWORD PlayCursor; 
+                        DWORD PlayCursor;
                         DWORD WriteCursor;
-                        GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor);
-
-                        win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
-
-                        DWORD UnwrappedWriteCursor = WriteCursor;
-                        if (UnwrappedWriteCursor < PlayCursor)
+                        if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
                         {
-                            UnwrappedWriteCursor += SoundOutput.SecondaryBufferSize;
-                        }
-                        AudioLatencyBytes = UnwrappedWriteCursor - PlayCursor;
-                        AudioLatencySeconds = ((real32)AudioLatencyBytes / (real32)SoundOutput.BytesPerSample) / 
-                                                (real32)SoundOutput.SamplesPerSecond;
+                            /*  NOTE(george): 
+
+                                Here is how sound output computation works.
+
+                                We define a safety value that is the number
+                                of samples we think out game update loop
+                                may vary by (let's say up to 2ms).
+
+                                When we wake up to write audio, we will look
+                                and see what the play cursor position is and we 
+                                will forecast ahead where we think the
+                                play cursor will be on the next frame boundary.
+
+                                We will then look to see if the write cursor is
+                                before that by at least our safety value. If it is, the 
+                                target fill position is that frame boundary
+                                plus one frame. This gives us perfect audio
+                                sync in the case of a card that has low enough 
+                                latency.
+
+                                If the write cursor is after that safety margin,
+                                then we assume we can never sync the
+                                audio perfectly, so we will write one frame's
+                                worth of audio plus some number of guard samples.
+                            */
+
+                            if (!SoundIsValid)
+                            {
+                                SoundOutput.RunningSampleIndex = WriteCursor / SoundOutput.BytesPerSample;
+                                SoundIsValid = true;
+                            }
+
+                            DWORD ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % 
+                                                SoundOutput.SecondaryBufferSize;
+
+                            DWORD ExpectedSoundBytesPerFrame = (SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) / GameUpdateHz;
+
+                            real32 SecondsLeftUntilFlip = TargetSecondsPerFrame - FromBeginToAudioSeconds;
+                            DWORD ExpectedBytesUntilFlip = (DWORD)((SecondsLeftUntilFlip/TargetSecondsPerFrame)*(real32)ExpectedSoundBytesPerFrame);
+
+                            DWORD ExpectedFrameBoundaryByte = PlayCursor + ExpectedBytesUntilFlip;
+
+                            DWORD SafeWriteCursor = WriteCursor;
+                            if (SafeWriteCursor < PlayCursor)
+                            {
+                                SafeWriteCursor += SoundOutput.SecondaryBufferSize;
+                            }
+                            Assert(SafeWriteCursor >= PlayCursor);
+                            SafeWriteCursor += SoundOutput.SafetyBytes;
+
+                            bool32 AudioCardIsLowLatency = (SafeWriteCursor < ExpectedFrameBoundaryByte);
+
+                            DWORD TargetCursor = 0;
+                            if (AudioCardIsLowLatency)
+                            {
+                                TargetCursor = (ExpectedFrameBoundaryByte + ExpectedSoundBytesPerFrame);
+                            }
+                            else
+                            {
+                                TargetCursor = (WriteCursor + ExpectedSoundBytesPerFrame + SoundOutput.SafetyBytes);
+                            }
+                            TargetCursor %= SoundOutput.SecondaryBufferSize;
+
+                            DWORD BytesToWrite = 0;
+                            if (ByteToLock > TargetCursor)
+                            {
+                                BytesToWrite = SoundOutput.SecondaryBufferSize - ByteToLock;
+                                BytesToWrite += TargetCursor;
+                            }
+                            else 
+                            {
+                                BytesToWrite = TargetCursor - ByteToLock;   
+                            }
+
+                            game_sound_output_buffer SoundBuffer = {};
+                            SoundBuffer.Samples = Samples;
+                            SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                            SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
+
+                            GameGetSoundSamples(&GameMemory, &SoundBuffer);
+                        
+#if HANDMADE_INTERNAL
+                            win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
+                            Marker->OutputPlayCursor = PlayCursor;
+                            Marker->OutputWriteCursor = WriteCursor;
+                            Marker->OutputLocation = ByteToLock;
+                            Marker->OutputByteCount = BytesToWrite;
+                            Marker->ExpectedFlipCursor = ExpectedFrameBoundaryByte;
+
+                            DWORD UnwrappedWriteCursor = WriteCursor;
+                            if (UnwrappedWriteCursor < PlayCursor)
+                            {
+                                UnwrappedWriteCursor += SoundOutput.SecondaryBufferSize;
+                            }
+                            AudioLatencyBytes = UnwrappedWriteCursor - PlayCursor;
+                            AudioLatencySeconds = ((real32)AudioLatencyBytes / (real32)SoundOutput.BytesPerSample) / 
+                                                    (real32)SoundOutput.SamplesPerSecond;
 
 #if 0
-                        char TextBuffer[256];
-                        _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                                    "BTL:%u TC:%u BTW:%u - PC:%u WC:%u DELTA:%u (%fs)\n", 
-                                    ByteToLock, TargetCursor, BytesToWrite, 
-                                    PlayCursor, WriteCursor, AudioLatencyBytes, AudioLatencySeconds);
-                        OutputDebugString(TextBuffer);
+                            char TextBuffer[256];
+                            _snprintf_s(TextBuffer, sizeof(TextBuffer), 
+                                        "BTL:%u TC:%u BTW:%u - PC:%u WC:%u DELTA:%u (%fs)\n", 
+                                        ByteToLock, TargetCursor, BytesToWrite, 
+                                        PlayCursor, WriteCursor, AudioLatencyBytes, AudioLatencySeconds);
+                            OutputDebugString(TextBuffer);
 #endif
 #endif
-                        Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
-                    }
-                    else
-                    {
-                        SoundIsValid = false;
-                    }
+                            Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
+                        }
+                        else
+                        {
+                            SoundIsValid = false;
+                        }
 
-                    LARGE_INTEGER WorkCounter = Win32GetWallClock();
-                    real32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
+                        LARGE_INTEGER WorkCounter = Win32GetWallClock();
+                        real32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
+                        
+                        // TODO(george): Not tested yet! Probably buggy!
+                        real32 SecondsElapsedForFrame = WorkSecondsElapsed;
+                        if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                        {
+                            if (SleepIsGranular)
+                            {
+                                DWORD SleepMS = (DWORD)(1000.f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+
+                                if(SleepMS > 0)
+                                {
+                                    Sleep(SleepMS);
+                                }
+                            }
                     
-                    // TODO(george): Not tested yet! Probably buggy!
-                    real32 SecondsElapsedForFrame = WorkSecondsElapsed;
-                    if (SecondsElapsedForFrame < TargetSecondsPerFrame)
-                    {
-                        if (SleepIsGranular)
-                        {
-                            DWORD SleepMS = (DWORD)(1000.f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+                            real32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
 
-                            if(SleepMS > 0)
+                            if (TestSecondsElapsedForFrame > TargetSecondsPerFrame)
                             {
-                                Sleep(SleepMS);
-                            }
-                        }
-				
-                        real32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-
-                        if (TestSecondsElapsedForFrame > TargetSecondsPerFrame)
-                        {
-                            // TODO(george): LOG MISS HERE
-                        }
-
-                        while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-                        {
-                            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-                        }
-                    }
-                    else
-                    {
-                        // TODO(george): MISSED FRAME RATE
-                        // TODO(george): Logging
-                    }
-
-                    LARGE_INTEGER EndCounter = Win32GetWallClock();  
-					real64 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
-                    LastCounter = EndCounter;
-
-                    win32_window_dimension Dimension = GetWindowDimenstion(Window);
-#if HANDMADE_INTERNAL
-                    // TODO(george): Note, current is wrong on the zero'th index
-                    Win32DebugSyncDisplay(&GlobalBackbuffer,
-                                          ArrayCount(DebugTimeMarkers), DebugTimeMarkers, DebugTimeMarkerIndex - 1,
-                                          &SoundOutput, TargetSecondsPerFrame);
-#endif
-                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
-
-#if HANDMADE_INTERNAL
-                    // NOTE(george): This is debug code
-                    {
-                        DWORD CurrentPlayCursor;
-                        DWORD CurrentWriteCursor;
-                        if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&CurrentPlayCursor, &CurrentWriteCursor)))
-                        {
-                            Assert(DebugTimeMarkerIndex < ArrayCount(DebugTimeMarkers));
-                            win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
-
-                            if (DebugTimeMarkerIndex == ArrayCount(DebugTimeMarkers))
-                            {
-                                DebugTimeMarkerIndex = 0;
+                                // TODO(george): LOG MISS HERE
                             }
 
-                            Marker->FlipPlayCursor = CurrentPlayCursor;
-                            Marker->FlipWriteCursor = CurrentWriteCursor;
+                            while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                            {
+                                SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                            }
                         }
-                    }
+                        else
+                        {
+                            // TODO(george): MISSED FRAME RATE
+                            // TODO(george): Logging
+                        }
+
+                        LARGE_INTEGER EndCounter = Win32GetWallClock();  
+                        real32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
+                        LastCounter = EndCounter;
+
+                        // РАЗВЕ FLIP НЕ ТУТ??
+
+                        win32_window_dimension Dimension = GetWindowDimenstion(Window);
+#if HANDMADE_INTERNAL
+                        // TODO(george): Note, current is wrong on the zero'th index
+                        Win32DebugSyncDisplay(&GlobalBackbuffer,
+                                            ArrayCount(DebugTimeMarkers), DebugTimeMarkers, DebugTimeMarkerIndex - 1,
+                                            &SoundOutput, TargetSecondsPerFrame);
 #endif
+                        Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
 
-                    // TODO(george): Should I clean this?
-                    game_input *Temp = NewInput;
-                    NewInput = OldInput;
-                    OldInput = Temp;
-
-                    uint64 EndCycleCount = __rdtsc();
-                    int64 CyclesElapsed = EndCycleCount - LastCycleCount;
-                    LastCycleCount = EndCycleCount;
-
-                    char FPSBuffer[256];
-                    _snprintf_s(FPSBuffer, sizeof(FPSBuffer), "%.02fms/f\n", MSPerFrame);
-                    OutputDebugString(FPSBuffer);
+                        FlipWallClock = Win32GetWallClock();                          
 
 #if HANDMADE_INTERNAL
-                    ++DebugTimeMarkerIndex;
-                    if (DebugTimeMarkerIndex == ArrayCount(DebugTimeMarkers))
-                    {
-                        DebugTimeMarkerIndex = 0;
-                    }
+                        // NOTE(george): This is debug code
+                        {
+                            DWORD CurrentPlayCursor;
+                            DWORD CurrentWriteCursor;
+                            if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&CurrentPlayCursor, &CurrentWriteCursor)))
+                            {
+                                Assert(DebugTimeMarkerIndex < ArrayCount(DebugTimeMarkers));
+                                win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
+                                Marker->FlipPlayCursor = CurrentPlayCursor;
+                                Marker->FlipWriteCursor = CurrentWriteCursor;
+                            }
+                        }
 #endif
+
+                        // TODO(george): Should I clean this?
+                        game_input *Temp = NewInput;
+                        NewInput = OldInput;
+                        OldInput = Temp;
+
+                        uint64 EndCycleCount = __rdtsc();
+                        int64 CyclesElapsed = EndCycleCount - LastCycleCount;
+                        LastCycleCount = EndCycleCount;
+
+                        char FPSBuffer[256];
+                        _snprintf_s(FPSBuffer, sizeof(FPSBuffer), "%.02fms/f\n", MSPerFrame);
+                        OutputDebugString(FPSBuffer);
+
+#if HANDMADE_INTERNAL
+                        ++DebugTimeMarkerIndex;
+                        if (DebugTimeMarkerIndex == ArrayCount(DebugTimeMarkers))
+                        {
+                            DebugTimeMarkerIndex = 0;
+                        }
+#endif
+                    }
                 }   
             }
             else
