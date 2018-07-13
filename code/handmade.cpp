@@ -22,7 +22,7 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffs
 
 internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
-{
+{ 
     local_persist real32 tSine;
     int16 ToneVolume = 3000;
     int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
@@ -44,8 +44,7 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
     }
 }
 
-internal void
-GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == 
             (ArrayCount(Input->Controllers[0].Buttons) - 1));
@@ -56,11 +55,11 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffe
     {
         char *Filename = __FILE__;
 
-        debug_read_file_result FileMemory = DEBUGPlatformReadEntireFile(Filename);
+        debug_read_file_result FileMemory = Memory->DEBUGPlatformReadEntireFile(Filename);
         if (FileMemory.Contents) 
         {
-            DEBUGPlatformWriteEntireFile("test.out", FileMemory.ContentsSize, FileMemory.Contents);
-            DEBUGPlatformFreeFileMemory(FileMemory.Contents);
+            Memory->DEBUGPlatformWriteEntireFile("test.out", FileMemory.ContentsSize, FileMemory.Contents);
+            Memory->DEBUGPlatformFreeFileMemory(FileMemory.Contents);
         }
 
         GameState->ToneHz = 512; 
@@ -97,9 +96,21 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffe
 	RenderWeirdGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
 }
 
-internal void
-GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     GameOutputSound(SoundBuffer, GameState->ToneHz);
 }
+
+#if HANDMADE_WIN32
+#include <Windows.h>
+
+BOOL WINAPI DllMain(
+        HINSTANCE hinstDLL,
+        DWORD fdwReason,
+        LPVOID lpvReserved)
+{
+    return(TRUE);
+}
+
+#endif

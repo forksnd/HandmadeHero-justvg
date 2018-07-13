@@ -28,6 +28,16 @@ struct win32_window_dimension
     int Height;
 };
 
+struct win32_game_code
+{
+    HMODULE GameCodeDLL;
+
+    game_update_and_render *UpdateAndRender;
+    game_get_sound_samples *GetSoundSamples;
+
+    bool32 IsValid;
+};
+
 struct win32_debug_time_marker 
 {
     DWORD OutputPlayCursor;

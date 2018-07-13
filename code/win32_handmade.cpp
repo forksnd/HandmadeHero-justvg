@@ -1,36 +1,12 @@
-#include <stdint.h>
-
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef int32_t bool32;
-
-typedef float real32;
-typedef double real64;
-
-#define internal static
-#define local_persist static
-#define global_variable static
-
-#define Pi32 3.14159265359f
-
 // TODO(george): Implement sine ourselves
-#include <math.h>
-#include "handmade.cpp"
+#include "handmade.h"
 
 #include <Windows.h>
-#include "win32_handmade.h"
-
+#include <stdio.h>
 #include <Xinput.h>
 #include <dsound.h>
 
-#include <stdio.h>
+#include "win32_handmade.h"
 
 // TODO(george): It is global for bow
 global_variable bool32 GlobalRunning;
@@ -61,6 +37,30 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
+
+internal win32_game_code
+Win32LoadGameCode(void)
+{
+    win32_game_code Result = {};
+
+    Result.GameCodeDLL = LoadLibraryA("handmade.exe");    
+
+    if (Result.GameCodeDLL)
+    {
+        Result.UpdateAndRender = (game_update_and_render *) GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
+        Result.GetSoundSamples = (game_get_sound_samples *) GetProcAddress(Result.GameCodeDLL, "GameGetSoundSamples");
+
+        Result.IsValid = Result.UpdateAndRender && Result.GetSoundSamples;
+    }
+
+    if (!Result.IsValid)
+    {
+        Result.UpdateAndRender = GameUpdateAndRenderStub;
+        Result.GetSoundSamples = GameGetSoundSamplesStub;
+    }
+
+    return(Result);
+}
 
 internal void 
 Win32LoadInput(void)
@@ -111,10 +111,14 @@ Win32ProcessXInputStickValue(SHORT Value, SHORT DeadzoneThreshold)
     }
 
     return(Result);
-}                         
+}          
 
-internal debug_read_file_result
-DEBUGPlatformReadEntireFile(char *Filename)
+DEBUG_PLATFROM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+{
+    VirtualFree(Memory, 0, MEM_RELEASE);
+}               
+
+DEBUG_PLATFROM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
     debug_read_file_result Result = {};
 
@@ -161,14 +165,7 @@ DEBUGPlatformReadEntireFile(char *Filename)
     return(Result);
 }
 
-internal void 
-DEBUGPlatformFreeFileMemory(void *Memory)
-{
-    VirtualFree(Memory, 0, MEM_RELEASE);
-}
-
-internal bool32 
-DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory)
+DEBUG_PLATFROM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
     bool32 Result = false;
 
@@ -652,6 +649,8 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
+    win32_game_code Game = Win32LoadGameCode();
+
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
@@ -712,7 +711,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             // TODO(george): Actually compute this variance and see 
             // what the lowest reasonable value is.      
-            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 2;
+            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 3;
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
@@ -727,6 +726,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             game_memory GameMemory = {};
             GameMemory.PermanentStorageSize = Megabytes(64);
             GameMemory.TransientStorageSize = Gigabytes(4);
+            GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+            GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
             uint64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
             GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -863,7 +865,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         Buffer.Height = GlobalBackbuffer.Height;
                         Buffer.Width = GlobalBackbuffer.Width;
                         Buffer.Pitch = GlobalBackbuffer.Pitch;
-                        GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
+                        Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 
                         LARGE_INTEGER AudioWallClock = Win32GetWallClock();
                         real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock);                        
@@ -951,7 +953,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
                             SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
 
-                            GameGetSoundSamples(&GameMemory, &SoundBuffer);
+                            Game.GetSoundSamples(&GameMemory, &SoundBuffer);
                         
 #if HANDMADE_INTERNAL
                             win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
@@ -1025,7 +1027,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         real32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
                         LastCounter = EndCounter;
 
-                        // РАЗВЕ FLIP НЕ ТУТ??
+                        FlipWallClock = Win32GetWallClock();                          
 
                         win32_window_dimension Dimension = GetWindowDimenstion(Window);
 #if HANDMADE_INTERNAL
@@ -1036,7 +1038,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
                         Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
 
-                        FlipWallClock = Win32GetWallClock();                          
+                        // NOTE(george): Casey calls FlipWallClock here
+                        // FlipWallClock = Win32GetWallClock();                          
 
 #if HANDMADE_INTERNAL
                         // NOTE(george): This is debug code
