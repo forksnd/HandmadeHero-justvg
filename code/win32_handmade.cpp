@@ -43,8 +43,11 @@ Win32LoadGameCode(void)
 {
     win32_game_code Result = {};
 
-    Result.GameCodeDLL = LoadLibraryA("handmade.exe");    
+    // TODO(george): Need to get the proper path here!
+    // TODO(george): Automatic determination of when updates are necessary.
 
+    CopyFile("handmade.dll", "handmade_temp.dll", FALSE);
+    Result.GameCodeDLL = LoadLibraryA("handmade_temp.dll");    
     if (Result.GameCodeDLL)
     {
         Result.UpdateAndRender = (game_update_and_render *) GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
@@ -60,6 +63,20 @@ Win32LoadGameCode(void)
     }
 
     return(Result);
+}
+
+internal void
+Win32UnloadGameCode(win32_game_code *GameCode)
+{
+    if (GameCode->GameCodeDLL)
+    {
+        FreeLibrary(GameCode->GameCodeDLL);
+        GameCode->GameCodeDLL = 0;
+    }
+
+    GameCode->IsValid = false;
+    GameCode->UpdateAndRender = GameUpdateAndRenderStub;
+    GameCode->GetSoundSamples = GameGetSoundSamplesStub;
 }
 
 internal void 
@@ -649,8 +666,6 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
-    win32_game_code Game = Win32LoadGameCode();
-
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
@@ -711,16 +726,16 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             // TODO(george): Actually compute this variance and see 
             // what the lowest reasonable value is.      
-            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 3;
+            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 2;
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
             int16* Samples = (int16 *)VirtualAlloc(0, 48000*2*sizeof(int16), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
 #if HANDMADE_INTERNAL
-            LPVOID BaseAddress = 0;
+            LPVOID BaseAddress = (LPVOID)Terabytes(2);
 #else 
-            LPVOID BaseAddress = Terabytes(2);
+            LPVOID BaseAddress = 0;
 #endif
 
             game_memory GameMemory = {};
@@ -766,9 +781,19 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 DWORD AudioLatencyBytes = 0;
                 real32 AudioLatencySeconds = 0;
 
+                win32_game_code Game = Win32LoadGameCode();
+                uint32 LoadCounter = 0;
+
                 uint64 LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {   
+                    if (LoadCounter++ > 120)
+                    {
+                        Win32UnloadGameCode(&Game);
+                        Game = Win32LoadGameCode();
+                        LoadCounter = 0;
+                    }
+
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
                     game_controller_input *NewKeyboardController = GetController(NewInput, 0);
                     *NewKeyboardController = {};

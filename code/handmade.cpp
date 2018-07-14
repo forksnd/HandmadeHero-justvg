@@ -21,25 +21,24 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffs
 }
 
 internal void
-GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
+GameOutputSound(game_sound_output_buffer *SoundBuffer, game_state *GameState)
 { 
-    local_persist real32 tSine;
     int16 ToneVolume = 3000;
-    int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
+    int WavePeriod = SoundBuffer->SamplesPerSecond/GameState->ToneHz;
 
     int16 *SampleOut = SoundBuffer->Samples;
     for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++)
     {
-        real32 SineValue = sinf(tSine);
+        real32 SineValue = sinf(GameState->tSine);
         int16 SampleValue = (int16)(SineValue * ToneVolume);
         *SampleOut++ = SampleValue;
         *SampleOut++ = SampleValue;
 
-		tSine += 2.0f*Pi32*1.0f / (real32)WavePeriod;
+		GameState->tSine += 2.0f*Pi32*1.0f / (real32)WavePeriod;
 
-        if (tSine > 2.0f*Pi32)
+        if (GameState->tSine > 2.0f*Pi32)
         {
-            tSine -= 2.0f*Pi32;
+            GameState->tSine -= 2.0f*Pi32;
         }
     }
 }
@@ -99,7 +98,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
-    GameOutputSound(SoundBuffer, GameState->ToneHz);
+    GameOutputSound(SoundBuffer, GameState);
 }
 
 #if HANDMADE_WIN32
