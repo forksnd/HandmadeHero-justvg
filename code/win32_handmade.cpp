@@ -38,16 +38,33 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
+inline FILETIME 
+Win32GetLastWriteTime(char *Filename)
+{
+    FILETIME LastWriteTime = {};
+    
+    WIN32_FIND_DATA FindData;
+    HANDLE FindHandle = FindFirstFileA(Filename, &FindData);
+    if (FindHandle != INVALID_HANDLE_VALUE)
+    {
+        LastWriteTime = FindData.ftLastWriteTime;
+        FindClose(FindHandle);
+    }
+
+    return(LastWriteTime);
+}
+
 internal win32_game_code
-Win32LoadGameCode(void)
+Win32LoadGameCode(char *SourceDLLName)
 {
     win32_game_code Result = {};
 
-    // TODO(george): Need to get the proper path here!
-    // TODO(george): Automatic determination of when updates are necessary.
+    // TODO(george): Need to get the proper path here!  
+    char *TempDLLName = "handmade_temp.dll";
 
-    CopyFile("handmade.dll", "handmade_temp.dll", FALSE);
-    Result.GameCodeDLL = LoadLibraryA("handmade_temp.dll");    
+    Result.DLLLastWriteTime = Win32GetLastWriteTime(SourceDLLName);
+    CopyFile(SourceDLLName, TempDLLName, FALSE);
+    Result.GameCodeDLL = LoadLibraryA(TempDLLName);    
     if (Result.GameCodeDLL)
     {
         Result.UpdateAndRender = (game_update_and_render *) GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
@@ -666,6 +683,19 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
+	// NOTE(george): Never use MAX_PATH in code that is user-facing, because it
+	// can be dangerous and lead to bad results
+    char EXEFileName[MAX_PATH];
+    DWORD SizeOfFilename = GetModuleFileName(0, EXEFileName, sizeof(EXEFileName));
+    char *OnePastLastSlash = EXEFileName;
+    for(char *Scan = EXEFileName; *Scan; Scan++)
+    {
+        if (*Scan == '\\')
+        {
+            OnePastLastSlash = Scan + 1;
+        }
+    }
+
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
@@ -781,17 +811,17 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 DWORD AudioLatencyBytes = 0;
                 real32 AudioLatencySeconds = 0;
 
-                win32_game_code Game = Win32LoadGameCode();
-                uint32 LoadCounter = 0;
+                char *SourceDLLName = "handmade.dll";
+                win32_game_code Game = Win32LoadGameCode(SourceDLLName);
 
                 uint64 LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {   
-                    if (LoadCounter++ > 120)
+                    FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceDLLName);
+                    if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&Game);
-                        Game = Win32LoadGameCode();
-                        LoadCounter = 0;
+                        Game = Win32LoadGameCode(SourceDLLName);
                     }
 
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
