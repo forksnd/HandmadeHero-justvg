@@ -55,12 +55,9 @@ Win32GetLastWriteTime(char *Filename)
 }
 
 internal win32_game_code
-Win32LoadGameCode(char *SourceDLLName)
+Win32LoadGameCode(char *SourceDLLName, char *TempDLLName)
 {
     win32_game_code Result = {};
-
-    // TODO(george): Need to get the proper path here!  
-    char *TempDLLName = "handmade_temp.dll";
 
     Result.DLLLastWriteTime = Win32GetLastWriteTime(SourceDLLName);
     CopyFile(SourceDLLName, TempDLLName, FALSE);
@@ -680,6 +677,24 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
     }
 }
 
+internal void 
+CatStrings(int64 SourceACount, char *SourceA,
+           int64 SourceBCount, char *SourceB,
+           int64 DestCount, char *Dest)
+{
+    for (int Index = 0; Index < SourceACount; Index++)
+    {
+        *Dest++ = *SourceA++;
+    }
+
+    for (int Index = 0; Index < SourceBCount; Index++)
+    {
+        *Dest++ = *SourceB++;
+    }
+
+    *Dest = 0;
+}
+
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
@@ -695,6 +710,18 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             OnePastLastSlash = Scan + 1;
         }
     }
+
+    char SourceGameCodeDLLFilename[] = "handmade.dll";
+    char SourceGameCodeFullPath[MAX_PATH];
+    CatStrings(OnePastLastSlash - EXEFileName, EXEFileName, 
+               sizeof(SourceGameCodeDLLFilename) - 1, SourceGameCodeDLLFilename,
+               sizeof(SourceGameCodeFullPath), SourceGameCodeFullPath);
+
+    char TempGameCodeDLLFilename[] = "handmade_temp.dll";
+    char TempGameCodeFullPath[MAX_PATH];
+    CatStrings(OnePastLastSlash - EXEFileName, EXEFileName, 
+               sizeof(TempGameCodeDLLFilename) - 1, TempGameCodeDLLFilename,
+               sizeof(TempGameCodeFullPath), TempGameCodeFullPath);          
 
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
@@ -811,17 +838,16 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 DWORD AudioLatencyBytes = 0;
                 real32 AudioLatencySeconds = 0;
 
-                char *SourceDLLName = "handmade.dll";
-                win32_game_code Game = Win32LoadGameCode(SourceDLLName);
+                win32_game_code Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
 
                 uint64 LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {   
-                    FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceDLLName);
+                    FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
                     if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&Game);
-                        Game = Win32LoadGameCode(SourceDLLName);
+                        Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath);
                     }
 
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
@@ -920,6 +946,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         Buffer.Height = GlobalBackbuffer.Height;
                         Buffer.Width = GlobalBackbuffer.Width;
                         Buffer.Pitch = GlobalBackbuffer.Pitch;
+                        Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
                         Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 
                         LARGE_INTEGER AudioWallClock = Win32GetWallClock();
