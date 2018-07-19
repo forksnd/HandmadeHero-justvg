@@ -50,5 +50,17 @@ struct win32_debug_time_marker
     DWORD FlipWriteCursor;
 };
 
+struct win32_state
+{
+    uint64 TotalSize;
+    void *GameMemoryBlock;
+
+    HANDLE RecordingHandle;
+    int InputRecordingIndex;
+
+    HANDLE PlaybackHandle;
+    int InputPlayingIndex;
+};
+
 #define WIN32_HANDMADE_H
 #endif

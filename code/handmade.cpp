@@ -120,20 +120,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
 #endif
 
-            GameState->PlayerX -= 4 * Controller->MoveLeft.HalfTransitionCount;
-            GameState->PlayerX += 4 * Controller->MoveRight.HalfTransitionCount;
-            GameState->PlayerY -= 4 * Controller->MoveUp.HalfTransitionCount;
-            GameState->PlayerY += 4 * Controller->MoveDown.HalfTransitionCount;            
+            GameState->PlayerX -= 8 * Controller->MoveLeft.HalfTransitionCount;
+            GameState->PlayerX += 8 * Controller->MoveRight.HalfTransitionCount;
+            GameState->PlayerY -= 8 * Controller->MoveUp.HalfTransitionCount;
+            GameState->PlayerY += 8 * Controller->MoveDown.HalfTransitionCount;            
 
             if (GameState->tJump > 0)
             {
-                GameState->PlayerY -= (int)(10.0f*sinf(GameState->tJump));
-				GameState->PlayerY += (int)(10.0f*sinf(1.0f - GameState->tJump));
+                GameState->PlayerY += (int)(10.0f*sinf(0.5f*Pi32*GameState->tJump));
             }
 
             if (Controller->ActionDown.EndedDown)
             {
-                GameState->tJump = 1.0f;
+                GameState->tJump = 4.0f;
             }
 			GameState->tJump -= 0.033f;
         }
