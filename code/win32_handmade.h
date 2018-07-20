@@ -50,6 +50,7 @@ struct win32_debug_time_marker
     DWORD FlipWriteCursor;
 };
 
+#define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
 struct win32_state
 {
     uint64 TotalSize;
@@ -60,6 +61,9 @@ struct win32_state
 
     HANDLE PlaybackHandle;
     int InputPlayingIndex;
+
+    char EXEFilename[WIN32_STATE_FILE_NAME_COUNT];
+    char *OnePastLastEXEFilenameSlash;
 };
 
 #define WIN32_HANDMADE_H

@@ -23,7 +23,7 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffs
 internal void
 RenderPlayer(game_offscreen_buffer *Buffer, int PlayerX, int PlayerY)
 {
-    uint8 *EndOfBuffer = (uint8 *)Buffer->Memory + Buffer->BytesPerPixel*Buffer->Width + Buffer->Pitch*Buffer->Height;
+    uint8 *EndOfBuffer = (uint8 *)Buffer->Memory + Buffer->Pitch*Buffer->Height;
     uint32 Color = 0xFFFFFFFF;
     int Top = PlayerY;
     int Bottom = PlayerY + 10;
@@ -36,8 +36,9 @@ RenderPlayer(game_offscreen_buffer *Buffer, int PlayerX, int PlayerY)
             if((Pixel >= Buffer->Memory) && (Pixel < EndOfBuffer))
             {
                 *(uint32 *)Pixel = Color;
-                Pixel += Buffer->Pitch;
             }
+
+            Pixel += Buffer->Pitch;
         }
     }
 }
@@ -51,7 +52,7 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, game_state *GameState)
     int16 *SampleOut = SoundBuffer->Samples;
     for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++)
     {
-#if 0
+#if 1
         real32 SineValue = sinf(GameState->tSine);
         int16 SampleValue = (int16)(SineValue * ToneVolume);
 #else

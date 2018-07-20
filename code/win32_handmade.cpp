@@ -256,7 +256,8 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
                 LPDIRECTSOUNDBUFFER PrimaryBuffer;
                 if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
                 {
-                    if (SUCCEEDED(PrimaryBuffer->SetFormat(&WaveFormat)))
+                    HRESULT Error = PrimaryBuffer->SetFormat(&WaveFormat);
+                    if (SUCCEEDED(Error))
                     {
                         // NOTE(george): We have finally set the format!
                         OutputDebugStringA("Primary buffer format was set.\n");
@@ -282,7 +283,8 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
             BufferDescription.dwFlags = DSBCAPS_GETCURRENTPOSITION2;
             BufferDescription.dwBufferBytes = BufferSize;
             BufferDescription.lpwfxFormat = &WaveFormat;
-            if (SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0)))
+            HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0);
+            if (SUCCEEDED(Error))
             {
                 OutputDebugStringA("Secondary buffer created\n");
             }
@@ -341,8 +343,11 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 internal void 
 Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int WindowWidth, int WindowHeight)
 {
+    // NOTE(george): For prototyping purposes, we're goint to always blit
+    // 1-to-1 pixels to make sure we don't introduce artifacts with 
+    // stretching while we are learning to code the renderer!
     StretchDIBits(DeviceContext,
-                  0, 0, WindowWidth, WindowHeight,
+                  0, 0, Buffer->Width, Buffer->Height,
                   0, 0, Buffer->Width, Buffer->Height,
                   Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
 }
@@ -423,67 +428,117 @@ Win32ProcessXInputDigitalButton(DWORD XInputButtonState, game_button_state OldSt
     NewState->HalfTransitionCount = (OldState.EndedDown != NewState->EndedDown) ? 1 : 0;
 }
 
-internal void
-Win32BeginRecordingInput(win32_state *Win32State, int InputRecordingIndex)
+internal void 
+CatStrings(int64 SourceACount, char *SourceA,
+           int64 SourceBCount, char *SourceB,
+           int64 DestCount, char *Dest)
 {
-    Win32State->InputRecordingIndex = InputRecordingIndex;
+    for (int Index = 0; Index < SourceACount; Index++)
+    {
+        *Dest++ = *SourceA++;
+    }
 
-    char *Filename = "foo.hmi";
-    Win32State->RecordingHandle = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    for (int Index = 0; Index < SourceBCount; Index++)
+    {
+        *Dest++ = *SourceB++;
+    }
 
-    DWORD BytesToWrite = (DWORD) Win32State->TotalSize;
-    Assert(BytesToWrite == Win32State->TotalSize);
+    *Dest = 0;
+}
+
+internal int
+StringLength(char *String)
+{
+    int Count = 0;
+
+    while(*String++)
+    {
+        Count++;
+    }
+
+    return(Count);
+}
+
+internal void
+Win32BuildEXEPathFilename(win32_state *Win32State, char *Filename, int DestCount, char *Dest)
+{
+    CatStrings(Win32State->OnePastLastEXEFilenameSlash - Win32State->EXEFilename, Win32State->EXEFilename, 
+               StringLength(Filename), Filename,
+               DestCount, Dest);
+}
+
+internal void
+Win32GetInputFileLocation(win32_state *State, int SlotIndex, int DestCount, char *Dest)
+{
+    Assert(SlotIndex == 1);
+    Win32BuildEXEPathFilename(State, "loop_edit.hmi", DestCount, Dest);
+}
+
+internal void
+Win32BeginRecordingInput(win32_state *State, int InputRecordingIndex)
+{
+    State->InputRecordingIndex = InputRecordingIndex;
+    // TODO(george): Lazily write the giant memory block and use a memory copy instead?
+
+    char Filename[MAX_PATH];
+    Win32GetInputFileLocation(State, InputRecordingIndex, sizeof(Filename), Filename);
+    State->RecordingHandle = CreateFileA(Filename, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+
+    DWORD BytesToWrite = (DWORD) State->TotalSize;
+    Assert(BytesToWrite == State->TotalSize);
     DWORD BytesWritten;
-    WriteFile(Win32State->RecordingHandle, Win32State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);    
+    WriteFile(State->RecordingHandle, State->GameMemoryBlock, BytesToWrite, &BytesWritten, 0);    
 }
 
 internal void
-Win32EndRecordingInput(win32_state *Win32State)
+Win32EndRecordingInput(win32_state *State)
 {
-    Win32State->InputRecordingIndex = 0;
-    CloseHandle(Win32State->RecordingHandle);
+    State->InputRecordingIndex = 0;
+    CloseHandle(State->RecordingHandle);
 }
 
 internal void
-Win32BeginInputPlayback(win32_state *Win32State, int InputPlayingIndex)
+Win32BeginInputPlayback(win32_state *State, int InputPlayingIndex)
 {
-    Win32State->InputPlayingIndex = InputPlayingIndex;
+    State->InputPlayingIndex = InputPlayingIndex;
 
-    char *Filename = "foo.hmi";
-    Win32State->PlaybackHandle= CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    char Filename[MAX_PATH];
+    Win32GetInputFileLocation(State, InputPlayingIndex, sizeof(Filename), Filename);
+    State->PlaybackHandle= CreateFileA(Filename, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 
-    DWORD BytesToRead = (DWORD) Win32State->TotalSize;
-    Assert(BytesToRead == Win32State->TotalSize);
+    DWORD BytesToRead = (DWORD) State->TotalSize;
+    Assert(BytesToRead == State->TotalSize);
     DWORD BytesRead;
-    ReadFile(Win32State->PlaybackHandle, Win32State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
+    ReadFile(State->PlaybackHandle, State->GameMemoryBlock, BytesToRead, &BytesRead, 0);
 }
 
 internal void
-Win32EndInputPlayback(win32_state *Win32State)
+Win32EndInputPlayback(win32_state *State)
 {
-    Win32State->InputPlayingIndex = 0;
-    CloseHandle(Win32State->PlaybackHandle);
+    State->InputPlayingIndex = 0;
+    CloseHandle(State->PlaybackHandle);
 }
 
 internal void
-Win32RecordInput(win32_state *Win32State, game_input *NewInput)
+Win32RecordInput(win32_state *State, game_input *NewInput)
 {
     DWORD BytesWritten;
-    WriteFile(Win32State->RecordingHandle, NewInput, sizeof(*NewInput), &BytesWritten, 0);
+    WriteFile(State->RecordingHandle, NewInput, sizeof(*NewInput), &BytesWritten, 0);
 }
 
 internal void 
-Win32PlaybackInput(win32_state *Win32State, game_input *NewInput)
+Win32PlaybackInput(win32_state *State, game_input *NewInput)
 {
     DWORD BytesRead = 0;
-    if(ReadFile(Win32State->PlaybackHandle, NewInput, sizeof(*NewInput), &BytesRead, 0))
+    if(ReadFile(State->PlaybackHandle, NewInput, sizeof(*NewInput), &BytesRead, 0))
     {
         if(BytesRead == 0)
         {
             // NOTE(george): We've hit the end of the stream, go back to the beginning
-            int PlayingIndex = Win32State->InputPlayingIndex;
-            Win32EndInputPlayback(Win32State);
-            Win32BeginInputPlayback(Win32State, PlayingIndex);
+            int PlayingIndex = State->InputPlayingIndex;
+            Win32EndInputPlayback(State);
+            Win32BeginInputPlayback(State, PlayingIndex);
+            ReadFile(State->PlaybackHandle, NewInput, sizeof(*NewInput), &BytesRead, 0);
         }
     }
 }
@@ -507,6 +562,10 @@ Win32ProcessPendingMessages(win32_state *Win32State, game_controller_input *Keyb
             case WM_KEYUP:
             {
                 uint32 VKCode = (uint32) Message.wParam;
+
+                // NOTE(george): Since we are comparing WasDown to IsDown,
+                // we MUST use == and != to convert these bit tests to actual
+                // 0 or 1 values.
                 bool WasDown = ((Message.lParam & (1 << 30)) != 0);
                 bool IsDown = ((Message.lParam & (1 << 31)) == 0);
                 
@@ -627,7 +686,14 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
         
         case WM_ACTIVATEAPP:
         {
-            OutputDebugStringA("WM_ACTIVATEAPP\n");
+            if (WParam == TRUE)
+            {
+                SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
+            }
+            else
+            {
+                SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 64, LWA_ALPHA);
+            }
         } break;
         
         case WM_PAINT:
@@ -758,55 +824,38 @@ Win32DebugSyncDisplay(win32_offscreen_buffer *Backbuffer,
     }
 }
 
-internal void 
-CatStrings(int64 SourceACount, char *SourceA,
-           int64 SourceBCount, char *SourceB,
-           int64 DestCount, char *Dest)
+internal void
+Win32GetEXEFilename(win32_state *Win32State)
 {
-    for (int Index = 0; Index < SourceACount; Index++)
+    DWORD SizeOfFilename = GetModuleFileName(0, Win32State->EXEFilename, sizeof(Win32State->EXEFilename));
+    Win32State->OnePastLastEXEFilenameSlash = Win32State->EXEFilename;
+    for(char *Scan = Win32State->EXEFilename; *Scan; Scan++)
     {
-        *Dest++ = *SourceA++;
+        if (*Scan == '\\')
+        {
+            Win32State->OnePastLastEXEFilenameSlash = Scan + 1;
+        }
     }
-
-    for (int Index = 0; Index < SourceBCount; Index++)
-    {
-        *Dest++ = *SourceB++;
-    }
-
-    *Dest = 0;
 }
 
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
-	// NOTE(george): Never use MAX_PATH in code that is user-facing, because it
-	// can be dangerous and lead to bad results
-    char EXEFileName[MAX_PATH];
-    DWORD SizeOfFilename = GetModuleFileName(0, EXEFileName, sizeof(EXEFileName));
-    char *OnePastLastSlash = EXEFileName;
-    for(char *Scan = EXEFileName; *Scan; Scan++)
-    {
-        if (*Scan == '\\')
-        {
-            OnePastLastSlash = Scan + 1;
-        }
-    }
-
-    char SourceGameCodeDLLFilename[] = "handmade.dll";
-    char SourceGameCodeFullPath[MAX_PATH];
-    CatStrings(OnePastLastSlash - EXEFileName, EXEFileName, 
-               sizeof(SourceGameCodeDLLFilename) - 1, SourceGameCodeDLLFilename,
-               sizeof(SourceGameCodeFullPath), SourceGameCodeFullPath);
-
-    char TempGameCodeDLLFilename[] = "handmade_temp.dll";
-    char TempGameCodeFullPath[MAX_PATH];
-    CatStrings(OnePastLastSlash - EXEFileName, EXEFileName, 
-               sizeof(TempGameCodeDLLFilename) - 1, TempGameCodeDLLFilename,
-               sizeof(TempGameCodeFullPath), TempGameCodeFullPath);          
+    win32_state Win32State = {};    
 
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
+
+    Win32GetEXEFilename(&Win32State);
+
+    char SourceGameCodeFullPath[MAX_PATH];
+    Win32BuildEXEPathFilename(&Win32State, "handmade.dll", 
+                              sizeof(SourceGameCodeFullPath), SourceGameCodeFullPath);
+
+    char TempGameCodeFullPath[MAX_PATH];
+    Win32BuildEXEPathFilename(&Win32State, "handmade_temp.dll", 
+                              sizeof(TempGameCodeFullPath), TempGameCodeFullPath);   
 
     // NOTE(george): Set the Windows scheduler granularity to 1 ms
     // so that out Sleep() can be more granular
@@ -819,7 +868,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
     
-    WindowClass.style = CS_OWNDC | CS_VREDRAW | CS_HREDRAW;
+    WindowClass.style = CS_VREDRAW | CS_HREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = Instance;
     //	WindowClass.hIcon = ;
@@ -833,7 +882,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     if (RegisterClassA(&WindowClass))
     {
         HWND Window = CreateWindowExA(
-            0,
+            WS_EX_TOPMOST | WS_EX_LAYERED,
             WindowClass.lpszClassName,
             "Handmade Hero",
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -848,11 +897,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
         
         if (Window)
         {
-            // NOTE(george): Since we specified CS_OWNDC, we can just
-            // get one device context and use it forever because we
-            // are not sharing it with anyone
-            HDC DeviceContext = GetDC(Window);
-            
             // NOTE(george): DirestSound output test
             win32_sound_output SoundOutput = {};
 
@@ -862,7 +906,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             // TODO(george): Actually compute this variance and see 
             // what the lowest reasonable value is.      
-            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 2;
+            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 3;
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
@@ -880,8 +924,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
             GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
-
-            win32_state Win32State = {};
 
             Win32State.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
             Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -967,6 +1009,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             {
                                 // NOTE(george): This controller is plugged in
                                 NewController->IsConnected = true;
+                                NewController->IsAnalog = OldController->IsAnalog;
 
                                 // TODO(george): See if ControllerState.dwPacketNumber increments too rapidly
                                 XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
@@ -1174,7 +1217,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         {
                             if (SleepIsGranular)
                             {
-                                DWORD SleepMS = (DWORD)(1000.f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+                                DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
 
                                 if(SleepMS > 0)
                                 {
@@ -1199,7 +1242,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             // TODO(george): MISSED FRAME RATE
                             // TODO(george): Logging
                         }
-
+                        
+/*
+                        real32 SecondsElapsedForFrame = WorkSecondsElapsed;
+                        while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                        {
+                            SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+                        }
+*/
                         LARGE_INTEGER EndCounter = Win32GetWallClock();  
                         real32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
                         LastCounter = EndCounter;
@@ -1213,7 +1263,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                                             ArrayCount(DebugTimeMarkers), DebugTimeMarkers, DebugTimeMarkerIndex - 1,
                                             &SoundOutput, TargetSecondsPerFrame);
 #endif
+
+                        HDC DeviceContext = GetDC(Window);
                         Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dimension.Width, Dimension.Height);
+                        ReleaseDC(Window, DeviceContext);
 
                         // NOTE(george): Casey calls FlipWallClock here
                         // FlipWallClock = Win32GetWallClock();                          
