@@ -42,13 +42,11 @@ inline FILETIME
 Win32GetLastWriteTime(char *Filename)
 {
     FILETIME LastWriteTime = {};
-    
-    WIN32_FIND_DATA FindData;
-    HANDLE FindHandle = FindFirstFileA(Filename, &FindData);
-    if (FindHandle != INVALID_HANDLE_VALUE)
+
+    WIN32_FILE_ATTRIBUTE_DATA Data; 
+    if(GetFileAttributesEx(Filename, GetFileExInfoStandard, &Data))
     {
-        LastWriteTime = FindData.ftLastWriteTime;
-        FindClose(FindHandle);
+        LastWriteTime = Data.ftLastWriteTime;
     }
 
     return(LastWriteTime);
@@ -72,8 +70,8 @@ Win32LoadGameCode(char *SourceDLLName, char *TempDLLName)
 
     if (!Result.IsValid)
     {
-        Result.UpdateAndRender = GameUpdateAndRenderStub;
-        Result.GetSoundSamples = GameGetSoundSamplesStub;
+        Result.UpdateAndRender = 0;
+        Result.GetSoundSamples = 0;
     }
 
     return(Result);
@@ -89,8 +87,8 @@ Win32UnloadGameCode(win32_game_code *GameCode)
     }
 
     GameCode->IsValid = false;
-    GameCode->UpdateAndRender = GameUpdateAndRenderStub;
-    GameCode->GetSoundSamples = GameGetSoundSamplesStub;
+    GameCode->UpdateAndRender = 0;
+    GameCode->GetSoundSamples = 0;
 }
 
 internal void 
@@ -686,6 +684,7 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
         
         case WM_ACTIVATEAPP:
         {
+#if 0
             if (WParam == TRUE)
             {
                 SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 255, LWA_ALPHA);
@@ -694,6 +693,7 @@ Win32MainWindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             {
                 SetLayeredWindowAttributes(Window, RGB(0, 0, 0), 64, LWA_ALPHA);
             }
+#endif
         } break;
         
         case WM_PAINT:
@@ -874,15 +874,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     //	WindowClass.hIcon = ;
     WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
-    // TODO(george): How do we reliably query on this on Windows?
-#define MonitorRefreshHz  60
-#define GameUpdateHz (MonitorRefreshHz / 2)
-    real32 TargetSecondsPerFrame = 1.0f / (real32)GameUpdateHz;
-
     if (RegisterClassA(&WindowClass))
     {
         HWND Window = CreateWindowExA(
-            WS_EX_TOPMOST | WS_EX_LAYERED,
+            0, // WS_EX_TOPMOST | WS_EX_LAYERED,
             WindowClass.lpszClassName,
             "Handmade Hero",
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
@@ -900,13 +895,25 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             // NOTE(george): DirestSound output test
             win32_sound_output SoundOutput = {};
 
+            // TODO(george): How do we reliably query on this on Windows?
+            int MonitorRefreshHz = 60;
+            HDC RefreshDC = GetDC(Window);
+            int Win32RefreshRate = GetDeviceCaps(RefreshDC, VREFRESH);
+            ReleaseDC(Window, RefreshDC);
+            if (Win32RefreshRate > 0) 
+            {
+                MonitorRefreshHz = Win32RefreshRate;
+            }
+            real32 GameUpdateHz = (MonitorRefreshHz / 2.0f);
+            real32 TargetSecondsPerFrame = 1.0f / GameUpdateHz;
+
             SoundOutput.SamplesPerSecond = 48000;
             SoundOutput.BytesPerSample = sizeof(int16)*2;
             SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample;
 
             // TODO(george): Actually compute this variance and see 
             // what the lowest reasonable value is.      
-            SoundOutput.SafetyBytes = (SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 3;
+            SoundOutput.SafetyBytes = (DWORD)((real32)(SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample) / GameUpdateHz / 3.0f);
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
@@ -925,6 +932,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
             GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 
+            // TODO(george): Use MEM_LARGE_PAGES and call adjust token privileges when not on Windows XP?
             Win32State.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
             Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
             GameMemory.PermanentStorage = Win32State.GameMemoryBlock;
@@ -958,7 +966,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 LARGE_INTEGER FlipWallClock = Win32GetWallClock();
 
                 int DebugTimeMarkerIndex = 0;
-                win32_debug_time_marker DebugTimeMarkers[GameUpdateHz / 2] = {};
+                win32_debug_time_marker DebugTimeMarkers[15] = {};
 
                 bool32 SoundIsValid = false;
                 DWORD AudioLatencyBytes = 0;
@@ -1085,7 +1093,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             Win32PlaybackInput(&Win32State, NewInput);
                         }
 
-                        Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+                        if (Game.UpdateAndRender)
+                        {
+                            Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+                        }
 
                         LARGE_INTEGER AudioWallClock = Win32GetWallClock();
                         real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock);                        
@@ -1129,7 +1140,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             DWORD ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % 
                                                 SoundOutput.SecondaryBufferSize;
 
-                            DWORD ExpectedSoundBytesPerFrame = (SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) / GameUpdateHz;
+                            DWORD ExpectedSoundBytesPerFrame = (DWORD)((real32)(SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample) 
+                                                                        / GameUpdateHz);
 
                             real32 SecondsLeftUntilFlip = TargetSecondsPerFrame - FromBeginToAudioSeconds;
                             DWORD ExpectedBytesUntilFlip = (DWORD)((SecondsLeftUntilFlip/TargetSecondsPerFrame)*(real32)ExpectedSoundBytesPerFrame);
@@ -1173,7 +1185,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
                             SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
 
-                            Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+                            if (Game.GetSoundSamples)
+                            {
+                                Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+                            }
                         
 #if HANDMADE_INTERNAL
                             win32_debug_time_marker *Marker = &DebugTimeMarkers[DebugTimeMarkerIndex];
