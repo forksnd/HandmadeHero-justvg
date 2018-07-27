@@ -902,7 +902,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     
     WNDCLASSA WindowClass = {};
     
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
+    Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
     
     WindowClass.style = CS_VREDRAW | CS_HREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
@@ -1027,6 +1027,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 game_input Input[2] = {};
                 game_input *NewInput = &Input[0];
                 game_input *OldInput = &Input[1];
+                NewInput->dtForFrame = TargetSecondsPerFrame;
 
                 LARGE_INTEGER LastCounter = Win32GetWallClock();
                 LARGE_INTEGER FlipWallClock = Win32GetWallClock();
@@ -1306,6 +1307,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         LARGE_INTEGER WorkCounter = Win32GetWallClock();
                         real32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
                         
+#if 0
                         // TODO(george): Not tested yet! Probably buggy!
                         real32 SecondsElapsedForFrame = WorkSecondsElapsed;
                         if (SecondsElapsedForFrame < TargetSecondsPerFrame)
@@ -1338,13 +1340,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             // TODO(george): Logging
                         }
                         
-/*
+#else
                         real32 SecondsElapsedForFrame = WorkSecondsElapsed;
                         while (SecondsElapsedForFrame < TargetSecondsPerFrame)
                         {
                             SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
                         }
-*/
+#endif
                         LARGE_INTEGER EndCounter = Win32GetWallClock();  
                         real32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
                         LastCounter = EndCounter;
@@ -1380,7 +1382,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         NewInput = OldInput;
                         OldInput = Temp;
 
-#if 0
+#if 1
                         uint64 EndCycleCount = __rdtsc();
                         int64 CyclesElapsed = EndCycleCount - LastCycleCount;
                         LastCycleCount = EndCycleCount;

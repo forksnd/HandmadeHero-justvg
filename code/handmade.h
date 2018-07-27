@@ -155,7 +155,8 @@ struct game_input
     game_button_state MouseButtons[5];
     int32 MouseX, MouseY, MouseZ;
 
-    // TODO(george): Insert clock values here
+    real32 dtForFrame;
+
     game_controller_input Controllers[5];
 };
 
@@ -197,14 +198,8 @@ typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
 struct game_state
 {
-    int BlueOffset;
-    int GreenOffset;
-    int ToneHz;
-    real32 tSine;
-
-    int PlayerX;
-    int PlayerY;
-    real32 tJump;
+    real32 PlayerX;
+    real32 PlayerY;
 };
 
 #endif
