@@ -341,11 +341,19 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 internal void 
 Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int WindowWidth, int WindowHeight)
 {
+    int OffsetX = 10;
+    int OffsetY = 10;
+
+    PatBlt(DeviceContext, 0, 0, WindowWidth, OffsetY, BLACKNESS);
+    PatBlt(DeviceContext, 0, OffsetY + Buffer->Height + OffsetY, WindowWidth, WindowHeight, BLACKNESS);
+    PatBlt(DeviceContext, 0, 0, OffsetX, WindowHeight, BLACKNESS);
+    PatBlt(DeviceContext, OffsetX + Buffer->Width + OffsetX, 0, WindowWidth, WindowHeight, BLACKNESS);
+
     // NOTE(george): For prototyping purposes, we're goint to always blit
     // 1-to-1 pixels to make sure we don't introduce artifacts with 
     // stretching while we are learning to code the renderer!
     StretchDIBits(DeviceContext,
-                  0, 0, Buffer->Width, Buffer->Height,
+                  OffsetX, OffsetY, Buffer->Width + OffsetX, Buffer->Height + OffsetY,
                   0, 0, Buffer->Width, Buffer->Height,
                   Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
 }
@@ -1027,7 +1035,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 game_input Input[2] = {};
                 game_input *NewInput = &Input[0];
                 game_input *OldInput = &Input[1];
-                NewInput->dtForFrame = TargetSecondsPerFrame;
 
                 LARGE_INTEGER LastCounter = Win32GetWallClock();
                 LARGE_INTEGER FlipWallClock = Win32GetWallClock();
@@ -1044,6 +1051,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 uint64 LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {   
+                    NewInput->dtForFrame = TargetSecondsPerFrame;
+                    
                     FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
                     if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
                     {
@@ -1382,7 +1391,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         NewInput = OldInput;
                         OldInput = Temp;
 
-#if 1
+#if 0
                         uint64 EndCycleCount = __rdtsc();
                         int64 CyclesElapsed = EndCycleCount - LastCycleCount;
                         LastCycleCount = EndCycleCount;
