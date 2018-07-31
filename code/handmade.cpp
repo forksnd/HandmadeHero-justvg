@@ -71,22 +71,32 @@ DrawRectangle(game_offscreen_buffer *Buffer,
     }
 }
 
-struct tile_map
+inline tile_map* 
+GetTileMap(world *World, int32 TileMapX, int32 TileMapY)
 {
-    int32 CountX;
-    int32 CountY;
-        
-    real32 UpperLeftX;
-    real32 UpperLeftY;  
-    real32 TileWidth;
-    real32 TileHeight;
+    tile_map *TileMap = 0;
 
-    uint32 *Tiles;
-};
+    if((TileMapX >= 0) && (TileMapX < World->TileMapCountX) &&
+       (TileMapY >= 0) && (TileMapX < World->TileMapCountY))
+    {
+        TileMap = &World->TileMaps[TileMapY*World->TileMapCountX + TileMapX];
+    }
+
+    return(TileMap);
+}
+
+inline bool32
+GetTileValueUnchecked(tile_map *TileMap, int32 TileX, int32 TileY)
+{
+    uint32 TileMapValue = TileMap->Tiles[(TileY * TileMap->CountX) + TileX];
+    return(TileMapValue);
+}
 
 internal bool32
 IsTileMapPointEmpty(tile_map *TileMap, real32 TestX, real32 TestY)
 {
+    bool32 Empty = false;
+
     int32 PlayerTileX = TruncateReal32ToInt32((TestX - TileMap->UpperLeftX) / TileMap->TileWidth);   
     int32 PlayerTileY = TruncateReal32ToInt32((TestY - TileMap->UpperLeftY) / TileMap->TileHeight);
 
@@ -94,9 +104,35 @@ IsTileMapPointEmpty(tile_map *TileMap, real32 TestX, real32 TestY)
     if((PlayerTileX >= 0) && (PlayerTileX < TileMap->CountX) &&
         (PlayerTileY >= 0) && (PlayerTileY < TileMap->CountY))
     {
-        uint32 TileMapValue = TileMap->Tiles[(PlayerTileY * TileMap->CountX) + PlayerTileX];
-        IsValid = (TileMapValue == 0);
+        uint32 TileMapValue = GetTileValueUnchecked(TileMap, PlayerTileX, PlayerTileY);
+        Empty = (TileMapValue == 0);
     }
+
+    return(Empty);
+}
+
+internal bool32
+IsWorldPointEmpty(world *World, int32 TileMapX, int32 TileMapY, real32 TestX, real32 TestY)
+{
+    bool32 Empty = false;
+
+    tile_map *TileMap = GetTileMap(World, TileMapX, TileMapY);
+
+    if(TileMap)
+    {
+        int32 PlayerTileX = TruncateReal32ToInt32((TestX - TileMap->UpperLeftX) / TileMap->TileWidth);   
+        int32 PlayerTileY = TruncateReal32ToInt32((TestY - TileMap->UpperLeftY) / TileMap->TileHeight);
+
+        bool32 IsValid = false;
+        if((PlayerTileX >= 0) && (PlayerTileX < TileMap->CountX) &&
+           (PlayerTileY >= 0) && (PlayerTileY < TileMap->CountY))
+        {
+            uint32 TileMapValue = GetTileValueUnchecked(TileMap, PlayerTileX, PlayerTileY);
+            Empty = (TileMapValue == 0);
+        }
+    }
+
+    return(Empty);
 }
 
 internal void
@@ -136,29 +172,87 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #define TILE_MAP_COUNT_Y 9
 #define TILE_MAP_COUNT_X 17
-    uint32 Tiles[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
+    uint32 Tiles00[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
     {
-        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1},
         {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
         {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 1},
         {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
-        {0, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 0},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 0},
         {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0, 1},
         {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0, 1},
         {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
         {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1}
     };
 
-    tile_map TileMap;
-    TileMap.CountX = TILE_MAP_COUNT_X;
-    TileMap.CountY = TILE_MAP_COUNT_Y;
-        
-    TileMap.UpperLeftX = -30;
-    TileMap.UpperLeftY = 0;  
-    TileMap.TileWidth = 60;
-    TileMap.TileHeight = 60;
+    uint32 Tiles01[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
+    {
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 0},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1}
+    };
 
-    TileMap.Tiles = (uint32 *)Tiles;
+    uint32 Tiles10[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
+    {
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 1, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
+        {0, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 1, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 0, 0, 0,  0, 1, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0, 1},
+        {1, 1, 1, 1,  1, 0, 0, 0,  0, 0, 0, 0,  0, 1, 0, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1}
+    };
+
+    uint32 Tiles11[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] =
+    {
+        {1, 1, 1, 1,  1, 1, 1, 1,  0, 1, 1, 1,  1, 1, 1, 1, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0, 1},
+        {1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1,  1, 1, 1, 1, 1}
+    };
+
+    tile_map TileMaps[2][2];
+    TileMaps[0][0].CountX = TILE_MAP_COUNT_X;
+    TileMaps[0][0].CountY = TILE_MAP_COUNT_Y;
+        
+    TileMaps[0][0].UpperLeftX = -30;
+    TileMaps[0][0].UpperLeftY = 0;  
+    TileMaps[0][0].TileWidth = 60;
+    TileMaps[0][0].TileHeight = 60;
+
+    TileMaps[0][0].Tiles = (uint32 *)Tiles00;
+
+    TileMaps[0][1] = TileMaps[0][0];
+    TileMaps[0][1].Tiles = (uint32 *)Tiles01;
+
+    TileMaps[1][0] = TileMaps[0][0];
+    TileMaps[1][0].Tiles = (uint32 *)Tiles10;
+
+    TileMaps[1][1] = TileMaps[0][0];
+    TileMaps[1][1].Tiles = (uint32 *)Tiles11;
+
+    world World;
+    World.TileMapCountX = 2;
+    World.TileMapCountY = 2;
+    World.TileMaps = (tile_map *) TileMaps;
+
+    tile_map *TileMap = &TileMaps[0][0];
+
+    real32 PlayerWidth = 0.75f * TileMap->TileWidth;
+    real32 PlayerHeight = 0.75f * TileMap->TileHeight;
 
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
@@ -167,7 +261,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->PlayerY = 150;
         Memory->IsInitialized = true;
     }
-
 
     for (int ControllerIndex = 0; ControllerIndex < ArrayCount(Input->Controllers); ControllerIndex++)
     {
@@ -204,26 +297,34 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             // TODO(george): Diagonal will be faster! Fix once we have vectors!
             real32 NewPlayerX = GameState->PlayerX + (Input->dtForFrame * dPlayerX);
             real32 NewPlayerY = GameState->PlayerY + (Input->dtForFrame * dPlayerY);
+
+            if(IsTileMapPointEmpty(TileMap, NewPlayerX - 0.5f*PlayerWidth, NewPlayerY) &&
+               IsTileMapPointEmpty(TileMap, NewPlayerX + 0.5f*PlayerHeight, NewPlayerY) &&
+               IsTileMapPointEmpty(TileMap, NewPlayerX, NewPlayerY))
+            {
+                GameState->PlayerX = NewPlayerX;
+                GameState->PlayerY = NewPlayerY;
+            }
         }
     }
 
     DrawRectangle(Buffer, 0.0f, 0.0f, (real32)Buffer->Width, (real32)Buffer->Height, 1.0f, 0.0f, 1.0f);
 
-    for (int Row = 0; Row < TileMap.CountY; Row++)
+    for (int Row = 0; Row < TileMap->CountY; Row++)
     {
-        for (int Column = 0; Column < TileMap.CountX; Column++)
+        for (int Column = 0; Column < TileMap->CountX; Column++)
         {
-            uint32 TileID = Tiles[Row][Column];
+            uint32 TileID = GetTileValueUnchecked(TileMap, Column, Row); 
             real32 Gray = 0.5f;
             if(TileID == 1)
             {
                 Gray = 1.0f;
             }
  
-            real32 MinX = TileMap.UpperLeftX + (real32)Column * TileMap.TileWidth;
-            real32 MinY = TileMap.UpperLeftY + (real32)Row * TileMap.TileHeight;
-            real32 MaxX = MinX + TileMap.TileWidth;
-            real32 MaxY = MinY + TileMap.TileHeight;
+            real32 MinX = TileMap->UpperLeftX + (real32)Column * TileMap->TileWidth;
+            real32 MinY = TileMap->UpperLeftY + (real32)Row * TileMap->TileHeight;
+            real32 MaxX = MinX + TileMap->TileWidth;
+            real32 MaxY = MinY + TileMap->TileHeight;
 
             DrawRectangle(Buffer, MinX, MinY, MaxX, MaxY, Gray, Gray, Gray);
         }
@@ -232,8 +333,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     real32 PlayerR = 1.0f;
     real32 PlayerG = 1.0f;
     real32 PlayerB = 0.0f;
-    real32 PlayerWidth = 0.75f * TileMap.TileWidth;
-    real32 PlayerHeight = 0.75f * TileMap.TileHeight;
     real32 PlayerLeft = GameState->PlayerX - (0.5f * PlayerWidth);
     real32 PlayerTop = GameState->PlayerY - PlayerHeight;
     DrawRectangle(Buffer, PlayerLeft, PlayerTop, PlayerLeft + PlayerWidth, PlayerTop + PlayerHeight, PlayerR, PlayerG, PlayerB);
