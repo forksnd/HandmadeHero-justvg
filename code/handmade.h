@@ -60,11 +60,37 @@ inline game_controller_input *GetController(game_input *Input, unsigned int Cont
 //
 //
 
+struct canonical_position
+{
+    int32 TileMapX;
+    int32 TileMapY;
+
+    int32 TileX;
+    int32 TileY;
+
+    // NOTE(george): This is tile-relative X and Y
+    // NOTE(george): These are still in pixels...
+    real32 X;
+    real32 Y;
+};
+
+// TODO(george): Is this ever necessary?
+struct raw_position
+{
+    int32 TileMapX;
+    int32 TileMapY;
+
+    // NOTE(george): This is tile-map relative X and Y
+    real32 X;
+    real32 Y;
+};
+
 struct game_state
 {
+    // TODO(george): Player state should be canonical position now?
     int32 PlayerTileMapX;
     int32 PlayerTileMapY;
-
+    
     real32 PlayerX;
     real32 PlayerY;
 };
