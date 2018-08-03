@@ -61,38 +61,35 @@ inline game_controller_input *GetController(game_input *Input, unsigned int Cont
 //
 
 struct canonical_position
-{
+{   
+    /* TODO(george):
+
+        Take the tile map x and y
+        and the tile x and y
+
+        and pack them into single 32-bit values for x and y
+        where there is some low bits for the tile index
+        and the high bits are the tile "page"
+    */
+#if 1
     int32 TileMapX;
     int32 TileMapY;
 
     int32 TileX;
     int32 TileY;
+#else
+    uint32 TileX;
+    uint32 TileY;
+#endif
 
-    // NOTE(george): This is tile-relative X and Y
-    // NOTE(george): These are still in pixels...
-    real32 X;
-    real32 Y;
-};
-
-// TODO(george): Is this ever necessary?
-struct raw_position
-{
-    int32 TileMapX;
-    int32 TileMapY;
-
-    // NOTE(george): This is tile-map relative X and Y
-    real32 X;
-    real32 Y;
+    // TODO(george): Should these be from the center of a tile?
+    real32 TileRelX;
+    real32 TileRelY;
 };
 
 struct game_state
 {
-    // TODO(george): Player state should be canonical position now?
-    int32 PlayerTileMapX;
-    int32 PlayerTileMapY;
-    
-    real32 PlayerX;
-    real32 PlayerY;
+    canonical_position PlayerP;
 };
 
 struct tile_map
@@ -102,17 +99,20 @@ struct tile_map
 
 struct world
 {
+    real32 TileSideInMeters;
+    int32 TileSideInPixels;
+
     int32 CountX;
     int32 CountY;
         
     real32 UpperLeftX;
     real32 UpperLeftY;  
-    real32 TileWidth;
-    real32 TileHeight;
 
     // TODO(george): Beginner's sparseness
     int32 TileMapCountX;
     int32 TileMapCountY;
+
+    real32 MetersToPixels;
 
     tile_map *TileMaps;
 };
