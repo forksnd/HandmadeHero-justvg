@@ -59,8 +59,16 @@ inline game_controller_input *GetController(game_input *Input, unsigned int Cont
 //
 //
 //
+struct tile_chunk_position
+{
+    uint32 TileChunkX;
+    uint32 TileChunkY;
 
-struct canonical_position
+    uint32 RelTileX;
+    uint32 RelTileX;
+};
+
+struct world_position
 {   
     /* TODO(george):
 
@@ -71,25 +79,19 @@ struct canonical_position
         where there is some low bits for the tile index
         and the high bits are the tile "page"
     */
-#if 1
-    int32 TileMapX;
-    int32 TileMapY;
 
-    int32 TileX;
-    int32 TileY;
-#else
-    uint32 TileX;
-    uint32 TileY;
-#endif
+    uint32 AbsTileX;
+    uint32 AbsTileY;
 
     // TODO(george): Should these be from the center of a tile?
+    // TODO(george): Rename to offset X and Y
     real32 TileRelX;
     real32 TileRelY;
 };
 
 struct game_state
 {
-    canonical_position PlayerP;
+    world_position PlayerP;
 };
 
 struct tile_map
@@ -99,14 +101,17 @@ struct tile_map
 
 struct world
 {
+    uint32 ChunkShift;
+    uint32 ChunkMask;
+
     real32 TileSideInMeters;
     int32 TileSideInPixels;
 
     int32 CountX;
     int32 CountY;
         
-    real32 UpperLeftX;
-    real32 UpperLeftY;  
+    real32 LowerLeftX;
+    real32 LowerLeftY;  
 
     // TODO(george): Beginner's sparseness
     int32 TileMapCountX;
