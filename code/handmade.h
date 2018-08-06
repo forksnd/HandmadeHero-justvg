@@ -65,7 +65,7 @@ struct tile_chunk_position
     uint32 TileChunkY;
 
     uint32 RelTileX;
-    uint32 RelTileX;
+    uint32 RelTileY;
 };
 
 struct world_position
@@ -94,7 +94,7 @@ struct game_state
     world_position PlayerP;
 };
 
-struct tile_map
+struct tile_chunk
 {
     uint32 *Tiles;
 };
@@ -103,23 +103,20 @@ struct world
 {
     uint32 ChunkShift;
     uint32 ChunkMask;
+    uint32 ChunkDim;
 
     real32 TileSideInMeters;
     int32 TileSideInPixels;
 
-    int32 CountX;
-    int32 CountY;
-        
-    real32 LowerLeftX;
-    real32 LowerLeftY;  
-
     // TODO(george): Beginner's sparseness
-    int32 TileMapCountX;
-    int32 TileMapCountY;
+    int32 TileChunkCountX;
+    int32 TileChunkCountY;
 
     real32 MetersToPixels;
 
-    tile_map *TileMaps;
+    tile_chunk *TileChunks;
 };
 
 #endif
+
+
