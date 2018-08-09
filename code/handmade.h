@@ -61,6 +61,7 @@ inline game_controller_input *GetController(game_input *Input, unsigned int Cont
 
 #include "handmade_intrinsics.h"
 #include "handmade_tile.h"
+#include "handmade_random.h"
 
 struct memory_arena
 {

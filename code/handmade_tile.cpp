@@ -31,7 +31,7 @@ RecanonicalizePosition(tile_map *TileMap, tile_map_position Pos)
 }
 
 inline tile_chunk * 
-GetTileChunk(tile_map *TileMap, int32 TileChunkX, int32 TileChunkY)
+GetTileChunk(tile_map *TileMap, uint32 TileChunkX, uint32 TileChunkY)
 {
     tile_chunk *TileChunk = 0;
 
@@ -55,7 +55,17 @@ GetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, uint32 TileX, ui
     return(TileChunkValue);
 }
 
-internal bool32
+inline void
+SetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, uint32 TileX, uint32 TileY, uint32 TileValue)
+{
+    Assert(TileChunk);
+    Assert(TileX < TileMap->ChunkDim);
+    Assert(TileY < TileMap->ChunkDim);
+
+    TileChunk->Tiles[TileY*TileMap->ChunkDim + TileX] = TileValue;
+}
+
+inline bool32
 GetTileValue(tile_map *TileMap, tile_chunk *TileChunk, uint32 TestTileX, uint32 TestTileY)
 {
     uint32 TileChunkValue = 0;
@@ -66,6 +76,15 @@ GetTileValue(tile_map *TileMap, tile_chunk *TileChunk, uint32 TestTileX, uint32 
     }
 
     return(TileChunkValue);
+}
+
+inline void
+SetTileValue(tile_map *TileMap, tile_chunk *TileChunk, uint32 TestTileX, uint32 TestTileY, uint32 TileValue)
+{
+    if(TileChunk)
+    {
+        SetTileValueUnchecked(TileMap, TileChunk, TestTileX, TestTileY, TileValue);
+    }
 }
 
 inline tile_chunk_position 
@@ -95,15 +114,20 @@ internal bool32
 IsTileMapPointEmpty(tile_map *TileMap, tile_map_position CanPos)
 {
     uint32 TileChunkValue = GetTileValue(TileMap, CanPos.AbsTileX, CanPos.AbsTileY);
-    bool32 Empty = (TileChunkValue == 0);
+    bool32 Empty = (TileChunkValue == 1);
 
     return(Empty);
 }
 
 internal void
-SetTileValue(World->TileMap, AbsTileX, AbsTileY, 0)
+SetTileValue(memory_arena *Arena, tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY, uint32 TileValue)
 {
+    tile_chunk_position ChunkPos = GetChunkPositionFor(TileMap, AbsTileX, AbsTileY);
+    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY);
 
+    // TODO(george): On-demand tile chunk creation
+    Assert(TileChunk);
+    SetTileValue(TileMap, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY, TileValue);
 }
 
 #endif

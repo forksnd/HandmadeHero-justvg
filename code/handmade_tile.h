@@ -39,8 +39,8 @@ struct tile_map
     int32 TileSideInPixels;
 
     // TODO(george): Beginner's sparseness
-    int32 TileChunkCountX;
-    int32 TileChunkCountY;
+    uint32 TileChunkCountX;
+    uint32 TileChunkCountY;
 
     real32 MetersToPixels;
 
