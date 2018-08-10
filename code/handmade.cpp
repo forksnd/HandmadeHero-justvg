@@ -79,6 +79,38 @@ GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, in
     }
 }
 
+#pragma pack(push, 1)
+struct bitmap_header
+{
+    uint16 FileType;
+    uint32 FileSize;     
+    uint16 Reserved1;    
+    uint16 Reserved2;    
+    uint32 BitmapOffset; 
+	uint32 Size;          
+	int32 Width;         
+	int32 Height;        
+	uint16 Planes;        
+	uint16 BitsPerPixel; 
+};
+#pragma pack(pop)
+
+internal uint32 *
+DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntireFile, char *Filename)
+{
+    uint32 *Result = 0;
+
+    debug_read_file_result ReadResult = ReadEntireFile(Thread, Filename);
+    if(ReadResult.ContentsSize != 0)
+    {
+        bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
+        uint32 *Pixels = (uint32 *)((uint8 *)ReadResult.Contents + Header->BitmapOffset);
+        Result = Pixels;
+    }
+
+    return(Result);
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == 
@@ -91,11 +123,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {
+        GameState->PixelPointer = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/test_background.bmp");
+
         GameState->PlayerP.AbsTileX = 1;
         GameState->PlayerP.AbsTileY = 3;
         GameState->PlayerP.AbsTileZ = 0;
-        GameState->PlayerP.TileRelX = 0.5f;
-        GameState->PlayerP.TileRelY = 0.5f;
+        GameState->PlayerP.OffsetX = 0.5f;
+        GameState->PlayerP.OffsetY = 0.5f;
 
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));
@@ -128,6 +162,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 ScreenY = 0;
         uint32 AbsTileZ = 0;
 
+        // TODO(george): Replace all this with real world generation!s
         bool32 DoorLeft = false;
         bool32 DoorRight = false;
         bool32 DoorTop = false;
@@ -148,8 +183,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 RandomChoice = RandomNumberTable[RandomNumberIndex++] % 3;
             }
 
+            bool32 CreatedZDoor = false;
             if(RandomChoice == 2)
             {
+                CreatedZDoor = true;
                 if(AbsTileZ == 0)
                 {
                     DoorUp = true;
@@ -215,15 +252,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             DoorLeft = DoorRight;
             DoorBottom = DoorTop;
 
-            if(DoorUp)
+            if(CreatedZDoor)
             {
-                DoorDown = true;
-                DoorUp = false;
-            }
-            else if(DoorDown)
-            {
-                DoorUp = true;
-                DoorDown = false;
+                if(DoorUp)
+                {
+                    DoorDown = true;
+                    DoorUp = false;
+                }
+                else if(DoorDown)
+                {
+                    DoorUp = true;
+                    DoorDown = false;
+                }
             }
             else
             {
@@ -308,24 +348,38 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             // TODO(george): Diagonal will be faster! Fix once we have vectors!
             tile_map_position NewPlayerP = GameState->PlayerP;
-            NewPlayerP.TileRelX += Input->dtForFrame * dPlayerX;
-            NewPlayerP.TileRelY += Input->dtForFrame * dPlayerY;
+            NewPlayerP.OffsetX += Input->dtForFrame * dPlayerX;
+            NewPlayerP.OffsetY += Input->dtForFrame * dPlayerY;
             NewPlayerP = RecanonicalizePosition(TileMap, NewPlayerP);
             // TODO(george): Delta function that auto-recanonicalizes
 
             // We should use NewPlayerX and Y!
             tile_map_position PlayerLeft = NewPlayerP;
-            PlayerLeft.TileRelX -= 0.5f*PlayerWidth;
+            PlayerLeft.OffsetX -= 0.5f*PlayerWidth;
             PlayerLeft = RecanonicalizePosition(TileMap, PlayerLeft);
             
             tile_map_position PlayerRight = NewPlayerP;
-            PlayerRight.TileRelX += 0.5f*PlayerWidth;            
+            PlayerRight.OffsetX += 0.5f*PlayerWidth;            
             PlayerRight = RecanonicalizePosition(TileMap, PlayerRight);
             
             if(IsTileMapPointEmpty(TileMap, NewPlayerP) &&
                IsTileMapPointEmpty(TileMap, PlayerLeft) &&
                IsTileMapPointEmpty(TileMap, PlayerRight))
             {
+                if(!AreOnTheSameTile(&GameState->PlayerP, &NewPlayerP))
+                {
+                    uint32 NewTileValue = GetTileValue(TileMap, NewPlayerP);
+
+                    if(NewTileValue == 3)
+                    {
+                        NewPlayerP.AbsTileZ++;
+                    }
+                    else if(NewTileValue == 4)
+                    {
+                        NewPlayerP.AbsTileZ--;
+                    }
+                }
+
                 GameState->PlayerP = NewPlayerP;
             }
         }
@@ -362,8 +416,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     Gray = 0.0f;
                 }
 
-                real32 CenX = ScreenCenterX - MetersToPixels*GameState->PlayerP.TileRelX + (real32)RelColumn * TileSideInPixels;
-                real32 CenY = ScreenCenterY + MetersToPixels*GameState->PlayerP.TileRelY - (real32)RelRow * TileSideInPixels;
+                real32 CenX = ScreenCenterX - MetersToPixels*GameState->PlayerP.OffsetX + (real32)RelColumn * TileSideInPixels;
+                real32 CenY = ScreenCenterY + MetersToPixels*GameState->PlayerP.OffsetY - (real32)RelRow * TileSideInPixels;
                 real32 MinX = CenX - 0.5f*TileSideInPixels;
                 real32 MinY = CenY - 0.5f*TileSideInPixels;
                 real32 MaxX = CenX + 0.5f*TileSideInPixels;
@@ -384,6 +438,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                   PlayerLeft + MetersToPixels*PlayerWidth, 
                   PlayerTop + MetersToPixels*PlayerHeight, 
                   PlayerR, PlayerG, PlayerB);
+
+#if 0
+    uint32 *Source = GameState->PixelPointer;
+    uint32 *Dest = (uint32 *)Buffer->Memory;
+    for(int32 Y = 0; Y < Buffer->Height; Y++)
+    {
+        for(int32 X = 0; X < Buffer->Width; X++)
+        {
+            *Dest++ = *Source++;
+        }
+    }
+#endif
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
