@@ -102,6 +102,11 @@ struct loaded_bitmap
     uint32 *Pixels;
 };
 
+struct hero_bitmaps
+{
+    loaded_bitmap Hero;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
@@ -110,7 +115,7 @@ struct game_state
     tile_map_position PlayerP;
 
     loaded_bitmap Backdrop;
-    loaded_bitmap Hero;
+    hero_bitmaps HeroBitmaps[4];
 };
 
 #endif

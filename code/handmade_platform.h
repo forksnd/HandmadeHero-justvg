@@ -5,8 +5,38 @@
 extern "C" {
 #endif
 
-    #include <stdint.h>
 
+// 
+// NOTE(george): Compilers
+// 
+#if !defined(COMPILER_MSVC)
+    #define COMPILER_MSVC 0
+#endif
+
+#if !defined(COMPILER_LLVM)
+    #define COMPILER_LLVM 0
+#endif
+
+#if !COMPILER_MSVC && !COMPILER_LLVM
+    #if _MSC_VER
+        #undef  COMPILER_MSVC
+        #define COMPILER_MSVC 1
+    #else
+        #undef COMPILER_LLVM
+        // TODO(george): More compilers!!!
+        #define COMPILER_LLVM 1
+    #endif
+#endif
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#endif
+
+// 
+// NOTE(george): Types
+// 
+    #include <stdint.h>
+    
     typedef uint8_t uint8;
     typedef uint16_t uint16;
     typedef uint32_t uint32;
