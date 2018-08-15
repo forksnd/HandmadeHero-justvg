@@ -46,4 +46,11 @@ struct tile_map
     tile_chunk *TileChunks;
 };
 
+struct tile_map_difference
+{
+    real32 dX;
+    real32 dY;
+    real32 dZ;
+};
+
 #endif
