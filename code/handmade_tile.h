@@ -45,6 +45,7 @@ struct tile_map
     tile_chunk *TileChunks;
 };
 
+// TODO(george): Replace this with a v3 once we get to v3
 struct tile_map_difference
 {
     v2 dXY;
