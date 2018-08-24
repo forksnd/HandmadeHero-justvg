@@ -88,26 +88,32 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
         uint32 BlueMask = Header->BlueMask;
         uint32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
 
-        bit_scan_result RedShift = FindLeastSignificantSetBit(RedMask);
-        bit_scan_result GreenShift = FindLeastSignificantSetBit(GreenMask);
-        bit_scan_result BlueShift = FindLeastSignificantSetBit(BlueMask);
-        bit_scan_result AlphaShift = FindLeastSignificantSetBit(AlphaMask);
-        /*
-        Assert(RedShift.Found);
-        Assert(GreenShift.Found);
-        Assert(BlueShift.Found);
-        Assert(AlphaShift.Found);
-        */
+        bit_scan_result RedScan = FindLeastSignificantSetBit(RedMask);
+        bit_scan_result GreenScan = FindLeastSignificantSetBit(GreenMask);
+        bit_scan_result BlueScan = FindLeastSignificantSetBit(BlueMask);
+        bit_scan_result AlphaScan = FindLeastSignificantSetBit(AlphaMask);
+        
+        Assert(RedScan.Found);
+        Assert(GreenScan.Found);
+        Assert(BlueScan.Found);
+        Assert(AlphaScan.Found);
+
+        int32 RedShift = 16 - (int32)RedScan.Index;
+        int32 GreenShift = 8 - (int32)GreenScan.Index;
+        int32 BlueShift = 0 - (int32)BlueScan.Index;
+        int32 AlphaShift = 24 - (int32)AlphaScan.Index;
+        
         uint32 *SourceDest = Pixels;
         for(int32 Y = 0; Y < Header->Height; Y++)
         {
             for(int32 X = 0; X < Header->Width; X++)
             {
                 uint32 C = *SourceDest;
-                *SourceDest++ = (((C >> AlphaShift.Index) & 0xFF) << 24) |
-                                (((C >> RedShift.Index) & 0xFF) << 16) |
-                                (((C >> GreenShift.Index) & 0xFF) << 8) |
-                                (((C >> BlueShift.Index) & 0xFF) << 0);
+
+                *SourceDest++ = (RotateLeft(C & RedMask, RedShift) |
+                                 RotateLeft(C & GreenMask, GreenShift) |
+                                 RotateLeft(C & BlueMask, BlueShift) |
+                                 RotateLeft(C & AlphaMask, AlphaShift));
             }
         }
     }
@@ -248,25 +254,33 @@ GetEntity(game_state *GameState, uint32 Index)
 }
 
 internal void
-InitializePlayer(entity *Entity)
+InitializePlayer(game_state *GameState, uint32 EntityIndex)
 {
+    entity *Entity = GetEntity(GameState, EntityIndex);
+
     Entity->Exists = true;
     Entity->P.AbsTileX = 1;
     Entity->P.AbsTileY = 3;
     Entity->P.Offset = {0.5f, 0.5f};
-
     Entity->Height = 1.4f;
     Entity->Width = 0.75f*Entity->Height;
+
+    if(!GetEntity(GameState, GameState->CameraFollowingEntityIndex))
+    {
+        GameState->CameraFollowingEntityIndex = EntityIndex;
+    }
 }
 
-internal entity *
+internal uint32
 AddEntity(game_state *GameState)
 {
-    Assert(GameState->EntityCount < ArrayCount(GameState->Entities));
-    entity *Entity = &GameState->Entities[GameState->EntityCount++];
+    Assert(GameState->EntityCount < ArrayCount(GameState->Entities));    
+    uint32 EntityIndex = GameState->EntityCount++;
+
+    entity *Entity = &GameState->Entities[EntityIndex];
     *Entity = {};
     
-    return(Entity);
+    return(EntityIndex);
 }
 
 internal void
@@ -280,10 +294,10 @@ MovePlayer(game_state *GameState, entity *Entity, real32 dt, v2 ddPlayer)
         ddPlayer *= 0.7071067811865475f;
     } 
 
-    real32 PlayerSpeed = 10.0f; // m/s^2
+    real32 PlayerSpeed = 50.0f; // m/s^2
     ddPlayer *= PlayerSpeed;
 
-    ddPlayer += -1.5f*Entity->dP;
+    ddPlayer += -8.0f*Entity->dP;
 
     tile_map_position OldPlayerP = Entity->P;   
     tile_map_position NewPlayerP = OldPlayerP;
@@ -397,9 +411,13 @@ MovePlayer(game_state *GameState, entity *Entity, real32 dt, v2 ddPlayer)
         }
     }
 
-    if(AbsoluteValue(ddPlayer.X) > AbsoluteValue(ddPlayer.Y))
+    if((Entity->dP.X == 0.0f) && (Entity->dP.Y == 0.0f))
     {
-        if(ddPlayer.X > 0)
+        // NOTE(george): Leave FacingDirection whater it was
+    }
+    else if(AbsoluteValue(Entity->dP.X) > AbsoluteValue(Entity->dP.Y))
+    {
+        if(Entity->dP.X > 0)
         {
             Entity->FacingDirection = 0;
         }
@@ -408,9 +426,9 @@ MovePlayer(game_state *GameState, entity *Entity, real32 dt, v2 ddPlayer)
             Entity->FacingDirection = 2;
         }
     }
-    else if (AbsoluteValue(ddPlayer.X) < AbsoluteValue(ddPlayer.Y))
+    else if (AbsoluteValue(Entity->dP.X) < AbsoluteValue(Entity->dP.Y))
     {
-        if(ddPlayer.Y > 0)
+        if(Entity->dP.Y > 0)
         {
             Entity->FacingDirection = 1;
         }
@@ -430,6 +448,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     if (!Memory->IsInitialized)
     {
+        // NOTE(george): Reserve entity slot 0 for the null entity
+        AddEntity(GameState); 
+
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/test_background.bmp");
 
         hero_bitmaps *Bitmap;
@@ -666,13 +687,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ddPlayer.X = 1.0f;
                 }
             }
+
+            MovePlayer(GameState, ControllingEntity, Input->dtForFrame, ddPlayer);
         }
         else
         {
             if(Controller->Start.EndedDown)
             {
-                ControllingEntity = AddEntity(GameState);
-                InitializePlayer(ControllingEntity);
+                uint32 EntityIndex = AddEntity(GameState);
+                InitializePlayer(GameState, EntityIndex);
+                GameState->PlayerIndexForController[ControllerIndex] = EntityIndex;
             }
         }
     }
@@ -750,6 +774,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     entity *Entity = GameState->Entities;
     for(uint32 EntityCount = 0; EntityCount < GameState->EntityCount; EntityCount++, Entity++)
     {
+        // TODO(george): Culling of entities based on Z / camera view
         if(Entity->Exists)
         {
             tile_map_difference Diff = Substract(TileMap, &Entity->P, &GameState->CameraP);    
