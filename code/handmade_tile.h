@@ -11,7 +11,7 @@ struct tile_map_position
     uint32 AbsTileZ;
 
     // NOTE(george): These are the offsets from tile center
-    v2 Offset;
+    v2 Offset_;
 };
 
 struct tile_chunk_position
