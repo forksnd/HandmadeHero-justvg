@@ -262,8 +262,8 @@ InitializePlayer(game_state *GameState, uint32 EntityIndex)
     Entity->P.AbsTileX = 1;
     Entity->P.AbsTileY = 3;
     Entity->P.Offset_ = {0.0f, 0.0f};
-    Entity->Height = 1.4f;
-    Entity->Width = 0.75f*Entity->Height;
+    Entity->Height = 0.5f;
+    Entity->Width = 0.7f;
 
     if(!GetEntity(GameState, GameState->CameraFollowingEntityIndex))
     {
@@ -384,37 +384,37 @@ MovePlayer(game_state *GameState, entity *Entity, real32 dt, v2 ddP)
     }
 #else
 
-#if 0
     uint32 MinTileX = Minimum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
     uint32 MinTileY = Minimum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);
-    uint32 OnePastMaxTileX = Maximum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX) + 1;
-    uint32 OnePastMaxTileY = Maximum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY) + 1;  
-#else
-    uint32 StartTileX = OldPlayerP.AbsTileX;
-    uint32 StartTileY = OldPlayerP.AbsTileY;
-    uint32 EndTileX = NewPlayerP.AbsTileX;
-    uint32 EndTileY = NewPlayerP.AbsTileY;
+    uint32 MaxTileX = Maximum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
+    uint32 MaxTileY = Maximum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);  
 
-    int32 DeltaX = SignOf(EndTileX - StartTileX);
-    int32 DeltaY = SignOf(EndTileY - StartTileY);
-#endif
+    uint32 EntityTileWidth = CeilReal32ToInt32(Entity->Width / TileMap->TileSideInMeters);
+    uint32 EntityTileHeight = CeilReal32ToInt32(Entity->Height / TileMap->TileSideInMeters);
 
+    MinTileX -= EntityTileWidth;
+    MinTileY -= EntityTileHeight;
+    MaxTileX += EntityTileWidth;
+    MaxTileY += EntityTileHeight;
 
     uint32 AbsTileZ = Entity->P.AbsTileZ;
     real32 tMin = 1.0f;
 
-    uint32 AbsTileY = StartTileY;
-    for(;;)
+    Assert((MaxTileX - MinTileX) < 32);
+    Assert((MaxTileY - MinTileY) < 32);
+
+    for(uint32 AbsTileY = MinTileY; AbsTileY <= MaxTileY; AbsTileY++)
     {
-        uint32 AbsTileX = StartTileX;
-        for(;;)
+        for(uint32 AbsTileX = MinTileX; AbsTileX <= MaxTileX; AbsTileX++)
         {
             tile_map_position TestTileP = CenteredTilePoint(AbsTileX, AbsTileY, AbsTileZ);
             uint32 TileValue = GetTileValue(TileMap, TestTileP);
             if(!IsTileValueEmpty(TileValue))
             {
-                v2 MinCorner = -0.5f*v2{TileMap->TileSideInMeters, TileMap->TileSideInMeters};
-                v2 MaxCorner = 0.5f*v2{TileMap->TileSideInMeters, TileMap->TileSideInMeters};
+                real32 DiameterW = TileMap->TileSideInMeters + Entity->Width;
+                real32 DiameterH = TileMap->TileSideInMeters + Entity->Height;
+                v2 MinCorner = -0.5f*v2{DiameterW, DiameterH};
+                v2 MaxCorner = 0.5f*v2{DiameterW, DiameterH};
 
                 tile_map_difference RelOldPlayerP = Substract(TileMap, &OldPlayerP, &TestTileP);
                 v2 Rel = RelOldPlayerP.dXY;
@@ -428,25 +428,13 @@ MovePlayer(game_state *GameState, entity *Entity, real32 dt, v2 ddP)
                 TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X, 
                          &tMin, MinCorner.X, MaxCorner.X);
             }
-
-            if(AbsTileX == EndTileX)
-            {
-                break;
-            }
-            else
-            {
-                AbsTileX += DeltaX;
-            }
         }
 
-        if(AbsTileY == EndTileY)
-        {
-            break;
-        }
-        else
-        {
-            AbsTileY += DeltaY;
-        }
+    }
+
+    if(tMin < 1.0f)
+    {
+        Entity->dP = v2{0.0f, 0.0f};
     }
 
     Entity->P = Offset(TileMap, OldPlayerP, tMin*PlayerDelta);
@@ -849,7 +837,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             real32 PlayerGroundPointX = ScreenCenterX + MetersToPixels*Diff.dXY.X;
             real32 PlayerGroundPointY = ScreenCenterY - MetersToPixels*Diff.dXY.Y;
             v2 PlayerLeftTop = {PlayerGroundPointX - (0.5f*MetersToPixels*Entity->Width), 
-                                PlayerGroundPointY - MetersToPixels*Entity->Height};
+                                PlayerGroundPointY - 0.5f*MetersToPixels*Entity->Height};
             v2 EntityWidthHeight = {Entity->Width, Entity->Height};
             DrawRectangle(Buffer, PlayerLeftTop,
                         PlayerLeftTop + MetersToPixels*EntityWidthHeight,
@@ -866,25 +854,3 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     GameOutputSound(GameState, SoundBuffer, 400);
 }
-
-/*
-internal void 
-RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
-{
-    uint8 *Row = (uint8 *)Buffer->Memory;
-    for (int Y = 0; Y < Buffer->Height; Y++)
-    {
-        uint32 *Pixel = (uint32 *) Row;
-        
-        for (int X = 0; X < Buffer->Width; X++)
-        {
-            uint8 Blue = (uint8)(X + BlueOffset);
-            uint8 Green = (uint8)(Y + GreenOffset);
-            
-            *Pixel++ = ((Green << 8) | Blue);   
-        }
-        
-        Row += Buffer->Pitch;
-    }
-}
-*/
