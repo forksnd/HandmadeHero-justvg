@@ -108,6 +108,7 @@ struct low_entity
 
 struct entity
 {
+    uint32 LowIndex;
     low_entity *Low;
     high_entity *High;
 };

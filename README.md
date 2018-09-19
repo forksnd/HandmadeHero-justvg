@@ -2,4 +2,4 @@ Following the Handmade Hero streams by Casey Muratori. https://www.handmadehero.
 
 Almost all code here is authored by Casey Muratori.
 
-Day 52 is finished.
+Day 54 is finished.
