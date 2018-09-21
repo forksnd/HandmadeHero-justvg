@@ -1,25 +1,72 @@
 #if !defined(HANDMADE_TILE)
 #define HANDMADE_TILE
 
+// TODO(george): Think about what ther real safe margin is
+#define TILE_CHUNK_SAFE_MARGIN (INT32_MAX/64)
+#define TILE_CHUNK_UNINITIALIZED INT32_MAX
+
 inline tile_chunk * 
-GetTileChunk(tile_map *TileMap, uint32 TileChunkX, uint32 TileChunkY, uint32 TileChunkZ)
+GetTileChunk(tile_map *TileMap, int32 TileChunkX, int32 TileChunkY, int32 TileChunkZ,
+             memory_arena *Arena = 0)
 {
-    tile_chunk *TileChunk = 0;
+    Assert(TileChunkX > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(TileChunkY > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(TileChunkZ > -TILE_CHUNK_SAFE_MARGIN);
+    Assert(TileChunkX < TILE_CHUNK_SAFE_MARGIN);
+    Assert(TileChunkY < TILE_CHUNK_SAFE_MARGIN);
+    Assert(TileChunkZ < TILE_CHUNK_SAFE_MARGIN);
 
-    if((TileChunkX >= 0) && (TileChunkX < TileMap->TileChunkCountX) &&
-       (TileChunkY >= 0) && (TileChunkY < TileMap->TileChunkCountY) &&
-       (TileChunkZ >= 0) && (TileChunkZ < TileMap->TileChunkCountZ))
+    // TODO(george): Better hash function!
+    uint32 HashValue = 19*TileChunkX + 7*TileChunkY + 3*TileChunkZ;
+    uint32 HashSlot = HashValue & (ArrayCount(TileMap->TileChunkHash) - 1); 
+    Assert(HashSlot < ArrayCount(TileMap->TileChunkHash));
+
+    tile_chunk *TileChunk = TileMap->TileChunkHash + HashSlot;
+    do
     {
-        TileChunk = &TileMap->TileChunks[TileChunkZ*TileMap->TileChunkCountY*TileMap->TileChunkCountX
-                                         + TileChunkY*TileMap->TileChunkCountX
-                                         + TileChunkX];
-    }
+        if((TileChunkX == TileChunk->TileChunkX) &&
+           (TileChunkY == TileChunk->TileChunkY) && 
+           (TileChunkZ == TileChunk->TileChunkZ))
+        {
+            break;
+        }
 
+        if(Arena && (TileChunk->TileChunkX != TILE_CHUNK_UNINITIALIZED) && (!TileChunk->NextInHash))
+        {
+            TileChunk->NextInHash = PushStruct(Arena, tile_chunk);
+            TileChunk = TileChunk->NextInHash;
+            TileChunk->TileChunkX = TILE_CHUNK_UNINITIALIZED;
+        }
+
+        if(Arena && (TileChunkX == TILE_CHUNK_UNINITIALIZED))
+        {
+            uint32 TileCount = TileMap->ChunkDim*TileMap->ChunkDim;
+
+            TileChunk->TileChunkX = TileChunkX;
+            TileChunk->TileChunkY = TileChunkY;
+            TileChunk->TileChunkZ = TileChunkZ;
+
+            TileChunk->Tiles = PushArray(Arena, TileCount, uint32);
+
+            // TODO(george): Do we want to always initialize? 
+            for(uint32 TileIndex = 0; TileIndex < TileCount; TileIndex++)
+            {
+                TileChunk->Tiles[TileIndex] = 1;
+            }
+
+            TileChunk->NextInHash = 0;
+
+            break;
+        }
+        
+        TileChunk = TileChunk->NextInHash;
+    } while(TileChunk);
+    
     return(TileChunk);
 }
 
 inline bool32
-GetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, uint32 TileX, uint32 TileY)
+GetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, int32 TileX, int32 TileY)
 {
     Assert(TileChunk);
     Assert(TileX < TileMap->ChunkDim);
@@ -30,7 +77,7 @@ GetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, uint32 TileX, ui
 }
 
 inline void
-SetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, uint32 TileX, uint32 TileY, uint32 TileValue)
+SetTileValueUnchecked(tile_map *TileMap, tile_chunk *TileChunk, int32 TileX, int32 TileY, uint32 TileValue)
 {
     Assert(TileChunk);
     Assert(TileX < TileMap->ChunkDim);
@@ -116,20 +163,22 @@ internal void
 SetTileValue(memory_arena *Arena, tile_map *TileMap, uint32 AbsTileX, uint32 AbsTileY, uint32 AbsTileZ, uint32 TileValue)
 {
     tile_chunk_position ChunkPos = GetChunkPositionFor(TileMap, AbsTileX, AbsTileY, AbsTileZ);
-    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ);
-
-    Assert(TileChunk);
-    if(!TileChunk->Tiles)
-    {
-        uint32 TileCount = TileMap->ChunkDim*TileMap->ChunkDim;
-        TileChunk->Tiles = PushArray(Arena, TileCount, uint32);
-        for(uint32 TileIndex = 0; TileIndex < TileCount; TileIndex++)
-        {
-            TileChunk->Tiles[TileIndex] = 1;
-        }
-    }
-
+    tile_chunk *TileChunk = GetTileChunk(TileMap, ChunkPos.TileChunkX, ChunkPos.TileChunkY, ChunkPos.TileChunkZ, Arena);
     SetTileValue(TileMap, TileChunk, ChunkPos.RelTileX, ChunkPos.RelTileY, TileValue);
+}
+
+internal void
+InitializeTileMap(tile_map *TileMap, real32 TileSideInMeters)
+{
+    TileMap->ChunkShift = 4;
+    TileMap->ChunkMask = (1 << TileMap->ChunkShift) - 1;
+    TileMap->ChunkDim = (1 << TileMap->ChunkShift);
+    TileMap->TileSideInMeters = TileSideInMeters;
+
+    for(uint32 TileChunkIndex = 0; TileChunkIndex < ArrayCount(TileMap->TileChunkHash); TileChunkIndex++)
+    {
+        TileMap->TileChunkHash[TileChunkIndex].TileChunkX = INT32_MAX;
+    }
 }
 
 //
@@ -137,7 +186,7 @@ SetTileValue(memory_arena *Arena, tile_map *TileMap, uint32 AbsTileX, uint32 Abs
 // 
 
 inline void
-RecanonicalizeCoord(tile_map *TileMap, uint32 *Tile, real32 *TileOffset)
+RecanonicalizeCoord(tile_map *TileMap, int32 *Tile, real32 *TileOffset)
 {
     // TODO(george): Need to do something that doesn't use the div/mul method
     // for recanonicalizing because this can end up rounding back on to the tile
