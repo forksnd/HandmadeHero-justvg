@@ -120,6 +120,27 @@ struct rectangle2
 	v2 Max;
 };
 
+inline v2
+GetMinCorner(rectangle2 Rect)
+{
+	v2 Result = Rect.Min;
+	return(Result);
+}
+
+inline v2
+GetMaxCorner(rectangle2 Rect)
+{
+	v2 Result = Rect.Max;
+	return(Result);
+}
+
+inline v2 
+GetCenter(rectangle2 Rect)
+{
+	v2 Result = 0.5f*(Rect.Min + Rect.Max);
+	return(Result);
+}
+
 inline rectangle2
 RectMinMax(v2 Min, v2 Max)
 {
@@ -162,12 +183,12 @@ RectCenterDim(v2 Center, v2 Dim)
 }
 
 inline bool32
-IsInRectangle(rectangle2 Rectangle, v2 Test)
+IsInRectangle(rectangle2 Rect, v2 Test)
 {
-	bool32 Result = ((Test.X >= Rectangle.Min.X) &&
-					 (Test.Y >= Rectangle.Min.Y) &&
-					 (Test.X < Rectangle.Max.X) && 
-					 (Test.Y < Rectangle.Max.Y));
+	bool32 Result = ((Test.X >= Rect.Min.X) &&
+					 (Test.Y >= Rect.Min.Y) &&
+					 (Test.X < Rect.Max.X) && 
+					 (Test.Y < Rect.Max.Y));
 
 	return(Result);
 }
