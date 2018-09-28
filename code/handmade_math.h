@@ -10,7 +10,6 @@ union v2
 	real32 E[2];
 };
 
-// TODO(george): Consider v2 A = v2{5, 3}; ?
 inline v2
 V2(real32 X, real32 Y)
 {

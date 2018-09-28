@@ -57,7 +57,7 @@ GetWorldChunk(world *World, int32 ChunkX, int32 ChunkY, int32 ChunkZ,
             TileChunk->ChunkX = TILE_CHUNK_UNINITIALIZED;
         }
 
-        if(Arena && (ChunkX == TILE_CHUNK_UNINITIALIZED))
+        if(Arena && (TileChunk->ChunkX == TILE_CHUNK_UNINITIALIZED))
         {
             TileChunk->ChunkX = ChunkX;
             TileChunk->ChunkY = ChunkY;
@@ -192,10 +192,11 @@ ChangeEntityLocation(memory_arena *Arena, world *World, uint32 LowEntityIndex,
             Assert(Chunk);
             if(Chunk)
             {
+                bool32 NotFound = true;
                 world_entity_block *FirstBlock = &Chunk->FirstBlock;
-                for(world_entity_block *Block = FirstBlock; Block; Block = Block->Next)
+                for(world_entity_block *Block = FirstBlock; Block && NotFound; Block = Block->Next)
                 {
-                    for(uint32 Index = 0; Index < Block->EntityCount; Index++)
+                    for(uint32 Index = 0; (Index < Block->EntityCount) && NotFound; Index++)
                     {
                         if(Block->LowEntityIndex[Index] == LowEntityIndex)
                         {
@@ -213,8 +214,7 @@ ChangeEntityLocation(memory_arena *Arena, world *World, uint32 LowEntityIndex,
                                 }
                             }
 
-                            Block = 0;
-                            break;
+                            NotFound = false;
                         }
                     }
                 }
