@@ -62,8 +62,7 @@ struct loaded_bitmap
 
 struct hero_bitmaps
 {
-    int32 AlignX;
-    int32 AlignY;
+    v2 Align;
     loaded_bitmap Hero;
 };
 
@@ -73,6 +72,8 @@ struct high_entity
     v2 dP;
     uint32 ChunkZ;
     uint32 FacingDirection;
+
+    real32 tBob;
 
     real32 Z;
     real32 dZ;
@@ -84,7 +85,16 @@ enum entity_type
 {
     EntityType_Null,
     EntityType_Hero,
-    EntityType_Wall
+    EntityType_Wall,
+    EntityType_Familiar,
+    EntityType_Monstar    
+};
+
+#define HIT_POINT_SUB_COUNT 4
+struct hit_point
+{
+    uint8 Flags;
+    uint8 FilledAmount;
 };
 
 struct low_entity
@@ -99,6 +109,10 @@ struct low_entity
     int32 dAbsTileZ;
 
     uint32 HighEntityIndex;
+
+    // TODO(george): Should hitpoints themselves be entities?
+    uint32 HitPointMax;
+    hit_point HitPoint[16];
 };
 
 struct entity
@@ -108,10 +122,23 @@ struct entity
     high_entity *High;
 };
 
+struct entity_visible_piece
+{
+    loaded_bitmap *Bitmap;
+    v2 Offset;
+    real32 OffsetZ;
+    real32 EntityZC;
+
+    real32 R, G, B, A;
+    v2 Dim;
+};
+
 struct game_state
 {
     memory_arena WorldArena;
     world *World;
+
+    real32 MetersToPixels;
 
     uint32 CameraFollowingEntityIndex;
     world_position CameraP;
@@ -129,6 +156,16 @@ struct game_state
     hero_bitmaps HeroBitmaps[4];
 
     loaded_bitmap Tree;
+};
+
+// TODO(george): This is dumb, this should just be a part of 
+// the renderer pushbuffer - add correction of coordinates
+// in there and be done with it.
+struct entity_visible_piece_group
+{
+    game_state *GameState;
+    uint32 PieceCount;
+    entity_visible_piece Pieces[32];
 };
 
 #endif
