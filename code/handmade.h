@@ -84,10 +84,12 @@ struct high_entity
 enum entity_type
 {
     EntityType_Null,
+
     EntityType_Hero,
     EntityType_Wall,
     EntityType_Familiar,
-    EntityType_Monstar    
+    EntityType_Monstar,
+    EntityType_Sword, 
 };
 
 #define HIT_POINT_SUB_COUNT 4
@@ -105,7 +107,6 @@ struct low_entity
     real32 Width, Height;
 
     bool32 Collides;
-    // NOTE(george): This is for "stairs"
     int32 dAbsTileZ;
 
     uint32 HighEntityIndex;
@@ -113,6 +114,9 @@ struct low_entity
     // TODO(george): Should hitpoints themselves be entities?
     uint32 HitPointMax;
     hit_point HitPoint[16];
+
+    uint32 SwordLowIndex;
+    real32 DistanceRemaining;
 };
 
 struct entity
@@ -153,6 +157,7 @@ struct game_state
 
     loaded_bitmap Backdrop;
     loaded_bitmap Shadow;
+    loaded_bitmap Sword;
     hero_bitmaps HeroBitmaps[4];
 
     loaded_bitmap Tree;

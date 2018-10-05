@@ -7,6 +7,23 @@
 
 #define TILES_PER_CHUNK 16
 
+inline world_position
+NullPosition()
+{
+    world_position Result = {};
+
+    Result.ChunkX = TILE_CHUNK_UNINITIALIZED;
+
+    return(Result);
+}
+
+inline bool32
+IsValid(world_position *P)
+{
+    bool32 Result = (P->ChunkX != TILE_CHUNK_UNINITIALIZED);
+    return(Result);
+}
+
 inline bool32
 IsCanonical(world *World, real32 TileRel)
 {
@@ -191,10 +208,16 @@ CenteredChunkPoint(uint32 ChunkX, uint32 ChunkY, uint32 ChunkZ)
     return(Result);
 }
 
-inline void
-ChangeEntityLocation(memory_arena *Arena, world *World, uint32 LowEntityIndex, 
+internal void
+ChangeEntityLocationRaw(memory_arena *Arena, world *World, uint32 LowEntityIndex, 
                      world_position *OldP, world_position *NewP)
 {
+    // TODO(george): If this moves an entity into the camera bounds, should it automatically
+    // go into the high set immediately?
+
+    Assert(!OldP || IsValid(OldP));
+    Assert(!NewP || IsValid(NewP));
+
     if(OldP && AreInTheSameChunk(World, OldP, NewP))
     {
         // NOTE(george): Leave entity where it is
@@ -237,33 +260,52 @@ ChangeEntityLocation(memory_arena *Arena, world *World, uint32 LowEntityIndex,
             }
         }
         
-        // NOTE(george): Doesn't work if we insert second+ world_entity_block in the chain??
-
-        // NOTE(george): Insert the entity into its new entity block
-        world_chunk *Chunk = GetWorldChunk(World, NewP->ChunkX, NewP->ChunkY, NewP->ChunkZ, Arena);
-        Assert(Chunk);
-
-        world_entity_block *Block = &Chunk->FirstBlock;
-        if(Block->EntityCount == ArrayCount(Block->LowEntityIndex))
+        if(NewP)
         {
-            // NOTE(george): We're out of room, get a new block!
-            world_entity_block *OldBlock = World->FirstFree;    
-            if(OldBlock)
-            {
-                World->FirstFree = OldBlock->Next;
-            }
-            else
-            {
-                OldBlock = PushStruct(Arena, world_entity_block);
-            }
-            
-            *OldBlock = *Block;
-            Block->Next = OldBlock;
-            Block->EntityCount = 0;
-        }
+            // NOTE(george): Doesn't work if we insert second+ world_entity_block in the chain??
 
-        Assert(Block->EntityCount < ArrayCount(Block->LowEntityIndex));
-        Block->LowEntityIndex[Block->EntityCount++] = LowEntityIndex;
+            // NOTE(george): Insert the entity into its new entity block
+            world_chunk *Chunk = GetWorldChunk(World, NewP->ChunkX, NewP->ChunkY, NewP->ChunkZ, Arena);
+            Assert(Chunk);
+
+            world_entity_block *Block = &Chunk->FirstBlock;
+            if(Block->EntityCount == ArrayCount(Block->LowEntityIndex))
+            {
+                // NOTE(george): We're out of room, get a new block!
+                world_entity_block *OldBlock = World->FirstFree;    
+                if(OldBlock)
+                {
+                    World->FirstFree = OldBlock->Next;
+                }
+                else
+                {
+                    OldBlock = PushStruct(Arena, world_entity_block);
+                }
+                
+                *OldBlock = *Block;
+                Block->Next = OldBlock;
+                Block->EntityCount = 0;
+            }
+
+            Assert(Block->EntityCount < ArrayCount(Block->LowEntityIndex));
+            Block->LowEntityIndex[Block->EntityCount++] = LowEntityIndex;
+        }
+    }
+}
+
+internal void
+ChangeEntityLocation(memory_arena *Arena, world *World,
+                        uint32 LowEntityIndex, low_entity *LowEntity,  
+                        world_position *OldP, world_position *NewP)
+{
+    ChangeEntityLocationRaw(Arena, World, LowEntityIndex, OldP, NewP);
+    if(NewP)
+    {
+        LowEntity->P = *NewP;
+    }
+    else
+    {
+        LowEntity->P = NullPosition();
     }
 }
 
