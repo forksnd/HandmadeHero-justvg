@@ -66,21 +66,6 @@ struct hero_bitmaps
     loaded_bitmap Hero;
 };
 
-struct high_entity
-{
-    v2 P; // NOTE(george): Relative to the camera!
-    v2 dP;
-    uint32 ChunkZ;
-    uint32 FacingDirection;
-
-    real32 tBob;
-
-    real32 Z;
-    real32 dZ;
-
-    uint32 LowEntityIndex;
-};
-
 enum entity_type
 {
     EntityType_Null,
@@ -104,12 +89,14 @@ struct low_entity
     entity_type Type;    
 
     world_position P;
+    v2 dP;
     real32 Width, Height;
+
+    uint32 FacingDirection;
+    real32 tBob;
 
     bool32 Collides;
     int32 dAbsTileZ;
-
-    uint32 HighEntityIndex;
 
     // TODO(george): Should hitpoints themselves be entities?
     uint32 HitPointMax;
@@ -117,13 +104,6 @@ struct low_entity
 
     uint32 SwordLowIndex;
     real32 DistanceRemaining;
-};
-
-struct entity
-{
-    uint32 LowIndex;
-    low_entity *Low;
-    high_entity *High;
 };
 
 struct entity_visible_piece
@@ -149,11 +129,9 @@ struct game_state
 
     uint32 PlayerIndexForController[ArrayCount(((game_input *)0)->Controllers)];
 
+    // TODO(george): Change the name to "Stored entity"
     uint32 LowEntityCount;
-    low_entity LowEntities[100000];
-
-    uint32 HighEntityCount;
-    high_entity HighEntities_[256];    
+    low_entity LowEntities[100000];    
 
     loaded_bitmap Backdrop;
     loaded_bitmap Shadow;
