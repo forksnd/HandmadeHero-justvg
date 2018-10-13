@@ -1,15 +1,89 @@
-internal sim_entity *
-AddEntity(sim_region *SimRegion)
+internal sim_entity_hash *
+GetHashFromStorageIndex(sim_region *SimRegion, uint32 StorageIndex)
 {
+	Assert(StorageIndex);
+
+	sim_entity_hash *Result = 0;
+
+	uint32 HashValue = Index;
+	for(uint32 Offset = 0;
+		Offset < ArrayCount(SimRegion->Hash);
+		Offset++)
+	{
+		sim_entity_hash *Entry = SimRegion->Hash + ((HashValue + Offset) & (ArrayCount(SimRegion->Hash) - 1));
+		if((Entry->Index == 0) || (Entry->Index == StorageIndex))
+		{
+			Result = Entry;
+			break;
+		}
+	}
+
+	return(Result);
+}
+
+internal void
+MapStorageIndexToEntity(sim_region *SimRegion, uint32 StorageIndex, sim_entity *Entity)
+{
+	sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, StorageIndex);
+	Assert((Entry->Index == 0) || (Entry->Index == StorageIndex));
+	Entry->Index = StorageIndex;
+	Entry->Ptr = Entity;
+}
+
+inline sim_entity *
+GetEntityByStorageIndex(sim_region *SimRegion, uint32 StorageIndex)
+{
+	sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, Ref->Index);
+	sim_entity *Result = Entry->Ptr;
+	return(Result);
+}
+
+internal sim_entity *
+AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low_entity *Source);
+inline void
+LoadEntityReference(game_state *GameState, sim_region *SimRegion, entity_reference *Ref)
+{
+	if(Ref->Index)
+	{
+		sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, Ref->Index);
+		if(Entry->Ptr == 0)
+		{
+			AddEntity(GameState, SimRegion, Ref->Index, GetLowEntity(GameState, Ref->Index));
+		}
+
+		Ref->Ptr = Entry->Ptr;			
+	}
+}
+
+inline void
+StoreEntityReference(entity_reference *Ref)
+{
+	if(Ref->Ptr != 0)
+	{
+		Ref->Index = Ref->Ptr->StorageIndex;
+	}
+}
+
+internal sim_entity *
+AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low_entity *Source)
+{
+	Assert(StorageIndex);
 	sim_entity *Entity = 0;
 
 	if(SimRegion->EntityCount < SimRegion->MaxEntityCount)
 	{
-		Entity = &SimRegion->Entities[SimRegion->EntityCount++];
-		
-		// TODO(george): See what we want to do about clearing policy when
-		// the entity system is more fleshed out.
-		Entity = {};
+		Entity = SimRegion->Entities + SimRegion->EntityCount++;
+		MapStorageIndexToEntity(SimRegion, StorageIndex, Entity);		
+
+		if(Source)
+		{
+			// TODO(george): This should really be a decompression step, not
+			// a copy!
+			*Entity = Source->Sim;
+			LoadEntityReference(GameState, SimRegion, &Entity->Sword);
+		}
+
+		Entity->StorageIndex = StorageIndex;
 	}
 	else
 	{
@@ -29,12 +103,11 @@ GetSimSpaceP(sim_region *SimRegion, low_entity *Stored)
 }
 
 internal sim_entity *
-AddEntity(sim_region *SimRegion, low_entity *Source, v2 *SimP)
+AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low_entity *Source, v2 *SimP)
 {
-	sim_entity *Dest = AddEntity(SimRegion);
+	sim_entity *Dest = AddEntity(GameState, SimRegion, StorageIndex, Source);
 	if(Dest)
 	{
-		// TODO(george): Convert the stored entity to a simulation entity
 		if(SimP)
 		{
 			Dest->P = *SimP;
@@ -49,7 +122,10 @@ AddEntity(sim_region *SimRegion, low_entity *Source, v2 *SimP)
 internal sim_region *
 BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_position Origin, rectangle2 Bounds)
 {
-	// TODO(george): If entities were stored in the world, we wouldn't need the game state here! 
+	// TODO(george): If entities were stored in the world, we wouldn't need the game state here!
+
+	// TODO(george): IMPORTANT(george): Clear the hash table! 
+	// TODO(george): IMPORTANT(george): Notion of active vs. inactive entities for the apron! 
 
 	sim_region *SimRegion = PushStruct(SimArena, sim_region);
 
@@ -80,7 +156,7 @@ BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_posi
 						v2 SimSpaceP = GetSimSpaceP(SimRegion, Low);
 						if(IsInRectangle(SimRegionBounds, &SimSpaceP))
 						{
-							AddEntity(SimRegion, Low, SimSpaceP);
+							AddEntity(GameState, SimRegion, LowEntityIndex, Low, SimSpaceP);
 						}
                     }        
                 }
@@ -92,12 +168,15 @@ BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_posi
 internal void
 EndSim(sim_region *Region, game_state *GameState)
 {
-	entity *Entity = Region->Entities;
+	sim_entity *Entity = Region->Entities;
 	for(uint32 EntityIndex = 0;
 	 	EntityIndex < Region->EntityCount;
 	  	Entity++, EntityIndex++)
 	{
 		low_entity *Stored = GameState->LowEntities + Entity->StorageIndex;
+
+		Stored->Sim = *Entity;
+		StoreEntityReference(&Stored->Sim.Sword);
 
 		// TODO(george): Save state back to the stored entity, once high entities
 		// do state decompression, etc.
@@ -106,39 +185,197 @@ EndSim(sim_region *Region, game_state *GameState)
 		ChangeEntityLocation(&GameState->WorldArena, GameState->World, Entity->StorageIndex,
 		   					 Stored, &Stored->P, &NewP);
 
-		// TODO(george): Entity mapping hash table
-		entity CameraFollowingEntity = ForceEntityIntoHigh(GameState, GameState->CameraFollowingEntityIndex);
-		if(CameraFollowingEntity.High)
+		if(Entity.StorageIndex == GameStaet->CameraFollowingEntityIndex)
 		{
 			world_position NewCameraP = GameState->CameraP;
 
-			NewCameraP.ChunkZ = CameraFollowingEntity.Low->P.ChunkZ;
+			NewCameraP.ChunkZ = Stored->P.ChunkZ;
 
 #if 0
-			if(CameraFollowingEntity.High->P.X > (9.0f*World->TileSideInMeters))
+			if(CameraFollowingEntity->P.X > (9.0f*World->TileSideInMeters))
 			{
 				NewCameraP.AbsTileX += 17;
 			}
-			else if(CameraFollowingEntity.High->P.X < -(9.0f*World->TileSideInMeters))
+			else if(CameraFollowingEntity->P.X < -(9.0f*World->TileSideInMeters))
 			{
 				NewCameraP.AbsTileX -= 17;
 			}
 
-			if(CameraFollowingEntity.High->P.Y > (5.0f*World->TileSideInMeters))
+			if(CameraFollowingEntity->P.Y > (5.0f*World->TileSideInMeters))
 			{
 				NewCameraP.AbsTileY += 9;
 			}
-			else if(CameraFollowingEntity.High->P.Y < -(5.0f*World->TileSideInMeters))
+			else if(CameraFollowingEntity->P.Y < -(5.0f*World->TileSideInMeters))
 			{
 				NewCameraP.AbsTileY -= 9;
 			}
 #else
-			NewCameraP = CameraFollowingEntity.Low->P;
+			NewCameraP = Stored->P;
 #endif
-			// TODO(george): Map new entities in and old entities out!
-			// TODO(george): Mapping tiles and stairs into the entity set!
-
-			SetCamera(GameState, NewCameraP);
 		}
 	}
+}
+
+internal bool32
+TestWall(real32 WallX, real32 RelX, real32 RelY, real32 PlayerDeltaX, real32 PlayerDeltaY, 
+         real32 *tMin, real32 MinY, real32 MaxY)
+{
+    bool32 Hit = false;
+
+    real32 tEpsilon = 0.0001f;
+    if(PlayerDeltaX != 0.0f)
+    {
+        real32 tResult = (WallX - RelX) / PlayerDeltaX;
+        real32 Y = RelY + tResult*PlayerDeltaY;
+        if((tResult >= 0.0f) && (*tMin > tResult))
+        {
+            if((Y >= MinY) && (Y <= MaxY))
+            {
+                *tMin = Maximum(0.0f, tResult - tEpsilon);
+                Hit = true;
+            }
+        }
+    }
+
+    return(Hit);
+}
+
+internal void
+MoveEntity(sim_region *SimRegion, sim_entity *Entity, real32 dt, move_spec *MoveSpec, v2 ddP) 
+{
+    world *World = SimRegion->World;
+
+    if(MoveSpec->UnitMaxAccelVector)
+    {
+        real32 ddPLength = LengthSq(ddP);
+        if(ddPLength > 1.0f)
+        {
+            ddP *= 1.0f / SquareRoot(ddPLength);
+        }
+    }
+
+    ddP *= MoveSpec->Speed;
+
+    ddP += -MoveSpec->Drag*Entity->dP;
+
+    v2 OldPlayerP = Entity->P;   
+    v2 PlayerDelta = (0.5f*ddP*Square(dt)) + Entity->dP*dt;
+    Entity->dP = ddP*dt + Entity->dP;
+
+    v2 NewPlayerP = OldPlayerP + PlayerDelta;
+
+/*
+    uint32 MinTileX = Minimum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
+    uint32 MinTileY = Minimum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);
+    uint32 MaxTileX = Maximum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
+    uint32 MaxTileY = Maximum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);  
+
+    uint32 EntityTileWidth = CeilReal32ToInt32(Entity->Width / World->TileSideInMeters);
+    uint32 EntityTileHeight = CeilReal32ToInt32(Entity->Height / World->TileSideInMeters);
+
+    MinTileX -= EntityTileWidth;
+    MinTileY -= EntityTileHeight;
+    MaxTileX += EntityTileWidth;
+    MaxTileY += EntityTileHeight;
+
+    uint32 AbsTileZ = Entity->P.AbsTileZ;
+*/
+
+    for(uint32 Iteration = 0; Iteration < 4; Iteration++)
+    {
+        real32 tMin = 1.0f;
+        v2 WallNormal = {};
+		sim_entity *HitEntity = 0;
+
+        v2 DesiredPosition = Entity->P + PlayerDelta;
+
+        if(Entity->Collides)
+        {
+			// TODO(george): Spatial partion here!
+            for(uint32 TestHighEntityIndex = 0; TestHighEntityIndex < SimRegion->EntityCount; TestHighEntityIndex++)
+            {
+				sim_entity *TestEntity = SimRegion->Entities + TestHighEntityIndex;
+                if(Entity != TestEntity)
+                {
+                    if(TestEntity->Collides)
+                    {
+                        real32 DiameterW = TestEntity->Width + Entity->Width;
+                        real32 DiameterH = TestEntity->Height + Entity->Height;
+                        v2 MinCorner = -0.5f*v2{DiameterW, DiameterH};
+                        v2 MaxCorner = 0.5f*v2{DiameterW, DiameterH};
+
+                        v2 Rel = Entity->P - TestEntity->P;
+
+                        if(TestWall(MinCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y, 
+                                &tMin, MinCorner.Y, MaxCorner.Y))
+                        {
+                            WallNormal = v2{-1, 0};
+                            HitEntity = TestEntity;
+                        }
+                        if(TestWall(MaxCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y, 
+                                &tMin, MinCorner.Y, MaxCorner.Y))
+                        {
+                            WallNormal = v2{1, 0};
+                            HitEntity = TestEntity;
+                        }
+                        if(TestWall(MinCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X, 
+                                &tMin, MinCorner.X, MaxCorner.X))
+                        {
+                            WallNormal = v2{0, -1};
+                            HitEntity = TestEntity;
+                        }
+                        if(TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X, 
+                                &tMin, MinCorner.X, MaxCorner.X))
+                        {
+                            WallNormal = v2{0, 1};
+                            HitEntity = TestEntity;
+                        }
+                    }
+                }
+            }
+        }
+        
+        Entity->P += tMin*PlayerDelta; 
+        if(HitEntity)
+        {
+            Entity->dP = Entity->dP - 1*Inner(Entity->dP, WallNormal)*WallNormal;    
+            PlayerDelta = DesiredPosition - Entity->P;
+            PlayerDelta = PlayerDelta - 1*Inner(PlayerDelta, WallNormal)*WallNormal;
+
+            // TODO(george): Stairs
+            // Entity->AbsTileZ += HitLow->Sim.dAbsTileZ;
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // TODO(george): Change to using the acceleration vector 
+    if((Entity->dP.X == 0.0f) && (Entity->dP.Y == 0.0f))
+    {
+        // NOTE(george): Leave FacingDirection whater it was
+    }
+    else if(AbsoluteValue(Entity->dP.X) > AbsoluteValue(Entity->dP.Y))
+    {
+        if(Entity->dP.X > 0)
+        {
+            Entity->FacingDirection = 0;
+        }
+        else
+        {
+            Entity->FacingDirection = 2;
+        }
+    }
+    else if (AbsoluteValue(Entity->dP.X) < AbsoluteValue(Entity->dP.Y))
+    {
+        if(Entity->dP.Y > 0)
+        {
+            Entity->FacingDirection = 1;
+        }
+        else
+        {
+            Entity->FacingDirection = 3;   
+        }
+    }
 }
