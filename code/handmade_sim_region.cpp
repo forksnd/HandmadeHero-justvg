@@ -5,12 +5,14 @@ GetHashFromStorageIndex(sim_region *SimRegion, uint32 StorageIndex)
 
 	sim_entity_hash *Result = 0;
 
-	uint32 HashValue = Index;
+	uint32 HashValue = StorageIndex;
 	for(uint32 Offset = 0;
 		Offset < ArrayCount(SimRegion->Hash);
 		Offset++)
 	{
-		sim_entity_hash *Entry = SimRegion->Hash + ((HashValue + Offset) & (ArrayCount(SimRegion->Hash) - 1));
+        uint32 HashMask = (ArrayCount(SimRegion->Hash) - 1);
+        uint32 HashIndex = ((HashValue + Offset) & HashMask);
+		sim_entity_hash *Entry = SimRegion->Hash + HashIndex;
 		if((Entry->Index == 0) || (Entry->Index == StorageIndex))
 		{
 			Result = Entry;
@@ -33,7 +35,7 @@ MapStorageIndexToEntity(sim_region *SimRegion, uint32 StorageIndex, sim_entity *
 inline sim_entity *
 GetEntityByStorageIndex(sim_region *SimRegion, uint32 StorageIndex)
 {
-	sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, Ref->Index);
+	sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, StorageIndex);
 	sim_entity *Result = Entry->Ptr;
 	return(Result);
 }
@@ -48,7 +50,8 @@ LoadEntityReference(game_state *GameState, sim_region *SimRegion, entity_referen
 		sim_entity_hash *Entry = GetHashFromStorageIndex(SimRegion, Ref->Index);
 		if(Entry->Ptr == 0)
 		{
-			AddEntity(GameState, SimRegion, Ref->Index, GetLowEntity(GameState, Ref->Index));
+            Entry->Index = Ref->Index;
+			Entry->Ptr = AddEntity(GameState, SimRegion, Ref->Index, GetLowEntity(GameState, Ref->Index));
 		}
 
 		Ref->Ptr = Entry->Ptr;			
@@ -117,6 +120,8 @@ AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low
 			Dest->P = GetSimSpaceP(SimRegion, Source);
 		}
 	}
+
+    return(Dest);
 }
 
 internal sim_region *
@@ -124,10 +129,10 @@ BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_posi
 {
 	// TODO(george): If entities were stored in the world, we wouldn't need the game state here!
 
-	// TODO(george): IMPORTANT(george): Clear the hash table! 
 	// TODO(george): IMPORTANT(george): Notion of active vs. inactive entities for the apron! 
 
 	sim_region *SimRegion = PushStruct(SimArena, sim_region);
+    ZeroStruct(SimRegion->Hash);
 
 	SimRegion->World = World;
 	SimRegion->Origin = Origin;
@@ -154,15 +159,17 @@ BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_posi
                         uint32 LowEntityIndex = Block->LowEntityIndex[EntityIndexInBlock];
                         low_entity *Low = GameState->LowEntities + LowEntityIndex;
 						v2 SimSpaceP = GetSimSpaceP(SimRegion, Low);
-						if(IsInRectangle(SimRegionBounds, &SimSpaceP))
+						if(IsInRectangle(SimRegion->Bounds, SimSpaceP))
 						{
-							AddEntity(GameState, SimRegion, LowEntityIndex, Low, SimSpaceP);
+							AddEntity(GameState, SimRegion, LowEntityIndex, Low, &SimSpaceP);
 						}
                     }        
                 }
             }
         }
     }
+
+    return(SimRegion);
 }
 
 internal void
@@ -185,7 +192,7 @@ EndSim(sim_region *Region, game_state *GameState)
 		ChangeEntityLocation(&GameState->WorldArena, GameState->World, Entity->StorageIndex,
 		   					 Stored, &Stored->P, &NewP);
 
-		if(Entity.StorageIndex == GameStaet->CameraFollowingEntityIndex)
+		if(Entity->StorageIndex == GameState->CameraFollowingEntityIndex)
 		{
 			world_position NewCameraP = GameState->CameraP;
 

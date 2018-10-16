@@ -28,7 +28,8 @@ inline bool32
 IsCanonical(world *World, real32 TileRel)
 {
     // TODO(george): Fix floating point math so this can be exact?
-    bool32 Result = (TileRel >= -0.5f*World->ChunkSideInMeters) && (TileRel <= 0.5f*World->ChunkSideInMeters);
+    real32 Epsilon = 0.0001f;
+    bool32 Result = (TileRel >= -(0.5f*World->ChunkSideInMeters + Epsilon)) && (TileRel <= (0.5f*World->ChunkSideInMeters + Epsilon));
 
     return(Result);
 }

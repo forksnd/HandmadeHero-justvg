@@ -26,6 +26,7 @@ struct hit_point
     uint8 FilledAmount;
 };
 
+// TODO(george): Rename sim_entity to entity
 struct sim_entity;
 union entity_reference
 {
@@ -58,7 +59,7 @@ struct sim_entity
     uint32 HitPointMax;
     hit_point HitPoint[16];
 
-    entity_reference SwordLowIndex;
+    entity_reference Sword;
     real32 DistanceRemaining;
 };
 
