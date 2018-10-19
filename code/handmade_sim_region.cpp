@@ -31,6 +31,23 @@ GetEntityByStorageIndex(sim_region *SimRegion, uint32 StorageIndex)
 	return(Result);
 }
 
+inline v2
+GetSimSpaceP(sim_region *SimRegion, low_entity *Stored)
+{
+    // NOTE(george): Map the entity into camera space
+    // TODO(george): Do we want to set this to signaling NAN in
+    // debug mode to make sure nobody ever uses the position
+    // of a nonspatial entity?
+    v2 Result = InvalidP;
+    if(!IsSet(&Stored->Sim, EntityFlag_Nonspatial))
+    {
+        world_difference Diff = Substract(SimRegion->World, &Stored->P, &SimRegion->Origin);
+        Result = Diff.dXY;
+    }
+
+    return(Result);
+}
+
 internal sim_entity *
 AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low_entity *Source, v2 *SimP);
 inline void
@@ -42,7 +59,9 @@ LoadEntityReference(game_state *GameState, sim_region *SimRegion, entity_referen
 		if(Entry->Ptr == 0)
 		{
             Entry->Index = Ref->Index;
-			Entry->Ptr = AddEntity(GameState, SimRegion, Ref->Index, GetLowEntity(GameState, Ref->Index), 0);
+            low_entity *Entity = GetLowEntity(GameState, Ref->Index);
+            v2 P = GetSimSpaceP(SimRegion, Entity);
+			Entry->Ptr = AddEntity(GameState, SimRegion, Ref->Index, Entity, &P);
 		}
 
 		Ref->Ptr = Entry->Ptr;			
@@ -87,6 +106,7 @@ AddEntityRaw(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, 
             }
 
             Entity->StorageIndex = StorageIndex;
+            Entity->Updatable = false;
         }
         else
         {
@@ -94,23 +114,6 @@ AddEntityRaw(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, 
         }
     }
 	return(Entity);
-}
-
-inline v2
-GetSimSpaceP(sim_region *SimRegion, low_entity *Stored)
-{
-    // NOTE(george): Map the entity into camera space
-    // TODO(george): Do we want to set this to signaling NAN in
-    // debug mode to make sure nobody ever uses the position
-    // of a nonspatial entity?
-    v2 Result = InvalidP;
-    if(!IsSet(&Stored->Sim, EntityFlag_Nonspatial))
-    {
-        world_difference Diff = Substract(SimRegion->World, &Stored->P, &SimRegion->Origin);
-        Result = Diff.dXY;
-    }
-
-    return(Result);
 }
 
 internal sim_entity *
@@ -122,6 +125,7 @@ AddEntity(game_state *GameState, sim_region *SimRegion, uint32 StorageIndex, low
 		if(SimP)
 		{
 			Dest->P = *SimP;
+            Dest->Updatable = IsInRectangle(SimRegion->UpdatableBounds, Dest->P);
 		}
 		else
 		{
@@ -137,14 +141,18 @@ BeginSim(memory_arena *SimArena, game_state *GameState, world *World, world_posi
 {
 	// TODO(george): If entities were stored in the world, we wouldn't need the game state here!
 
-	// TODO(george): IMPORTANT(george): Notion of active vs. inactive entities for the apron! 
 
 	sim_region *SimRegion = PushStruct(SimArena, sim_region);
     ZeroStruct(SimRegion->Hash);
 
+    // TODO(george): IMPORTANT(george): Calculate this eventually from the maximum value of 
+    // all entities radius plus their speed.
+    real32 UpdateSafetyMargin = 1.0f;
+
 	SimRegion->World = World;
 	SimRegion->Origin = Origin;
-	SimRegion->Bounds = Bounds;
+    SimRegion->UpdatableBounds = Bounds;
+	SimRegion->Bounds = AddRadiusTo(SimRegion->UpdatableBounds, UpdateSafetyMargin, UpdateSafetyMargin);
 
 	// TODO(george): Need to be more specific about entity counts
 	SimRegion->MaxEntityCount = 4096;
@@ -290,22 +298,13 @@ MoveEntity(sim_region *SimRegion, sim_entity *Entity, real32 dt, move_spec *Move
 
     v2 NewPlayerP = OldPlayerP + PlayerDelta;
 
-/*
-    uint32 MinTileX = Minimum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
-    uint32 MinTileY = Minimum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);
-    uint32 MaxTileX = Maximum(OldPlayerP.AbsTileX, NewPlayerP.AbsTileX);
-    uint32 MaxTileY = Maximum(OldPlayerP.AbsTileY, NewPlayerP.AbsTileY);  
-
-    uint32 EntityTileWidth = CeilReal32ToInt32(Entity->Width / World->TileSideInMeters);
-    uint32 EntityTileHeight = CeilReal32ToInt32(Entity->Height / World->TileSideInMeters);
-
-    MinTileX -= EntityTileWidth;
-    MinTileY -= EntityTileHeight;
-    MaxTileX += EntityTileWidth;
-    MaxTileY += EntityTileHeight;
-
-    uint32 AbsTileZ = Entity->P.AbsTileZ;
-*/
+    real32 ddZ = -9.8f;
+    Entity->Z += (0.5f*ddZ*Square(dt)) + Entity->dZ*dt;            
+    Entity->dZ = ddZ*dt + Entity->dZ;
+    if(Entity->Z < 0)
+    {
+        Entity->Z = 0;
+    }
 
     for(uint32 Iteration = 0; Iteration < 4; Iteration++)
     {
