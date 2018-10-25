@@ -20,6 +20,11 @@ union v3
 	{
 		real32 R, G, B;
 	};
+	struct
+	{
+		v2 XY;
+		real32 Ignored_;
+	};
 	real32 E[3];
 };
 
@@ -34,6 +39,18 @@ union v4
 		real32 R, G, B, A;
 	};
 	real32 E[4];
+};
+
+struct rectangle2
+{
+	v2 Min;
+	v2 Max;
+};
+
+struct rectangle3
+{
+	v3 Min;
+	v3 Max;
 };
 
 inline v2
@@ -59,6 +76,18 @@ V3(real32 X, real32 Y, real32 Z)
 	return(Result);
 }
 
+inline v3
+V3(v2 XY, real32 Z)
+{
+	v3 Result;
+
+	Result.X = XY.X;
+	Result.Y = XY.Y;
+	Result.Z = Z;
+
+	return(Result);
+}
+
 inline v4
 V4(real32 X, real32 Y, real32 Z, real32 W)
 {
@@ -71,6 +100,22 @@ V4(real32 X, real32 Y, real32 Z, real32 W)
 
 	return(Result);
 }
+
+// 
+// NOTE(george): Scalar operations
+// 
+
+inline real32
+Square(real32 A)
+{
+	real32 Result = A * A;
+
+	return(Result);
+}
+
+// 
+// NOTE(george): v2 operations
+// 
 
 inline v2 
 operator*(real32 A, v2 B)
@@ -140,10 +185,10 @@ operator-(v2 A, v2 B)
 	return(Result);
 }
 
-inline real32
-Square(real32 A)
+inline v2
+Hadamard(v2 A, v2 B)
 {
-	real32 Result = A * A;
+	v2 Result = {A.X*B.X, A.Y*B.Y};
 
 	return(Result);
 }
@@ -171,11 +216,116 @@ Length(v2 A)
 	return(Result);
 }
 
-struct rectangle2
+// 
+// NOTE(george): v3 operations
+// 
+
+inline v3
+operator*(real32 A, v3 B)
 {
-	v2 Min;
-	v2 Max;
-};
+	v3 Result;
+
+	Result.X = A * B.X;
+	Result.Y = A * B.Y;
+	Result.Z = A * B.Z;
+
+	return(Result);
+}
+
+inline v3 
+operator*(v3 B, real32 A)
+{
+	v3 Result = A * B;
+
+	return(Result);
+}
+
+inline v3 &
+operator*=(v3 &A, real32 B)
+{
+	A = B * A;
+
+	return(A);
+}
+
+inline v3
+operator-(v3 A)
+{
+	v3 Result;
+
+	Result.X = -A.X;
+	Result.Y = -A.Y;
+	Result.Z = -A.Z;
+
+	return(Result);
+}
+
+inline v3 
+operator+(v3 A, v3 B)
+{
+	v3 Result;
+
+	Result.X = A.X + B.X;
+	Result.Y = A.Y + B.Y;
+	Result.Z = A.Z + B.Z;
+
+	return(Result);
+}
+
+inline v3 &
+operator+=(v3 &A, v3 B)
+{
+	A = A + B;
+
+	return(A); 
+}
+
+inline v3
+operator-(v3 A, v3 B)
+{
+	v3 Result;
+
+	Result.X = A.X - B.X;
+	Result.Y = A.Y - B.Y;
+	Result.Z = A.Z - B.Z;
+
+	return(Result);
+}
+
+inline v3
+Hadamard(v3 A, v3 B)
+{
+	v3 Result = {A.X*B.X, A.Y*B.Y, A.Z*B.Z};
+
+	return(Result);
+}
+
+inline real32
+Inner(v3 A, v3 B)
+{
+	real32 Result = A.X*B.X + A.Y*B.Y + A.Z*B.Z;
+
+	return(Result);
+}
+
+inline real32
+LengthSq(v3 A)
+{
+	real32 Result = Inner(A, A);
+
+	return(Result);
+}
+
+inline real32
+Length(v3 A)
+{
+	real32 Result = SquareRoot(LengthSq(A));
+	return(Result);
+}
+
+// 
+// NOTE(george): Rectangle2
+// 
 
 inline v2
 GetMinCorner(rectangle2 Rect)
@@ -221,12 +371,12 @@ RectCenterHalfDim(v2 Center, v2 HalfDim)
 }
 
 inline rectangle2
-AddRadiusTo(rectangle2 A, real32 RadiusW, real32 RadiusH)
+AddRadiusTo(rectangle2 A, v2 Radius)
 {
 	rectangle2 Result;
 
-	Result.Min = A.Min - V2(RadiusW, RadiusH);
-	Result.Max = A.Max + V2(RadiusW, RadiusH);
+	Result.Min = A.Min - Radius;
+	Result.Max = A.Max + Radius;
 
 	return(Result);
 }
@@ -252,6 +402,94 @@ RectCenterDim(v2 Center, v2 Dim)
 
 inline bool32
 IsInRectangle(rectangle2 Rect, v2 Test)
+{
+	bool32 Result = ((Test.X >= Rect.Min.X) &&
+					 (Test.Y >= Rect.Min.Y) &&
+					 (Test.X < Rect.Max.X) && 
+					 (Test.Y < Rect.Max.Y));
+
+	return(Result);
+}
+
+// 
+// NOTE(george): Rectangle3
+// 
+
+inline v3
+GetMinCorner(rectangle3 Rect)
+{
+	v3 Result = Rect.Min;
+	return(Result);
+}
+
+inline v3
+GetMaxCorner(rectangle3 Rect)
+{
+	v3 Result = Rect.Max;
+	return(Result);
+}
+
+inline v3
+GetCenter(rectangle3 Rect)
+{
+	v3 Result = 0.5f*(Rect.Min + Rect.Max);
+	return(Result);
+}
+
+inline rectangle3
+RectMinMax(v3 Min, v3 Max)
+{
+	rectangle3 Result;
+
+	Result.Min = Min;
+	Result.Max = Max;
+
+	return(Result);
+}
+
+inline rectangle3
+RectCenterHalfDim(v3 Center, v3 HalfDim)
+{
+	rectangle3 Result;
+
+	Result.Min = Center - HalfDim;
+	Result.Max = Center + HalfDim;
+
+	return(Result);
+}
+
+inline rectangle3
+AddRadiusTo(rectangle3 A, v3 Radius)
+{
+	rectangle3 Result;
+
+	Result.Min = A.Min - Radius;
+	Result.Max = A.Max + Radius;
+
+	return(Result);
+}
+
+inline rectangle3
+RectMinDim(v3 Min, v3 Dim)
+{
+	rectangle3 Result;
+
+	Result.Min = Min;
+	Result.Max = Min + Dim;
+
+	return(Result);
+}
+
+inline rectangle3
+RectCenterDim(v3 Center, v3 Dim)
+{
+	rectangle3 Result = RectCenterHalfDim(Center, 0.5f*Dim);
+
+	return(Result);
+}
+
+inline bool32
+IsInRectangle(rectangle3 Rect, v3 Test)
 {
 	bool32 Result = ((Test.X >= Rect.Min.X) &&
 					 (Test.Y >= Rect.Min.Y) &&

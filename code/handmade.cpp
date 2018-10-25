@@ -240,15 +240,6 @@ DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap,
     }
 }
 
-inline v2
-GetCameraSpaceP(game_state *GameState, low_entity *EntityLow)
-{
-    world_difference Diff = Substract(GameState->World, &EntityLow->P, &GameState->CameraP);
-    v2 Result = Diff.dXY;
-
-    return(Result);
-}
-
 struct add_low_entity_result
 {   
     low_entity *Low;
@@ -426,6 +417,14 @@ ClearCollisionRulesFor(game_state *GameState, uint32 StorageIndex)
 {
     // TODO(george): Need to make a better data structure that allows
     // removal of collision rules without searching the entire table
+    // NOTE(george): One way to make removal easy would be to always
+    // add _both_ orders of the pairs of storage indices to the
+    // hash table, so no matter which position the entity is in, 
+    // you can always find it. Then, when you do your firts pass
+    // through for removal, you just remember the original top
+    // of the free list, and when you're done, do a pass through all
+    // the new things on the free list, and remove the reverse of 
+    // those pairs.
     for(uint32 HashBucket = 0;
         HashBucket < ArrayCount(GameState->CollisionRuleHash);
         HashBucket++)
@@ -784,8 +783,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // TODO(george): I am totally picking these numbers randomly!
     uint32 TileSpanX = 17*3;
     uint32 TileSpanY = 9*3;
-    rectangle2 CameraBounds = RectCenterDim(V2(0, 0), 
-                                            World->TileSideInMeters*V2((real32)TileSpanX, (real32)TileSpanY));
+    uint32 TileSpanZ = 1;
+    rectangle3 CameraBounds = RectCenterDim(V3(0, 0, 0), 
+                                            World->TileSideInMeters*V3((real32)TileSpanX, (real32)TileSpanY, (real32)TileSpanZ));
 
     memory_arena SimArena;
     InitializeArena(&SimArena, Memory->TransientStorageSize, Memory->TransientStorage);
@@ -814,14 +814,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             real32 dt = Input->dtForFrame;        
 
             // TODO(george): This is incorrect, should be computed after update!!!
-            real32 ShadowAlpha = 1.0f - 0.5f*Entity->Z;
+            real32 ShadowAlpha = 1.0f - 0.5f*Entity->P.Z;
             if(ShadowAlpha < 0)
             {
                 ShadowAlpha = 0.0f;
             }
 
             move_spec MoveSpec = DefaultMoveSpec();
-            v2 ddP = {};
+            v3 ddP = {};
 
             hero_bitmaps *HeroBitmaps = &GameState->HeroBitmaps[Entity->FacingDirection];
             switch(Entity->Type)
@@ -838,13 +838,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         {
                             if(ConHero->dZ != 0.0f)
                             {
-                                Entity->dZ = ConHero->dZ;
+                                Entity->dP.Z = ConHero->dZ;
                             }
 
                             MoveSpec.UnitMaxAccelVector = true;
                             MoveSpec.Speed = 50.0f;
                             MoveSpec.Drag = 8.0f;
-                            ddP = ConHero->ddP;
+                            ddP = V3(ConHero->ddP, 0);
 
                             if((ConHero->dSword.X != 0) || (ConHero->dSword.Y != 0))
                             {
@@ -853,7 +853,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                 {
                                     // NOTE(george): Casey has forgotten about world_position of the sword
                                     Sword->DistanceLimit = 5.0f;
-                                    MakeEntitySpatial(Sword, Entity->P, Entity->dP + 5.0f*ConHero->dSword);
+                                    MakeEntitySpatial(Sword, Entity->P, Entity->dP + 5.0f*V3(ConHero->dSword, 0.0f));
+
                                     AddCollisionRule(GameState, Sword->StorageIndex, Entity->StorageIndex, false);        
                                 }
                             }
@@ -885,7 +886,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     // TODO(george): Need to handle the fact that DistanceTraveled
                     // might not have enough distance for the total entity move
                     // for the frame!
-                    v2 OldP = Entity->P;
                     if(Entity->DistanceLimit == 0.0f)
                     {
                         ClearCollisionRulesFor(GameState, Entity->StorageIndex);
@@ -916,7 +916,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         }
                     }
 
-                    if(ClosestHero && (ClosestHeroDSq > Square(1.5f)))
+                    if(ClosestHero && (ClosestHeroDSq > Square(3.0f)))
                     {
                         real32 Acceleration = 0.5f;
                         real32 OneOverLength = Acceleration / SquareRoot(ClosestHeroDSq);
@@ -957,7 +957,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             
             real32 EntityGroundPointX = ScreenCenterX + MetersToPixels*Entity->P.X;
             real32 EntityGroundPointY = ScreenCenterY - MetersToPixels*Entity->P.Y;
-            real32 EntityZ = -MetersToPixels*Entity->Z;
+            real32 EntityZ = -MetersToPixels*Entity->P.Z;
     #if 0
             v2 PlayerLeftTop = {EntityGroundPointX - (0.5f*MetersToPixels*LowEntity->Width), 
                                 EntityGroundPointY - 0.5f*MetersToPixels*LowEntity->Height};

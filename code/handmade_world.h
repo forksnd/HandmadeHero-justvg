@@ -1,13 +1,6 @@
 #if !defined(HANDMADE_WORLD_H)
 #define HANDMADE_WORLD_H
 
-// TODO(george): Replace this with a v3 once we get to v3
-struct world_difference
-{
-    v2 dXY;
-    real32 dZ;
-};
-
 struct world_position
 {   
 	// TODO(george): Puzzler! How can we get rid of abstile here,
@@ -16,14 +9,12 @@ struct world_position
 	// in?)
 
     // NOTE(george): These are fixed point locations.
-    // The high bits are the tile chunk index, and the low bits are the tile index 
-    // in the chunk.
     int32 ChunkX;
     int32 ChunkY;
     int32 ChunkZ;
 
     // NOTE(george): These are the offsets from chunk center
-    v2 Offset_;
+    v3 Offset_;
 };
 
 // TODO(george): Could make this just tile_chunk and then allow multiple tile chunks per X/Y/Z
@@ -49,7 +40,8 @@ struct world_chunk
 struct world
 {
     real32 TileSideInMeters;
-    real32 ChunkSideInMeters;
+    real32 TileDepthInMeters;
+    v3 ChunkDimInMeters;
 
     world_entity_block *FirstFree;
 
