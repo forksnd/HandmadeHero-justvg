@@ -18,7 +18,6 @@
     
     ARCHITECTURE EXPLORATION
     - Z!
-        - Minkowski inclusion test for sim region begin / updatable bounds?
         - Figure out how you go "up" and "down", and how is this rendered?
     - Collision detection?
         - Entry/exit?

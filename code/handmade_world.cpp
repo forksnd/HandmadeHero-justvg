@@ -35,7 +35,7 @@ inline bool32
 IsCanonical(real32 ChunkDim, real32 TileRel)
 {
     // TODO(george): Fix floating point math so this can be exact?
-    real32 Epsilon = 0.0001f;
+    real32 Epsilon = 0.01f;
     bool32 Result = (TileRel >= -(0.5f*ChunkDim + Epsilon)) && (TileRel <= (0.5f*ChunkDim + Epsilon));
 
     return(Result);
@@ -143,7 +143,7 @@ MapIntoChunkSpace(world *World, world_position BasePos, v3 Offset)
     Result.Offset_ += Offset;
     RecanonicalizeCoord(World->ChunkDimInMeters.X, &Result.ChunkX, &Result.Offset_.X);
     RecanonicalizeCoord(World->ChunkDimInMeters.Y, &Result.ChunkY, &Result.Offset_.Y);
-    RecanonicalizeCoord(World->ChunkDimInMeters.Y, &Result.ChunkY, &Result.Offset_.Z);
+    RecanonicalizeCoord(World->ChunkDimInMeters.Z, &Result.ChunkZ, &Result.Offset_.Z);
     
     return(Result);
 }
@@ -153,9 +153,7 @@ ChunkPositionFromTilePosition(world *World, int32 AbsTileX, int32 AbsTileY, int3
 {
     world_position BasePos = {};
 
-    // Why ChunkDimInMeters, and not TileSideInMeters?
-    v3 Offset = Hadamard(World->ChunkDimInMeters,
-                         V3((real32)AbsTileX, (real32)AbsTileY, (real32)AbsTileZ));
+    v3 Offset = World->TileSideInMeters * V3((real32)AbsTileX, (real32)AbsTileY, (real32)AbsTileZ);
 
     world_position Result = MapIntoChunkSpace(World, BasePos, Offset);
 
