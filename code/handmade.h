@@ -17,11 +17,13 @@
     TODO(george):
     
     ARCHITECTURE EXPLORATION
+    - Collision detection?
+        - Transient collision rules! Clear based on flag.
+            - Allow non-transient rules to override transient ones.
+            - Entry/exit?
+        - What's the plan for robustness / shape definition? 
     - Z!
         - Figure out how you go "up" and "down", and how is this rendered?
-    - Collision detection?
-        - Entry/exit?
-        - What's the plan for robustness / shape definition? 
     - Implement multiple sim regions per frame
         - Per-entity clocking
         - Sim region merging? For multiple players?
@@ -161,6 +163,11 @@ struct controlled_hero
     real32 dZ;
 };
 
+enum pairwise_collision_rule_flag
+{
+    PairCollisionFlag_ShouldCollide = 0x1,
+    PairCollisionFlag_Temporary = 0x2,
+};
 struct pairwise_collision_rule
 {
     bool32 ShouldCollide;
@@ -169,6 +176,9 @@ struct pairwise_collision_rule
 
     pairwise_collision_rule *NextInHash;
 };
+struct game_state;
+internal void AddCollisionRule(game_state *GameState, uint32 StorageIndexA, uint32 StorageIndexB, bool32 ShouldCollide);
+internal void ClearCollisionRulesFor(game_state *GameState, uint32 StorageIndex);
 
 struct game_state
 {
@@ -190,6 +200,7 @@ struct game_state
 
     loaded_bitmap Tree;
     loaded_bitmap Sword;
+    loaded_bitmap Stairwell;
     real32 MetersToPixels;
 
     // TODO(george): Must be power of two
@@ -219,9 +230,6 @@ GetLowEntity(game_state *GameState, uint32 Index)
 
     return(Result);
 }
-
-internal void AddCollisionRule(game_state *GameState, uint32 StorageIndexA, uint32 StorageIndexB, bool32 ShouldCollide);
-internal void ClearCollisionRulesFor(game_state *GameState, uint32 StorageIndex);
 
 #endif
 
