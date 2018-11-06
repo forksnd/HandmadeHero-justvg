@@ -23,7 +23,10 @@
             - Entry/exit?
         - What's the plan for robustness / shape definition? 
     - Z!
-        - Figure out how you go "up" and "down", and how is this rendered?
+        - Need to make a solid concept of ground levels so the camera can
+          be freely placed in Z and have multiple ground levels in one
+          sim region
+        - How is this rendered?
     - Implement multiple sim regions per frame
         - Per-entity clocking
         - Sim region merging? For multiple players?

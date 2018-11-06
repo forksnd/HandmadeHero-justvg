@@ -307,12 +307,6 @@ CanCollide(game_state *GameState, sim_entity *A, sim_entity *B)
             Result = true;
         }
 
-        if((A->Type == EntityType_Stairwell) ||
-           (B->Type == EntityType_Stairwell))
-        {
-            Result = false;
-        }
-
         uint32 HashBucket = A->StorageIndex & (ArrayCount(GameState->CollisionRuleHash) - 1);
         for(pairwise_collision_rule *Rule = GameState->CollisionRuleHash[HashBucket];
             Rule;
@@ -390,11 +384,29 @@ HandleOverlap(game_state *GameState, sim_entity *Mover, sim_entity *Region, real
     if(Region->Type == EntityType_Stairwell)
     {
         rectangle3 RegionRect = RectCenterDim(Region->P, Region->Dim);
-
         v3 Bary = Clamp01(GetBarycentric(RegionRect, Mover->P));
 
         *Ground = Lerp(RegionRect.Min.Z, Bary.Y, RegionRect.Max.Z);
     }
+}
+
+internal bool32
+SpeculativeCollide(sim_entity *Mover, sim_entity *Region)
+{
+    bool32 Result = true;
+
+    if(Region->Type == EntityType_Stairwell)
+    {
+        rectangle3 RegionRect = RectCenterDim(Region->P, Region->Dim);
+        v3 Bary = Clamp01(GetBarycentric(RegionRect, Mover->P));
+
+        real32 Ground = Lerp(RegionRect.Min.Z, Bary.Y, RegionRect.Max.Z);
+        real32 StepHeight = 0.1f;
+        Result = (AbsoluteValue(Mover->P.Z - Ground) > StepHeight) || 
+				 (Bary.Y > 0.1f) && (Bary.Y < 0.9f);
+    }
+
+    return(Result);
 }
 
 internal void
@@ -417,7 +429,10 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
 
     // TODO(george): ODE here!
     ddP += -MoveSpec->Drag*Entity->dP;
-    ddP += V3(0.0f, 0.0f, -9.8f); // NOTE(george): Gravity
+    if(!IsSet(Entity, EntityFlag_ZSupported))
+    {
+        ddP += V3(0.0f, 0.0f, -9.8f); // NOTE(george): Gravity
+    }
 
     v3 OldPlayerP = Entity->P;   
     v3 PlayerDelta = (0.5f*ddP*Square(dt)) + Entity->dP*dt;
@@ -459,10 +474,10 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
                 for(uint32 TestHighEntityIndex = 0; TestHighEntityIndex < SimRegion->EntityCount; TestHighEntityIndex++)
                 {
                     sim_entity *TestEntity = SimRegion->Entities + TestHighEntityIndex;
-                    if(CanCollide(GameState, Entity, TestEntity) && (Entity->P.Z == TestEntity->P.Z))
+                    if(CanCollide(GameState, Entity, TestEntity))
                     {
                         v3 MinkowskiDiameter = {TestEntity->Dim.X + Entity->Dim.X, 
-                                                TestEntity->Dim.Y + Entity->Dim.Y,
+                                                TestEntity->Dim.Y + Entity->Dim.Y,  
                                                 TestEntity->Dim.Z + Entity->Dim.Z};
 
                         v3 MinCorner = -0.5f*MinkowskiDiameter;
@@ -470,29 +485,44 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
 
                         v3 Rel = Entity->P - TestEntity->P;
 
+                        real32 tMinTest = tMin;
+                        v3 TestWallNormal = {}; 
+
+                        bool32 Hit = false;
                         if(TestWall(MinCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y, 
-                                &tMin, MinCorner.Y, MaxCorner.Y))
+                                &tMinTest, MinCorner.Y, MaxCorner.Y))
                         {
-                            WallNormal = V3(-1, 0, 0);
-                            HitEntity = TestEntity;
+                            TestWallNormal = V3(-1, 0, 0);
+                            Hit = true;
                         }
                         if(TestWall(MaxCorner.X, Rel.X, Rel.Y, PlayerDelta.X, PlayerDelta.Y, 
-                                &tMin, MinCorner.Y, MaxCorner.Y))
+                                &tMinTest, MinCorner.Y, MaxCorner.Y))
                         {
-                            WallNormal = V3(1, 0, 0);
-                            HitEntity = TestEntity;
+                            TestWallNormal = V3(1, 0, 0);
+                            Hit = true;
                         }
                         if(TestWall(MinCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X, 
-                                &tMin, MinCorner.X, MaxCorner.X))
+                                &tMinTest, MinCorner.X, MaxCorner.X))
                         {
-                            WallNormal = V3(0, -1, 0);
-                            HitEntity = TestEntity;
+                            TestWallNormal = V3(0, -1, 0);
+                            Hit = true;
                         }
                         if(TestWall(MaxCorner.Y, Rel.Y, Rel.X, PlayerDelta.Y, PlayerDelta.X, 
-                                &tMin, MinCorner.X, MaxCorner.X))
+                                &tMinTest, MinCorner.X, MaxCorner.X))
                         {
-                            WallNormal = V3(0, 1, 0);
-                            HitEntity = TestEntity;
+                            TestWallNormal = V3(0, 1, 0);
+                            Hit = true;
+                        }
+
+                        if(Hit)
+                        {
+                            v3 TestP = Entity->P + tMinTest*PlayerDelta;
+                            if(SpeculativeCollide(Entity, TestEntity))
+                            {
+                                tMin = tMinTest;
+                                WallNormal = TestWallNormal;
+                                HitEntity = TestEntity;
+                            }
                         }
                     }
                 }
@@ -544,11 +574,22 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
         }
     }
 
+    // NOTE(george): We use one stairwell for two floors. So when we on the "first" floor,
+    // the stairwell has its coordinates related to the "first" floor, so the coords are positive,
+    // and when we step to the stairwell, Ground > 0 (we interpolate between MinZ and MaxZ of the stairwell coords).
+    // But when we on the "second" floor, the stairwell's coordinates are related to the "second" floor,
+    // so the coords are negative, and when we step to the stairwell, Ground < 0
     // TODO(george): This has to become real height handling / ground collision / etc.
-    if(Entity->P.Z < Ground)
+    if((Entity->P.Z <= Ground) || 
+       (IsSet(Entity, EntityFlag_ZSupported) && Entity->P.Z == 0))
     {
         Entity->P.Z = Ground;
         Entity->dP.Z = 0;
+        AddFlags(Entity, EntityFlag_ZSupported);
+    }
+    else
+    {
+        ClearFlags(Entity, EntityFlag_ZSupported);        
     }
 
     if(Entity->DistanceLimit != 0)
