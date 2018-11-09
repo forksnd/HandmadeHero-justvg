@@ -383,10 +383,7 @@ HandleOverlap(game_state *GameState, sim_entity *Mover, sim_entity *Region, real
 {
     if(Region->Type == EntityType_Stairwell)
     {
-        rectangle3 RegionRect = RectCenterDim(Region->P, Region->Dim);
-        v3 Bary = Clamp01(GetBarycentric(RegionRect, Mover->P));
-
-        *Ground = Lerp(RegionRect.Min.Z, Bary.Y, RegionRect.Max.Z);
+        *Ground = GetStairGround(Region, GetEntityGroundPoint(Mover));
     }
 }
 
@@ -397,13 +394,14 @@ SpeculativeCollide(sim_entity *Mover, sim_entity *Region)
 
     if(Region->Type == EntityType_Stairwell)
     {
-        rectangle3 RegionRect = RectCenterDim(Region->P, Region->Dim);
-        v3 Bary = Clamp01(GetBarycentric(RegionRect, Mover->P));
-
-        real32 Ground = Lerp(RegionRect.Min.Z, Bary.Y, RegionRect.Max.Z);
         real32 StepHeight = 0.1f;
-        Result = (AbsoluteValue(Mover->P.Z - Ground) > StepHeight) || 
+#if 0
+        Result = (AbsoluteValue(MoverGroundPoint.Z - Ground) > StepHeight) || 
 				 (Bary.Y > 0.1f) && (Bary.Y < 0.9f);
+#endif 
+        v3 MoverGroundPoint = GetEntityGroundPoint(Mover);
+        real32 Ground = GetStairGround(Region, MoverGroundPoint);
+        Result = (AbsoluteValue(MoverGroundPoint.Z - Ground) > StepHeight);
     }
 
     return(Result);
@@ -583,6 +581,7 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
     // But when we on the "second" floor, the stairwell's coordinates are related to the "second" floor,
     // so the coords are negative, and when we step to the stairwell, Ground < 0
     // TODO(george): This has to become real height handling / ground collision / etc.
+    Ground += Entity->P.Z - GetEntityGroundPoint(Entity).Z;
     if((Entity->P.Z <= Ground) || 
        (IsSet(Entity, EntityFlag_ZSupported) && Entity->dP.Z == 0))
     {
