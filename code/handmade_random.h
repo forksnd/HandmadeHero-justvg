@@ -1,6 +1,8 @@
 #if !defined(HANDMADE_RANDOM_H)
 #define HANDMADE_RANDOM_H
 
+#define MaxRandomNumber 0x05f171d8
+#define MinRandomNumber 0x00015387
 global_variable uint32 RandomNumberTable[] =
 {
     35715542, 45281550,  76219186, 20519690, 9041922, 43323386, 81228872,
