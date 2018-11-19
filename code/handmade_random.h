@@ -187,4 +187,72 @@ global_variable uint32 RandomNumberTable[] =
     20220224, 8296222, 99568692, 51048922, 20868023, 82411493, 2501088, 84677233, 33400990, 17660110, 39536610, 75130942, 
 };
 
+struct random_series
+{
+    uint32 Index;
+};
+
+inline random_series
+RandomSeed(uint32 Value)
+{
+    random_series Result;
+
+    Result.Index = Value % ArrayCount(RandomNumberTable);
+
+    return(Result); 
+}
+
+inline uint32
+RandomNextUInt32(random_series *Series)
+{
+    uint32 Result = RandomNumberTable[Series->Index++];
+    if(Series->Index >= ArrayCount(RandomNumberTable))
+    {
+        Series->Index = 0;
+    }
+
+    return(Result);
+}
+
+inline uint32
+RandomChoice(random_series *Series, uint32 ChoiceCount)
+{
+    uint32 Result = RandomNextUInt32(Series) % ChoiceCount;
+
+    return(Result);
+}
+
+inline real32
+RandomUnilateral(random_series *Series)
+{
+    real32 Divisor = 1.0f/(real32)MaxRandomNumber;
+    real32 Result = Divisor*RandomNextUInt32(Series);
+
+    return(Result);
+}
+
+inline real32
+RandomBilateral(random_series *Series)
+{
+    real32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
+    
+    return(Result);
+}
+
+inline real32 
+RandomBetween(random_series *Series, real32 Min, real32 Max)
+{
+    real32 Result = Lerp(Min, RandomUnilateral(Series), Max);
+
+    return(Result);
+}
+
+inline int32
+RandomBetween(random_series *Series, int32 Min, int32 Max)
+{
+    int32 Result = Min + ((int32)RandomNextUInt32(Series)%((Max + 1) - Min));
+
+    return(Result);
+}
+
 #endif

@@ -1258,7 +1258,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         Buffer.Height = GlobalBackbuffer.Height;
                         Buffer.Width = GlobalBackbuffer.Width;
                         Buffer.Pitch = GlobalBackbuffer.Pitch;
-                        Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
 
                         if(Win32State.InputRecordingIndex)
                         {
