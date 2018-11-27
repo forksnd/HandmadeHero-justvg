@@ -1139,12 +1139,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 while (GlobalRunning)
                 {   
                     NewInput->dtForFrame = TargetSecondsPerFrame;
-                    
+
+                    NewInput->ExecutableReloaded = false;
                     FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
                     if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
                     {
                         Win32UnloadGameCode(&Game);
                         Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
+                        NewInput->ExecutableReloaded = true;
                     }
 
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);

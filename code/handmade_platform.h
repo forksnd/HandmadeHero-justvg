@@ -36,6 +36,7 @@ extern "C" {
 // 
     #include <stdint.h>
     #include <stddef.h>
+    #include <float.h>
     
     typedef uint8_t uint8;
     typedef uint16_t uint16;
@@ -52,6 +53,8 @@ extern "C" {
 
     typedef float real32;
     typedef double real64;
+
+    #define Real32Maximum FLT_MAX
 
     #define internal static
     #define local_persist static
@@ -177,6 +180,7 @@ extern "C" {
         game_button_state MouseButtons[5];
         int32 MouseX, MouseY, MouseZ;
 
+        bool32 ExecutableReloaded;
         real32 dtForFrame;
 
         game_controller_input Controllers[5];
