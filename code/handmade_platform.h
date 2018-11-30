@@ -69,6 +69,7 @@ extern "C" {
     #endif
 
     #define InvalidCodePath Assert(!"InvalidCodePath");
+    #define InvalidDefaultCase default: {InvalidCodePath} break;
 
     #define Kilobytes(Value) ((Value) * 1024LL)
     #define Megabytes(Value) (Kilobytes(Value) * 1024LL)
