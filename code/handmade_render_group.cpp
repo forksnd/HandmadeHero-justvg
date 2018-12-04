@@ -266,6 +266,32 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 
 				BaseAddress += sizeof(*Entry);
 			} break;
+
+            case RenderGroupEntryType_render_entry_coordinate_system:
+			{
+				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Header;
+
+                v2 Dim = {2, 2}; 
+                v2 P = Entry->Origin;
+                DrawRectangle(OutputTarget, P - Dim, P + Dim, Entry->Color.r, Entry->Color.g, Entry->Color.b);
+
+                P = Entry->Origin + Entry->XAxis;
+                DrawRectangle(OutputTarget, P - Dim, P + Dim, Entry->Color.r, Entry->Color.g, Entry->Color.b);
+
+                P = Entry->Origin + Entry->YAxis;
+                DrawRectangle(OutputTarget, P - Dim, P + Dim, Entry->Color.r, Entry->Color.g, Entry->Color.b);
+
+                for(uint32 PIndex = 0;
+                    PIndex < ArrayCount(Entry->Points);
+                    PIndex++)
+                {
+                    v2 P = Entry->Points[PIndex];
+                    P = Entry->Origin + P.x*Entry->XAxis + P.y*Entry->YAxis;
+                    DrawRectangle(OutputTarget, P - Dim, P + Dim, Entry->Color.r, Entry->Color.g, Entry->Color.b);
+                }
+
+				BaseAddress += sizeof(*Entry);
+			} break;
 			
 			InvalidDefaultCase;
 		}
@@ -313,18 +339,18 @@ inline void
 PushPiece(render_group *Group, loaded_bitmap *Bitmap, 
           v2 Offset, real32 OffsetZ, v2 Align, v2 Dim, v4 Color, real32 EntityZC)
 {
-    render_entry_bitmap *Piece = PushRenderElement(Group, render_entry_bitmap);
-    if(Piece)
+    render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap);
+    if(Entry)
     {
-        Piece->EntityBasis.Basis = Group->DefaultBasis;
-        Piece->Bitmap = Bitmap;
-        Piece->EntityBasis.Offset = Group->MetersToPixels*V2(Offset.x, -Offset.y) - Align;
-        Piece->EntityBasis.OffsetZ = OffsetZ;
-        Piece->R = Color.r;
-        Piece->G = Color.g;
-        Piece->B = Color.b;
-        Piece->A = Color.a;    
-        Piece->EntityBasis.EntityZC = EntityZC;
+        Entry->EntityBasis.Basis = Group->DefaultBasis;
+        Entry->Bitmap = Bitmap;
+        Entry->EntityBasis.Offset = Group->MetersToPixels*V2(Offset.x, -Offset.y) - Align;
+        Entry->EntityBasis.OffsetZ = OffsetZ;
+        Entry->R = Color.r;
+        Entry->G = Color.g;
+        Entry->B = Color.b;
+        Entry->A = Color.a;    
+        Entry->EntityBasis.EntityZC = EntityZC;
     }
 }
 
@@ -339,20 +365,20 @@ inline void
 PushRect(render_group *Group, v2 Offset, real32 OffsetZ, 
          v2 Dim, v4 Color, real32 EntityZC = 1.0f)
 {
-    render_entry_rectangle *Piece = PushRenderElement(Group, render_entry_rectangle);
-    if(Piece)
+    render_entry_rectangle *Entry = PushRenderElement(Group, render_entry_rectangle);
+    if(Entry)
     {
         v2 HalfDim = 0.5f*Group->MetersToPixels*Dim;
 
-        Piece->EntityBasis.Basis = Group->DefaultBasis;
-        Piece->EntityBasis.Offset = Group->MetersToPixels*V2(Offset.x, -Offset.y) - HalfDim;
-        Piece->EntityBasis.OffsetZ = OffsetZ;
-        Piece->R = Color.r;
-        Piece->G = Color.g;
-        Piece->B = Color.b;
-        Piece->A = Color.a;    
-        Piece->EntityBasis.EntityZC = EntityZC;
-        Piece->Dim = Group->MetersToPixels*Dim;
+        Entry->EntityBasis.Basis = Group->DefaultBasis;
+        Entry->EntityBasis.Offset = Group->MetersToPixels*V2(Offset.x, -Offset.y) - HalfDim;
+        Entry->EntityBasis.OffsetZ = OffsetZ;
+        Entry->R = Color.r;
+        Entry->G = Color.g;
+        Entry->B = Color.b;
+        Entry->A = Color.a;    
+        Entry->EntityBasis.EntityZC = EntityZC;
+        Entry->Dim = Group->MetersToPixels*Dim;
     }  
 }
 
@@ -374,11 +400,26 @@ PushRectOutline(render_group *Group, v2 Offset, real32 OffsetZ,
 inline void
 Clear(render_group *RenderGroup, v4 Color)
 {
-    render_entry_clear *Piece = PushRenderElement(RenderGroup, render_entry_clear);
-    if(Piece)
+    render_entry_clear *Entry = PushRenderElement(RenderGroup, render_entry_clear);
+    if(Entry)
     {
-        Piece->Color = Color;
+        Entry->Color = Color;
     }
+}
+
+inline render_entry_coordinate_system *
+CoordinateSystem(render_group *RenderGroup, v2 Origin, v2 XAxis, v2 YAxis, v4 Color)
+{
+    render_entry_coordinate_system *Entry = PushRenderElement(RenderGroup, render_entry_coordinate_system);
+    if(Entry)
+    {
+        Entry->Origin = Origin;
+        Entry->XAxis = XAxis;
+        Entry->YAxis = YAxis;
+        Entry->Color = Color;
+    }
+
+    return(Entry);
 }
 
 #endif

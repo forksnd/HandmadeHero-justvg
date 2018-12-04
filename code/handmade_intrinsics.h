@@ -103,7 +103,7 @@ Sin(real32 Angle)
 inline real32
 Cos(real32 Angle)
 {
-	real32 Result = sinf(Angle);
+	real32 Result = cosf(Angle);
 	return(Result);
 }
 

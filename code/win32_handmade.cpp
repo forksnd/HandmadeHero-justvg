@@ -848,7 +848,7 @@ Win32GetWallClock(void)
 }
 
 inline real32
-Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)/
+Win32GetSecondsElapsed(LARGE_INTEGER Start, LARGE_INTEGER End)
 {
     real32 Result = (End.QuadPart - Start.QuadPart) / (real32)GlobalPerfCounterFrequency;
     return(Result);
