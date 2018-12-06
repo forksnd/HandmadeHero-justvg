@@ -230,8 +230,8 @@ struct game_state
     uint32 LowEntityCount;
     low_entity LowEntities[100000];    
 
-    loaded_bitmap Grass[2];
-    loaded_bitmap Stone[2];
+    loaded_bitmap Grass[1];
+    loaded_bitmap Stone[1];
 
     loaded_bitmap Backdrop;
     loaded_bitmap Shadow;

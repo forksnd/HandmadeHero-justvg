@@ -474,11 +474,13 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
                 GrassIndex++)
             {
                 loaded_bitmap *Stamp;
+                #if 0
                 if(RandomChoice(&Series, 2))
                 {
                     Stamp = GameState->Grass + RandomChoice(&Series, ArrayCount(GameState->Grass));
                 }
                 else
+                #endif
                 {
                     Stamp = GameState->Stone + RandomChoice(&Series, ArrayCount(GameState->Stone));
                 }
@@ -592,10 +594,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                                                        0.9f*TileDepthInMeters);
                                                                
 
-        GameState->Stone[0] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/stone1.bmp");
-        GameState->Stone[1] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/stone2.bmp");
-        GameState->Grass[0] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/grass1.bmp");            
-        GameState->Grass[1] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/grass2.bmp");
+        GameState->Stone[0] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/stone3.bmp");
+        GameState->Grass[0] = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/grass3.bmp");            
 
         GameState->Backdrop = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/test_background.bmp");
         GameState->Shadow = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/hero_shadow.bmp");
@@ -1145,14 +1145,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     GameState->Time += Input->dtForFrame;
-    real32 Angle = GameState->Time;
+    real32 Angle = 0.1f*GameState->Time;
+    real32 Disp = 100.0f*Cos(5.0f*Angle);
 
     v2 Origin = ScreenCenter;
+#if 1
     v2 XAxis = (50.0f + 50.0f*Cos(Angle))*V2(Cos(Angle), Sin(Angle));
-    // v2 YAxis = Perp(XAxis);
-    v2 YAxis = (50.0f + 50.0f*Cos(Angle))*V2(Cos(Angle + 1.0f), Sin(Angle + 1.0f));
+    v2 YAxis = Perp(XAxis);
+#else
+    v2 XAxis = {60.0f, 0};
+    v2 YAxis = {0, 60.0f};
+#endif
     uint32 PIndex = 0;
-    render_entry_coordinate_system *C = CoordinateSystem(RenderGroup, Origin, XAxis, YAxis, V4(1, 0, 1, 1));
+    render_entry_coordinate_system *C = CoordinateSystem(RenderGroup, Origin + V2(Disp, 0) - 0.5f*XAxis - 0.5f*YAxis, XAxis, YAxis, V4(1, 0, 1, 1), &GameState->Tree);
     for(real32 Y = 0.0f;
         Y < 1.0f;
         Y += 0.25f)
