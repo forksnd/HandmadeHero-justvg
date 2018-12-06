@@ -1,6 +1,36 @@
 #if !defined(HANDMADE_RENDER_GROP_CPP)
 #define HANDMADE_RENDER_GROP_CPP
 
+inline v4
+SRGB255ToLinear1(v4 C)
+{   
+    v4 Result;
+
+    real32 Inv255 = 1.0f / 255.0f;
+
+    Result.r = Square(Inv255*C.r);
+    Result.g = Square(Inv255*C.g);
+    Result.b = Square(Inv255*C.b);
+    Result.a = Inv255*C.a;
+
+    return(Result);
+}
+
+inline v4
+Linear1ToSRGB255(v4 C)
+{
+    v4 Result;
+
+    real32 One255 = 255.0f;
+
+    Result.r = One255*SquareRoot(C.r);
+    Result.g = One255*SquareRoot(C.g);
+    Result.b = One255*SquareRoot(C.b);
+    Result.a = One255*C.a;
+
+    return(Result);
+}
+
 internal void
 DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax,
               real32 R, real32 G, real32 B, real32 A = 1.0f)
@@ -149,33 +179,39 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                              (real32)((TexelPtrD >> 8) & 0xFF),
                              (real32)((TexelPtrD >> 0) & 0xFF),
                              (real32)((TexelPtrD >> 24) & 0xFF)};
+
+                // NOTE(george): Go from sRGB to "linear" brightness space
+                TexelA = SRGB255ToLinear1(TexelA);
+                TexelB = SRGB255ToLinear1(TexelB);
+                TexelC = SRGB255ToLinear1(TexelC);
+                TexelD = SRGB255ToLinear1(TexelD);
                 
                 v4 Texel = Lerp(Lerp(TexelA, fX, TexelB), fY, Lerp(TexelC, fX, TexelD));
 
-                real32 SA = Texel.a;
-                real32 SR = Texel.r;
-                real32 SG = Texel.g;
-                real32 SB = Texel.b;
+                real32 RSA = Texel.a * Color.a;
 
-                real32 RSA = (SA / 255.0f)*Color.a;
+                v4 Dest = {(real32)((*Pixel >> 16) & 0xFF),
+                           (real32)((*Pixel >> 8) & 0xFF),
+                           (real32)((*Pixel >> 0) & 0xFF),
+                           (real32)((*Pixel >> 24) & 0xFF)};
+                
+                Dest = SRGB255ToLinear1(Dest);
 
-                real32 DA = (real32)((*Pixel >> 24) & 0xFF);
-                real32 DR = (real32)((*Pixel >> 16) & 0xFF);
-                real32 DG = (real32)((*Pixel >> 8) & 0xFF);
-                real32 DB = (real32)((*Pixel >> 0) & 0xFF);
-                real32 RDA = (DA / 255.0f);
+                real32 RDA = Dest.a;
 
                 real32 InvRSA = (1.0f-RSA);
-                // TODO(george): Check this for math errors
-                real32 A = 255.0f*(RDA + RSA - RDA*RSA);
-                real32 R = InvRSA*DR + SR;
-                real32 G = InvRSA*DG + SG;
-                real32 B = InvRSA*DB + SB;
 
-                *Pixel = ((uint32)(A + 0.5f) << 24) |
-                         ((uint32)(R + 0.5f) << 16) |
-                         ((uint32)(G + 0.5f) << 8) |
-                         ((uint32)(B + 0.5f) << 0); 
+                v4 Blended = {InvRSA*Dest.r + Texel.r*Color.r*Color.a,
+                              InvRSA*Dest.g + Texel.g*Color.g*Color.a,
+                              InvRSA*Dest.b + Texel.b*Color.b*Color.a,
+                              (RDA + RSA - RDA*RSA)};
+
+                v4 Blended255 = Linear1ToSRGB255(Blended);
+
+                *Pixel = ((uint32)(Blended255.a + 0.5f) << 24) |
+                         ((uint32)(Blended255.r + 0.5f) << 16) |
+                         ((uint32)(Blended255.g + 0.5f) << 8) |
+                         ((uint32)(Blended255.b + 0.5f) << 0); 
             }
 
             Pixel++;
