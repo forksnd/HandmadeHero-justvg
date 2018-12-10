@@ -82,6 +82,9 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax,
 internal void
 DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Color, loaded_bitmap *Texture)
 {
+    // NOTE(george): Premultiply color up front
+    Color.rgb *= Color.a;
+
     real32 InvXAxisLengthSq = 1.0f / LengthSq(XAxis);
     real32 InvYAxisLengthSq = 1.0f / LengthSq(YAxis);
 
@@ -185,10 +188,10 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                 TexelB = SRGB255ToLinear1(TexelB);
                 TexelC = SRGB255ToLinear1(TexelC);
                 TexelD = SRGB255ToLinear1(TexelD);
-                
+
                 v4 Texel = Lerp(Lerp(TexelA, fX, TexelB), fY, Lerp(TexelC, fX, TexelD));
 
-                real32 RSA = Texel.a * Color.a;
+                Texel = Hadamard(Texel, Color);
 
                 v4 Dest = {(real32)((*Pixel >> 16) & 0xFF),
                            (real32)((*Pixel >> 8) & 0xFF),
@@ -197,14 +200,7 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                 
                 Dest = SRGB255ToLinear1(Dest);
 
-                real32 RDA = Dest.a;
-
-                real32 InvRSA = (1.0f-RSA);
-
-                v4 Blended = {InvRSA*Dest.r + Texel.r*Color.r*Color.a,
-                              InvRSA*Dest.g + Texel.g*Color.g*Color.a,
-                              InvRSA*Dest.b + Texel.b*Color.b*Color.a,
-                              (RDA + RSA - RDA*RSA)};
+                v4 Blended = (1.0f-Texel.a)*Dest + Texel;
 
                 v4 Blended255 = Linear1ToSRGB255(Blended);
 
@@ -291,29 +287,29 @@ DrawBitmap(loaded_bitmap *Buffer, loaded_bitmap *Bitmap,
         uint32 *Dest = (uint32 *)DestRow;
         for(int32 X = MinX; X < MaxX; X++)
         {
-            real32 SA = CAlpha*(real32)((*Source >> 24) & 0xFF);
-            real32 SR = CAlpha*(real32)((*Source >> 16) & 0xFF);
-            real32 SG = CAlpha*(real32)((*Source >> 8) & 0xFF);
-            real32 SB = CAlpha*(real32)((*Source >> 0) & 0xFF);
-            real32 RSA = (SA / 255.0f)*CAlpha;
+            v4 Texel = {(real32)((*Source >> 16) & 0xFF),
+                        (real32)((*Source >> 8) & 0xFF),
+                        (real32)((*Source >> 0) & 0xFF),
+                        (real32)((*Source >> 24) & 0xFF)};
 
-            real32 DA = (real32)((*Dest >> 24) & 0xFF);
-            real32 DR = (real32)((*Dest >> 16) & 0xFF);
-            real32 DG = (real32)((*Dest >> 8) & 0xFF);
-            real32 DB = (real32)((*Dest >> 0) & 0xFF);
-            real32 RDA = (DA / 255.0f);
+            Texel = SRGB255ToLinear1(Texel);    
+            Texel *= CAlpha;
 
-            real32 InvRSA = (1.0f-RSA);
-            // TODO(george): Check this for math errors
-            real32 A = 255.0f*(RDA + RSA - RDA*RSA);
-            real32 R = InvRSA*DR + SR;
-            real32 G = InvRSA*DG + SG;
-            real32 B = InvRSA*DB + SB;
+            v4 D = {(real32)((*Dest >> 16) & 0xFF),
+                    (real32)((*Dest >> 8) & 0xFF),
+                    (real32)((*Dest >> 0) & 0xFF),
+                    (real32)((*Dest >> 24) & 0xFF)};
+            
+            D = SRGB255ToLinear1(D);
 
-            *Dest = ((uint32)(A + 0.5f) << 24) |
-                    ((uint32)(R + 0.5f) << 16) |
-                    ((uint32)(G + 0.5f) << 8) |
-                    ((uint32)(B + 0.5f) << 0); 
+            v4 Result = (1.0f-Texel.a)*D + Texel;
+
+            Result = Linear1ToSRGB255(Result);
+
+            *Dest = ((uint32)(Result.a + 0.5f) << 24) |
+                    ((uint32)(Result.r + 0.5f) << 16) |
+                    ((uint32)(Result.g + 0.5f) << 8) |
+                    ((uint32)(Result.b + 0.5f) << 0); 
 
             Source++;
             Dest++;
@@ -407,11 +403,13 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 		BaseAddress < RenderGroup->PushBufferSize;)
 	{
 		render_group_entry_header *Header = (render_group_entry_header *)(RenderGroup->PushBufferBase + BaseAddress);
+        void *Data = (uint8 *)Header + sizeof(*Header);
+        BaseAddress += sizeof(*Header);
 		switch(Header->Type)
 		{
 			case RenderGroupEntryType_render_entry_clear:
 			{
-				render_entry_clear *Entry = (render_entry_clear *)Header;
+				render_entry_clear *Entry = (render_entry_clear *)Data;
 
                 DrawRectangle(OutputTarget, V2(0, 0), V2((real32)OutputTarget->Width, (real32)OutputTarget->Height), Entry->Color.r, Entry->Color.g, Entry->Color.b, Entry->Color.a);
 
@@ -420,7 +418,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 
             case RenderGroupEntryType_render_entry_bitmap:
 			{
-				render_entry_bitmap *Entry = (render_entry_bitmap *)Header;
+				render_entry_bitmap *Entry = (render_entry_bitmap *)Data;
                 v2 P = GetRenderEntityBasisP(RenderGroup, &Entry->EntityBasis, ScreenCenter);
 
                 Assert(Entry->Bitmap);
@@ -431,7 +429,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 
 			case RenderGroupEntryType_render_entry_rectangle:
 			{
-				render_entry_rectangle *Entry = (render_entry_rectangle *)Header;
+				render_entry_rectangle *Entry = (render_entry_rectangle *)Data;
                 v2 P = GetRenderEntityBasisP(RenderGroup, &Entry->EntityBasis, ScreenCenter);
 
                 DrawRectangle(OutputTarget, P, P + Entry->Dim, Entry->R, Entry->G, Entry->B);
@@ -441,7 +439,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 
             case RenderGroupEntryType_render_entry_coordinate_system:
 			{
-				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Header;
+				render_entry_coordinate_system *Entry = (render_entry_coordinate_system *)Data;
 
                 v2 vMax = Entry->Origin + Entry->XAxis + Entry->YAxis;
                 DrawRectangleSlowly(OutputTarget, Entry->Origin, Entry->XAxis, Entry->YAxis, Entry->Color, Entry->Texture);                
@@ -496,15 +494,18 @@ AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize, real32 Meters
 
 
 #define PushRenderElement(Group, type) (type *)PushRenderElement_(Group, sizeof(type), RenderGroupEntryType_##type)
-inline render_group_entry_header *
+inline void *
 PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Type)
 {
-    render_group_entry_header *Result = 0;
+    void *Result = 0;
+
+    Size += sizeof(render_group_entry_header);
 
     if((Group->PushBufferSize + Size) < Group->MaxPushBufferSize)
     {
-        Result = (render_group_entry_header *)(Group->PushBufferBase + Group->PushBufferSize);
-        Result->Type = Type;
+        render_group_entry_header *Header = (render_group_entry_header *)(Group->PushBufferBase + Group->PushBufferSize);
+        Header->Type = Type;
+        Result = (uint8 *)Header + sizeof(*Header);
         Group->PushBufferSize += Size;
     }
     else
