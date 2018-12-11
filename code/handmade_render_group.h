@@ -3,9 +3,6 @@
 
 struct environment_map
 {
-    // NOTE(george): LOD[0] is 2^WidthPow2 x 2^HeightPow2
-    uint32 WidthPow2;
-    uint32 HeightPow2;
     loaded_bitmap *LOD[4];
 };
 
@@ -54,7 +51,6 @@ struct render_entry_coordinate_system
     environment_map *Middle;
     environment_map *Bottom;
 };
-
 
 struct render_entry_bitmap
 {
