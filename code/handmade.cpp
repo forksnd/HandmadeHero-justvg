@@ -526,6 +526,40 @@ MakeEmptyBitmap(memory_arena *Arena, int32 Width, int32 Height, bool32 ClearToZe
     return(Result);
 }
 
+internal void
+MakeSphereNormalMap(loaded_bitmap *Bitmap, real32 Roughless)
+{
+    real32 InvWidth = 1.0f / Bitmap->Width;
+    real32 InvHeight = 1.0f / Bitmap->Height;
+
+    uint8 *Row = (uint8 *)Bitmap->Memory;
+    for(int32 Y = 0;
+        Y < Bitmap->Height;
+        Y++)
+    {
+        uint32 *Pixel = (uint32 *)Row;
+        for(int32 X = 0;
+            X < Bitmap->Width;
+            X++)
+        {
+            v2 BitmapUV = {InvWidth*(real32)X, InvHeight*(real32)Y};
+
+            // TODO(george): Actually generate sphere!!!
+            v3 Normal = {2.0f*BitmapUV.x - 1.0f, 2.0f*BitmapUV.y - 1.0f, 0.0f};
+            Normal.z = SquareRoot(1.0f - Minimum(1.0f, Square(Normal.x) + Square(Normal.y)));
+
+            v4 Color = {255.0f*(0.5f*(Normal.x + 1.0f)), 255.0f*(0.5f*(Normal.y + 1.0f)), 127.0f*Normal.z, 255.0f*Roughless};
+        
+            *Pixel = ((uint32)(Color.x + 0.5f) << 24) |
+                     ((uint32)(Color.y + 0.5f) << 16) |
+                     ((uint32)(Color.z + 0.5f) << 8) |
+                     ((uint32)(Color.w + 0.5f) << 0);   
+        }
+
+        Row += Bitmap->Pitch;
+    }
+}
+
 #if 0
 internal void
 RequestGroundBuffers(world_position CenterP, rectangle3 Bounds)
@@ -881,7 +915,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DrawBuffer->Pitch = Buffer->Pitch;
     DrawBuffer->Memory = Buffer->Memory;
 
-    Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 0.0f));
+    Clear(RenderGroup, V4(0.5f, 0.5f, 0.5f, 0.0f));
 
     v2 ScreenCenter = {0.5f*(real32)DrawBuffer->Width,
                        0.5f*(real32)DrawBuffer->Height};
@@ -1147,7 +1181,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     GameState->Time += Input->dtForFrame;
     real32 Angle = 0.1f*GameState->Time;
-    real32 Disp = 100.0f*Cos(5.0f*Angle);
+
+    Angle = 0.0f;
 
     v2 Origin = ScreenCenter;
 #if 1
@@ -1158,18 +1193,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v2 YAxis = {0, 60.0f};
 #endif
     uint32 PIndex = 0;
-    render_entry_coordinate_system *C = CoordinateSystem(RenderGroup, Origin + V2(Disp, 0) - 0.5f*XAxis - 0.5f*YAxis, XAxis, YAxis, V4(1, 1, 1, 1), &GameState->Tree);
-    for(real32 Y = 0.0f;
-        Y < 1.0f;
-        Y += 0.25f)
-    {
-        for(real32 X = 0.0f;
-            X < 1.0f;
-            X += 0.25f)
-        {
-            C->Points[PIndex++] = V2(X, Y);
-        }
-    }
+    render_entry_coordinate_system *C = CoordinateSystem(RenderGroup, Origin - 0.5f*XAxis - 0.5f*YAxis, XAxis, YAxis, V4(1, 1, 1, 1), &GameState->Tree, 
+                                                         0, 0, 0, 0);
 
     RenderGroupToOutput(RenderGroup, DrawBuffer);
 
