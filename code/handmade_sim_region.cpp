@@ -473,7 +473,6 @@ MoveEntity(game_state *GameState, sim_region *SimRegion, sim_entity *Entity, rea
         ddP += V3(0.0f, 0.0f, -9.8f); // NOTE(george): Gravity
     }
 
-    v3 OldPlayerP = Entity->P;   
     v3 PlayerDelta = (0.5f*ddP*Square(dt)) + Entity->dP*dt;
     Entity->dP = ddP*dt + Entity->dP;
     // TODO(george): Upgrade physical motion routines to handle capping the
