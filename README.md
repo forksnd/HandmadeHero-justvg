@@ -1,3 +1,3 @@
 Almost all code here is authored by Casey Muratori.
 
-Day 99 is finished.
+Day 100 is finished.
