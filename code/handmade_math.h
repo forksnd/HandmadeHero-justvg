@@ -25,6 +25,11 @@ union v3
 		v2 xy;
 		real32 Ignored_;
 	};
+	struct
+	{
+		real32 Ignored_;
+		v2 yz;
+	};
 	real32 E[3];
 };
 
@@ -59,6 +64,24 @@ union v4
 		};
 
 		real32 a;
+	};
+	struct
+	{
+		v2 xy;
+		real32 Ignored_0;
+		real32 Ignored_1;
+	};
+	struct
+	{
+		real32 Ignored_0;		
+		v2 yz;
+		real32 Ignored_1;
+	};
+	struct
+	{
+		real32 Ignored_0;		
+		real32 Ignored_1;
+		v2 zw;
 	};
 	real32 E[4];
 };
