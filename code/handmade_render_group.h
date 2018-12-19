@@ -1,6 +1,22 @@
 #if !defined(HANDMADE_RENDER_GROUP_H)
 #define HANDMADE_RENDER_GROUP_H
 
+/* NOTE(george):
+    
+   1) Everywhere outside the renderer, Y _always_ goes upward, X to the right.
+
+   2) All bitmaps including the render target are assumed to be bottom-up
+      (meaning that the first row pointer points to the bottom-most row 
+      when viewed on screen).
+
+   3) Unless otherwise specified, all inputs to the renderer are in world
+      coordinate ("meters"), NOT pixels. Anything that in pixel values 
+      will be explicitly marked as such.
+
+   4) Z is a special coordinate because it is broken up into discrete slices,
+      and the renderer actually understands these slices (potentially).
+*/
+
 struct loaded_bitmap
 {
     int32 Width;

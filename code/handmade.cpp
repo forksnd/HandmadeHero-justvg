@@ -73,6 +73,7 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
         Result.Width = Header->Width;
         Result.Height = Header->Height;
 
+        Assert(Result.Height >= 0);
         Assert(Header->Compression == 3);
         
         // NOTE(george): If you are using this generically for some reason,
@@ -129,8 +130,12 @@ DEBUGLoadBMP(thread_context *Thread, debug_platform_read_entire_file *ReadEntire
         }
     }
 
+    Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
+
+#if 0
     Result.Pitch = -Result.Width*BITMAP_BYTES_PER_PIXEL;
     Result.Memory = (uint8*)Result.Memory - Result.Pitch*(Result.Height-1);
+#endif
 
     return(Result);
 }
@@ -467,7 +472,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
             real32 Width = (real32)Buffer->Width;
             real32 Height = (real32)Buffer->Height;
             
-            v2 Center = V2(ChunkOffsetX*Width, -ChunkOffsetY*Height);
+            v2 Center = V2(ChunkOffsetX*Width, ChunkOffsetY*Height);
             for(uint32 GrassIndex = 0;
                 GrassIndex < 100;
                 GrassIndex++)
@@ -677,6 +682,20 @@ MakePyramidNormalMap(loaded_bitmap *Bitmap, real32 Roughless)
     }
 }
 
+internal v2
+TopDownAlign(loaded_bitmap *Bitmap, v2 Align)
+{
+    Align.y = (real32)(Bitmap->Height - 1) - Align.y;
+
+    return (Align);
+}
+
+internal void
+SetTopDownAlign(hero_bitmaps *Bitmap, v2 Align)
+{
+    Bitmap->Align = TopDownAlign(&Bitmap->Hero, Align);
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
 	Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == 
@@ -745,19 +764,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         hero_bitmaps *Bitmap;
         Bitmap = GameState->HeroBitmaps;
         Bitmap->Hero = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/hero_right.bmp");
-        Bitmap->Align = V2(18, 56);
+        SetTopDownAlign(Bitmap, V2(18, 56));
         Bitmap++;
 
         Bitmap->Hero = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/hero_back.bmp");
-        Bitmap->Align = V2(18, 56);
+        SetTopDownAlign(Bitmap, V2(18, 56));        
         Bitmap++;
 
         Bitmap->Hero = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/hero_left.bmp");
-        Bitmap->Align = V2(18, 56);
+        SetTopDownAlign(Bitmap, V2(18, 56));
         Bitmap++;
 
         Bitmap->Hero = DEBUGLoadBMP(Thread, Memory->DEBUGPlatformReadEntireFile, "test/hero_front.bmp");
-        Bitmap->Align = V2(18, 56);
+        SetTopDownAlign(Bitmap, V2(18, 56));
 
         random_series Series = RandomSeed(1234);
 
@@ -946,6 +965,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         TranState->IsInitialized = true;
     }
 
+#if 0
     if(Input->ExecutableReloaded)
     {
         for(uint32 GroundBufferIndex = 0;
@@ -956,6 +976,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             GroundBuffer->P = NullPosition();
         }
     }
+#endif
 
     world *World = GameState->World;
 
@@ -1115,7 +1136,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         FillGroundChunk(TranState, GameState, FurthestBuffer, &ChunkCenterP);
                     }
 
-                    PushRectOutline(RenderGroup, RelP.xy, 0.0f, World->ChunkDimInMeters.xy, V4(1.0f, 1.0f, 0.0f, 1.0f));
+                    // PushRectOutline(RenderGroup, RelP.xy, 0.0f, World->ChunkDimInMeters.xy, V4(1.0f, 1.0f, 0.0f, 1.0f));
                 }
             }
         }
@@ -1196,7 +1217,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Wall:
                 {
-                    PushBitmap(RenderGroup, &GameState->Tree, V2(0, 0), 0, V2(40, 55));
+                    v2 Alignment = TopDownAlign(&GameState->Tree, V2(40, 55));
+                    PushBitmap(RenderGroup, &GameState->Tree, V2(0, 0), 0, Alignment);
                 } break;
 
                 case EntityType_Stairwell:
@@ -1211,21 +1233,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     MoveSpec.Speed = 0.0f;
                     MoveSpec.Drag = 0.0f;
 
-                    // TODO(george): IMPORTANT(george): Add the ability in the collision 
-                    // routines to understand a movement limit for an entity, and
-                    // then update this routine to use to know when to kill the
-                    // sword.
-                    // TODO(george): Need to handle the fact that DistanceTraveled
-                    // might not have enough distance for the total entity move
-                    // for the frame!
+                    
                     if(Entity->DistanceLimit == 0.0f)
                     {
                         ClearCollisionRulesFor(GameState, Entity->StorageIndex);
                         MakeEntityNonSpatial(Entity);
                     }
 
-                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, V2(20, 12), ShadowAlpha, 0);                  
-                    PushBitmap(RenderGroup, &GameState->Sword, V2(0, 0), 0, V2(7, 19));
+                    v2 Alignment = TopDownAlign(&GameState->Sword, V2(7, 19));                    
+                    v2 ShadowAlignment = TopDownAlign(&GameState->Sword, V2(7, 19));                    
+                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, ShadowAlignment, ShadowAlpha, 0);                  
+                    PushBitmap(RenderGroup, &GameState->Sword, V2(0, 0), 0, Alignment);
                 } break;
 
                 case EntityType_Familiar:
@@ -1267,13 +1285,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         Entity->tBob -= 2.0f*Pi32;
                     }
                     real32 BobSin = Sin(2.0f*Entity->tBob);
-                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, V2(20, 12), (0.5f*ShadowAlpha) + 0.2f*BobSin, 0);
+                  
+                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, HeroBitmaps->Align, (0.5f*ShadowAlpha) + 0.2f*BobSin, 0);
                     PushBitmap(RenderGroup, &HeroBitmaps->Hero, V2(0, 0), 0.5f*BobSin, HeroBitmaps->Align);
                 } break;
 
                 case EntityType_Monstar:
                 {
-                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, V2(20, 12), ShadowAlpha, 0);                  
+                    v2 Alignment = TopDownAlign(&GameState->Shadow, V2(20, 12));
+                    PushBitmap(RenderGroup, &GameState->Shadow, V2(0, 0), 0, Alignment, ShadowAlpha, 0);                  
                     PushBitmap(RenderGroup, &HeroBitmaps->Hero, V2(0, 0), 0, HeroBitmaps->Align);      
                     DrawHitpoints(Entity, RenderGroup);            
                 } break;
@@ -1308,6 +1328,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
+#if 1
     v3 MapColor[] = 
     {
         {1, 0, 0},
@@ -1383,6 +1404,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         CoordinateSystem(RenderGroup, MapP, XAxis, YAxis, V4(1, 1, 1, 1), LOD, 0, 0, 0, 0);
         MapP += YAxis + V2(0.0f, 6.0f);
     }
+#endif
 
 #if 0
     Saturation(RenderGroup, 0.0f);
