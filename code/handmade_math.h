@@ -239,6 +239,15 @@ SafeRatio0(real32 Numerator, real32 Divisor)
 	return(Result);
 }
 
+inline real32
+Clamp01MapToRange(real32 Min, real32 t, real32 Max)
+{
+	real32 Range = Max - Min;
+	real32 Result = Clamp01(SafeRatio0((t - Min), Range));
+
+	return(Result);
+}
+
 inline real32 
 SafeRatio1(real32 Numerator, real32 Divisor)
 {

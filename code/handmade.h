@@ -253,8 +253,6 @@ struct game_state
     loaded_bitmap TestNormal;    
 
     real32 Time;
-
-    real32 ZOffset;
 };
 
 struct transient_state
