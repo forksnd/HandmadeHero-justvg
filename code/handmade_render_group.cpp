@@ -415,19 +415,30 @@ struct entity_basis_p_result
 {
     v2 P;
     real32 Scale;
+    bool32 Valid;
 };
 internal entity_basis_p_result
 GetRenderEntityBasisP(render_group *RenderGroup, render_entity_basis *EntityBasis, v2 ScreenCenter)
 {
-    entity_basis_p_result Result;
+    entity_basis_p_result Result = {};
 
     v3 EntityBaseP = RenderGroup->MetersToPixels*EntityBasis->Basis->P;
-    real32 ZFudge = 1.0f + 0.0015f*EntityBaseP.z;
-    v2 EntityGroundPoint = ScreenCenter + ZFudge*(EntityBaseP.xy + EntityBasis->Offset.xy);
-    v2 Center = EntityGroundPoint; // + V2(0, EntityBaseP.z + EntityBasis->Offset.z); 
 
-    Result.P = Center;
-    Result.Scale = ZFudge;
+    // TODO(george): The values of 20 and 20 seem wrong.
+    real32 FocalLength = RenderGroup->MetersToPixels*20.0f;
+    real32 CameraDistanceAboveGround = RenderGroup->MetersToPixels*20.0f;
+    real32 DistanceToPZ = CameraDistanceAboveGround - EntityBaseP.z;
+    real32 NearClipPlane = RenderGroup->MetersToPixels*0.2f;
+
+    v3 RawXY = V3(EntityBaseP.xy + EntityBasis->Offset.xy, 1.0f);
+
+    if(DistanceToPZ > NearClipPlane)
+    {
+        v3 ProjectedXY = (1.0f / DistanceToPZ) * FocalLength*RawXY;
+        Result.P = ScreenCenter + ProjectedXY.xy; // + V2(0, EntityBaseP.z + EntityBasis->Offset.z); 
+        Result.Scale = ProjectedXY.z;
+        Result.Valid = true;
+    }
 
     return(Result);
 }
