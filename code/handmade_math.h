@@ -7,6 +7,10 @@ union v2
 	{
 		real32 x, y;
 	};
+	struct 
+	{
+		real32 u, v;
+	};
 	real32 E[2];
 };
 
@@ -15,6 +19,10 @@ union v3
 	struct 
 	{
 		real32 x, y, z;
+	};
+	struct 
+	{
+		real32 u, v, w;
 	};
 	struct
 	{
@@ -29,6 +37,16 @@ union v3
 	{
 		real32 Ignored_;
 		v2 yz;
+	};
+	struct
+	{
+		v2 uv;
+		real32 Ignored_;
+	};
+	struct
+	{
+		real32 Ignored_;
+		v2 vw;
 	};
 	real32 E[3];
 };
@@ -661,6 +679,13 @@ inline v2
 GetMaxCorner(rectangle2 Rect)
 {
 	v2 Result = Rect.Max;
+	return(Result);
+}
+
+inline v2
+GetDim(rectangle2 Rect)
+{
+	v2 Result = Rect.Max - Rect.Min;
 	return(Result);
 }
 
