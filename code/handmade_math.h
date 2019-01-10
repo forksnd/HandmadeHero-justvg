@@ -31,21 +31,21 @@ union v3
 	struct
 	{
 		v2 xy;
-		real32 Ignored_;
+		real32 Ignored_0;
 	};
 	struct
 	{
-		real32 Ignored_;
+		real32 Ignored_1;
 		v2 yz;
 	};
 	struct
 	{
 		v2 uv;
-		real32 Ignored_;
+		real32 Ignored_2;
 	};
 	struct
 	{
-		real32 Ignored_;
+		real32 Ignored_3;
 		v2 vw;
 	};
 	real32 E[3];
@@ -91,14 +91,14 @@ union v4
 	};
 	struct
 	{
-		real32 Ignored_0;		
+		real32 Ignored_1;		
 		v2 yz;
-		real32 Ignored_1;
+		real32 Ignored_2;
 	};
 	struct
 	{
-		real32 Ignored_0;		
-		real32 Ignored_1;
+		real32 Ignored_3;		
+		real32 Ignored_4;
 		v2 zw;
 	};
 	real32 E[4];
