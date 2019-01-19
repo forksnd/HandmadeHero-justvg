@@ -217,6 +217,8 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                     environment_map *Bottom,
                     real32 PixelsToMeters)
 {
+    BEGIN_TIMED_BLOCK(DrawRectangleSlowly);
+
     // NOTE(george): Premultiply color up front
     Color.rgb *= Color.a;
 
@@ -283,6 +285,7 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
         uint32 *Pixel = (uint32 *)Row;
         for (int X = XMin; X <= XMax; X++)
         {
+            BEGIN_TIMED_BLOCK(TestPixel);
             v2 PixelP = V2i(X, Y);
             v2 d = PixelP - Origin;
 
@@ -296,6 +299,8 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                (Edge2 < 0) && 
                (Edge3 < 0))
             {
+                BEGIN_TIMED_BLOCK(FillPixel);
+                
                 v2 ScreenSpaceUV = {InvWidthMax*(real32)X, FixedCastY};
                 // v2 ScreenSpace = {0.5f, 0.5f};
 
@@ -401,13 +406,18 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
                          ((uint32)(Blended255.r + 0.5f) << 16) |
                          ((uint32)(Blended255.g + 0.5f) << 8) |
                          ((uint32)(Blended255.b + 0.5f) << 0); 
+
+                END_TIMED_BLOCK(FillPixel);
             }
 
             Pixel++;
+            END_TIMED_BLOCK(TestPixel);            
         }
 
         Row += Buffer->Pitch;
     }
+
+    END_TIMED_BLOCK(DrawRectangleSlowly);
 }
 
 
@@ -639,6 +649,8 @@ DrawMatte(loaded_bitmap *Buffer, loaded_bitmap *Bitmap,
 internal void
 RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 {
+    BEGIN_TIMED_BLOCK(RenderGroupToOutput);
+
     v2 ScreenDim = {(real32)OutputTarget->Width,
                     (real32)OutputTarget->Height};
 
@@ -737,6 +749,8 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
 			InvalidDefaultCase;
 		}
 	}
+
+    END_TIMED_BLOCK(RenderGroupToOutput);    
 }
 
 internal render_group *
