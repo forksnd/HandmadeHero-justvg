@@ -126,6 +126,7 @@ extern "C" {
         DebugCycleCounter_DrawRectangleSlowly,
         DebugCycleCounter_TestPixel,
         DebugCycleCounter_FillPixel,
+        DebugCycleCounter_DrawRectangleHopefullyQuickly,
         DebugCycleCounter_Count, 
     };
     struct debug_cycle_counter
