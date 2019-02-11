@@ -482,7 +482,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
 
     GroundBuffer->P = *ChunkP;
 
-#if 0
+#if 1
     real32 Width = GameState->World->ChunkDimInMeters.x;
     real32 Height = GameState->World->ChunkDimInMeters.y;
     v2 HalfDim = 0.5f*V2(Width, Height);
@@ -955,7 +955,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitializeArena(&TranState->TranArena, Memory->TransientStorageSize - sizeof(transient_state),
                         (uint8 *)Memory->TransientStorage + sizeof(transient_state));   
 
-        TranState->GroundBufferCount = 64; // 128;
+        TranState->GroundBufferCount = 256; // 128;
         TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
         for(uint32 GroundBufferIndex = 0;
             GroundBufferIndex < TranState->GroundBufferCount;

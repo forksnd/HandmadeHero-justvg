@@ -125,7 +125,7 @@ extern "C" {
         DebugCycleCounter_RenderGroupToOutput,
         DebugCycleCounter_DrawRectangleSlowly,
         DebugCycleCounter_ProcessPixel,
-        DebugCycleCounter_DrawRectangleHopefullyQuickly,
+        DebugCycleCounter_DrawRectangleQuickly,
         DebugCycleCounter_Count, 
     };
     struct debug_cycle_counter
