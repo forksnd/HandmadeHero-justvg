@@ -482,7 +482,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
 
     GroundBuffer->P = *ChunkP;
 
-#if 1
+#if 0
     real32 Width = GameState->World->ChunkDimInMeters.x;
     real32 Height = GameState->World->ChunkDimInMeters.y;
     v2 HalfDim = 0.5f*V2(Width, Height);
