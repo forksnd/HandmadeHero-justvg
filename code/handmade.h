@@ -249,7 +249,7 @@ struct game_state
     sim_entity_collision_volume_group *WallCollision;
     sim_entity_collision_volume_group *StandardRoomCollision;
 
-    loaded_bitmap TestDiffuse;    
+    loaded_bitmap TestDiffuse; // TODO(george): Re-fill this guy with gray
     loaded_bitmap TestNormal;    
 
     real32 Time;

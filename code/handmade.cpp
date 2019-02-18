@@ -528,7 +528,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
     }
 #endif
 
-    RenderGroupToOutput(RenderGroup, Buffer);
+    TiledRenderGroupToOutput(RenderGroup, Buffer);
     EndTemporaryMemory(GroundMemory);
 }
 
@@ -955,7 +955,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitializeArena(&TranState->TranArena, Memory->TransientStorageSize - sizeof(transient_state),
                         (uint8 *)Memory->TransientStorage + sizeof(transient_state));   
 
-        TranState->GroundBufferCount = 256; // 128;
+        TranState->GroundBufferCount = 128;
         TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
         for(uint32 GroundBufferIndex = 0;
             GroundBufferIndex < TranState->GroundBufferCount;
@@ -967,7 +967,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 
         GameState->TestDiffuse = MakeEmptyBitmap(&TranState->TranArena, 256, 256, false);
-        DrawRectangle(&GameState->TestDiffuse, V2(0, 0), V2i(GameState->TestDiffuse.Width, GameState->TestDiffuse.Height), V4(0.5f, 0.5f, 0.5f, 1.0f));
         GameState->TestNormal = MakeEmptyBitmap(&TranState->TranArena, GameState->TestDiffuse.Width, GameState->TestDiffuse.Height, false);
         MakeSphereNormalMap(&GameState->TestNormal, 0.0f);
         MakeSphereDiffuseMap(&GameState->TestDiffuse);
@@ -1103,7 +1102,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     CameraBoundsInMeters.Min.z = -3.0f*GameState->TypicalFloorHeight;
     CameraBoundsInMeters.Max.z = 1.0f*GameState->TypicalFloorHeight;
 
-    PushRectOutline(RenderGroup, V3(0, 0, 0), GetDim(ScreenBounds), V4(1, 1, 0, 1));
+    PushRectOutline(RenderGroup, V3(0, 0, 0), GetDim(ScreenBounds), V4(1.0f, 1.0f, 0.0f, 1.0f));
 
     // NOTE(george): Ground chunk rendering
     for(uint32 GroundBufferIndex = 0;
@@ -1467,7 +1466,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Saturation(RenderGroup, 0.0f);
 #endif
 
-    RenderGroupToOutput(RenderGroup, DrawBuffer);
+    TiledRenderGroupToOutput(RenderGroup, DrawBuffer);
 
     EndSim(SimRegion, GameState);    
     EndTemporaryMemory(SimMemory);
