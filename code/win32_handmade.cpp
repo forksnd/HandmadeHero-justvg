@@ -981,10 +981,166 @@ Win32GetEXEFilename(win32_state *Win32State)
     }
 }
 
+struct work_queue_entry_storage
+{
+    void *UserPointer;
+};
+
+struct work_queue
+{
+    uint32 volatile EntryCompletionCount;
+    uint32 volatile NextEntryToDo;
+    uint32 volatile EntryCount;
+    HANDLE SemaphoreHandle;
+
+    work_queue_entry_storage Entries[256];    
+};
+
+struct work_queue_entry 
+{
+    void *Data;
+    bool32 IsValid;
+};
+
+internal void 
+AddWorkQueueEntry(work_queue *Queue, void *Pointer)
+{
+    Assert(Queue->EntryCount < ArrayCount(Queue->Entries));
+    Queue->Entries[Queue->EntryCount].UserPointer = Pointer;
+    _WriteBarrier(); 
+    _mm_sfence();
+    Queue->EntryCount++;
+    ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
+}
+
+inline work_queue_entry
+CompleteAndGetNextWorkQueueEntry(work_queue *Queue, work_queue_entry Completed)
+{
+    if(Completed.IsValid)
+    {
+        InterlockedIncrement((LONG volatile *)&Queue->EntryCompletionCount);
+    }
+
+    work_queue_entry Result;
+    Result.IsValid = false;
+    if(Queue->NextEntryToDo < Queue->EntryCount)
+    {
+        uint32 Index = InterlockedIncrement((LONG volatile *)&Queue->NextEntryToDo) - 1;
+        Result.Data = Queue->Entries[Index].UserPointer;
+        Result.IsValid = true;
+        _ReadBarrier();
+    }
+
+    return (Result);
+}
+
+inline bool32
+QueueWorkStillInProgress(work_queue *Queue)
+{
+    bool32 Result = Queue->EntryCompletionCount != Queue->EntryCount;
+    return(Result);
+}
+
+inline void
+DoWorkerWork(work_queue_entry Entry, int32 LogicalThreadIndex)
+{
+    Assert(Entry.IsValid);
+
+    char Buffer[256];
+    wsprintf(Buffer, "Thread %u: %s\n", LogicalThreadIndex, (char *)Entry.Data);
+    OutputDebugStringA(Buffer);
+}
+
+struct win32_thread_info
+{
+    int32 LogicalThreadIndex;
+    work_queue *Queue;
+};
+
+DWORD WINAPI 
+ThreadProc(LPVOID lpParameter)
+{
+    win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
+
+    work_queue_entry Entry = {};
+    for(;;)
+    {
+        Entry = CompleteAndGetNextWorkQueueEntry(ThreadInfo->Queue, Entry);
+        if(Entry.IsValid)
+        {
+            DoWorkerWork(Entry, ThreadInfo->LogicalThreadIndex);
+        }         
+        else
+        {
+            WaitForSingleObjectEx(ThreadInfo->Queue->SemaphoreHandle, INFINITE, FALSE);            
+        }
+    }
+
+    // return (0);
+}
+
+internal void
+PushString(work_queue *Queue, char *String)
+{
+    AddWorkQueueEntry(Queue, String);
+}
+
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
     win32_state Win32State = {};    
+
+    win32_thread_info ThreadInfo[3];
+
+    work_queue Queue = {};
+
+    uint32 InitialCount = 0;
+    uint32 ThreadCount = ArrayCount(ThreadInfo); 
+    Queue.SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+
+    for(uint32 ThreadIndex = 0;
+        ThreadIndex < ThreadCount;
+        ThreadIndex++)
+    {
+        win32_thread_info *Info = ThreadInfo + ThreadIndex;
+        Info->Queue = &Queue;
+        Info->LogicalThreadIndex = ThreadIndex;
+
+        DWORD ThreadID;
+        HANDLE ThreadHandle =  CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID); 
+    }
+
+    PushString(&Queue, "String A0");
+    PushString(&Queue, "String A1");
+    PushString(&Queue, "String A2");
+    PushString(&Queue, "String A3");
+    PushString(&Queue, "String A4");
+    PushString(&Queue, "String A5");
+    PushString(&Queue, "String A6");
+    PushString(&Queue, "String A7");
+    PushString(&Queue, "String A8");
+    PushString(&Queue, "String A9");
+
+    PushString(&Queue, "String B0");
+    PushString(&Queue, "String B1");
+    PushString(&Queue, "String B2");
+    PushString(&Queue, "String B3");
+    PushString(&Queue, "String B4");
+    PushString(&Queue, "String B5");
+    PushString(&Queue, "String B6");
+    PushString(&Queue, "String B7");
+    PushString(&Queue, "String B8");
+    PushString(&Queue, "String B9");
+
+    work_queue_entry Entry = {};
+    while(QueueWorkStillInProgress(&Queue)) 
+    { 
+        Entry = CompleteAndGetNextWorkQueueEntry(&Queue, Entry);
+        if(Entry.IsValid)
+        {
+            DoWorkerWork(Entry, 3); 
+        }
+    }
 
     LARGE_INTEGER PerfCounterFrequencyResult;
     QueryPerformanceFrequency(&PerfCounterFrequencyResult);

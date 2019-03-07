@@ -1045,15 +1045,35 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
     END_TIMED_BLOCK(RenderGroupToOutput);    
 }
 
-internal void
-TiledRenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
+struct tile_render_work
 {
-    int32 TileCountX = 4;
-    int32 TileCountY = 4;
+    render_group *RenderGroup;
+    loaded_bitmap *OutputTarget;
+    rectangle2i ClipRect;
+};
+
+internal void
+DoTileRenderWork(void *Data)
+{
+    tile_render_work *Work = (tile_render_work *)Data;
+
+    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect, true);
+    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect, false);
+}
+
+internal void
+TiledRenderGroupToOutput(// platform_work_queue *RenderQueue, 
+                         render_group *RenderGroup, loaded_bitmap *OutputTarget)
+{
+    int32 const TileCountX = 2;
+    int32 const TileCountY = 2;
+    tile_render_work WorkArray[TileCountX * TileCountY];
 
     // TODO(george): Make sure that allocator allocates enough space so we can round these?
     int32 TileWidth = OutputTarget->Width / TileCountX;
     int32 TileHeight = OutputTarget->Height / TileCountY;
+
+    int WorkCount = 0;
     for(int32 TileY = 0;
         TileY < TileCountY;
         TileY++)
@@ -1062,17 +1082,31 @@ TiledRenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
             TileX < TileCountX;
             TileX++)
         {
-            // TODO(george): Change this
-            rectangle2i ClipRect;
+            tile_render_work *Work = WorkArray + WorkCount++;
 
+            // TODO(george): Buffers with overflow!
+            rectangle2i ClipRect;
             ClipRect.MinX = TileX*TileWidth + 4;
             ClipRect.MaxX = ClipRect.MinX + TileWidth - 4;
             ClipRect.MinY = TileY*TileHeight + 4;
             ClipRect.MaxY = ClipRect.MinY + TileHeight - 4;
 
-            RenderGroupToOutput(RenderGroup, OutputTarget, ClipRect, true);
-            RenderGroupToOutput(RenderGroup, OutputTarget, ClipRect, false);
+            Work->RenderGroup = RenderGroup;
+            Work->OutputTarget = OutputTarget;
+            Work->ClipRect = ClipRect;
+
+            // RenderQueue->AddEntry(RenderQueue, DoTileRenderWork, Work);
         }
+    }
+
+    // RenderQueue->CompleteAllWork(RenderQueue);
+
+    for(int WorkIndex = 0;
+        WorkIndex < WorkCount;
+        WorkIndex++)
+    {
+        tile_render_work *Work = WorkArray + WorkIndex;
+        DoTileRenderWork(Work);
     }
 }
 
