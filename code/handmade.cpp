@@ -1127,14 +1127,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             if((Delta.z >= -1) && (Delta.z <= 1))
             {
-                render_basis *Basis = PushStruct(&TranState->TranArena, render_basis);
-                RenderGroup->DefaultBasis = Basis;
-                Basis->P = Delta;
-
                 real32 GroundSideInMeters = World->ChunkDimInMeters.x;
-                PushBitmap(RenderGroup, Bitmap, GroundSideInMeters, V3(0, 0, 0));
+                PushBitmap(RenderGroup, Bitmap, GroundSideInMeters, Delta);
 #if 1
-                PushRectOutline(RenderGroup, V3(0, 0, 0), V2(GroundSideInMeters, GroundSideInMeters), V4(1.0f, 1.0f, 0.0f, 1.0f));
+                PushRectOutline(RenderGroup, Delta, V2(GroundSideInMeters, GroundSideInMeters), V4(1.0f, 1.0f, 0.0f, 1.0f));
 #endif
             }
         }
@@ -1222,9 +1218,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             move_spec MoveSpec = DefaultMoveSpec();
             v3 ddP = {};
 
-            render_basis *Basis = PushStruct(&TranState->TranArena, render_basis);
-            RenderGroup->DefaultBasis = Basis;
-
             v3 CameraRelativeGroundP = GetEntityGroundPoint(Entity) - CameraP;
             real32 FadeTopEndZ = 0.75f*GameState->TypicalFloorHeight;
             real32 FadeTopStartZ = 0.5f*GameState->TypicalFloorHeight;
@@ -1241,6 +1234,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             }
 
             hero_bitmaps *HeroBitmaps = &GameState->HeroBitmaps[Entity->FacingDirection];
+
+            // 
+            // NOTE(georgy): Pre-physics entity work
+            // 
             switch(Entity->Type)
             {
                 case EntityType_Hero:
@@ -1276,23 +1273,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             }
                         }
                     }
-
-                    real32 HeroSizeC = 1.15f;
-                    PushBitmap(RenderGroup, &GameState->Shadow, HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
-                    PushBitmap(RenderGroup, &HeroBitmaps->Hero, HeroSizeC*1.2f, V3(0, 0, 0));  
-
-                    DrawHitpoints(Entity, RenderGroup);
-                } break;
-
-                case EntityType_Wall:
-                {
-                    PushBitmap(RenderGroup, &GameState->Tree, 2.5f, V3(0, 0, 0));
-                } break;
-
-                case EntityType_Stairwell:
-                {
-                    PushRect(RenderGroup, V3(0, 0, 0), Entity->WalkableDim, V4(1, 0.5f, 0, 1));
-                    PushRect(RenderGroup, V3(0, 0, Entity->WalkableHeight), Entity->WalkableDim, V4(1, 1, 0, 1));
                 } break;
 
                 case EntityType_Sword:
@@ -1301,15 +1281,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     MoveSpec.Speed = 0.0f;
                     MoveSpec.Drag = 0.0f;
 
-                    
                     if(Entity->DistanceLimit == 0.0f)
                     {
                         ClearCollisionRulesFor(GameState, Entity->StorageIndex);
                         MakeEntityNonSpatial(Entity);
                     }
-
-                    PushBitmap(RenderGroup, &GameState->Shadow, 0.5f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
-                    PushBitmap(RenderGroup, &GameState->Sword, 0.5f, V3(0, 0, 0));
                 } break;
 
                 case EntityType_Familiar:
@@ -1344,14 +1320,56 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     MoveSpec.UnitMaxAccelVector = true;
                     MoveSpec.Speed = 50.0f;
                     MoveSpec.Drag = 8.0f;
+                } break;
+            }
 
+            if(!IsSet(Entity, EntityFlag_Nonspatial) && 
+                IsSet(Entity, EntityFlag_Moveable))
+            {
+                MoveEntity(GameState, SimRegion, Entity, Input->dtForFrame, &MoveSpec, ddP);
+            }
+
+            RenderGroup->Transform.OffsetP = GetEntityGroundPoint(Entity);
+
+            // 
+            // NOTE(georgy): Post-physics entity work
+            // 
+            switch(Entity->Type)
+            {
+                case EntityType_Hero:
+                {
+                    real32 HeroSizeC = 1.15f;
+                    PushBitmap(RenderGroup, &GameState->Shadow, HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
+                    PushBitmap(RenderGroup, &HeroBitmaps->Hero, HeroSizeC*1.2f, V3(0, 0, 0));  
+
+                    DrawHitpoints(Entity, RenderGroup);
+                } break;
+
+                case EntityType_Wall:
+                {
+                    PushBitmap(RenderGroup, &GameState->Tree, 2.5f, V3(0, 0, 0));
+                } break;
+
+                case EntityType_Stairwell:
+                {
+                    PushRect(RenderGroup, V3(0, 0, 0), Entity->WalkableDim, V4(1, 0.5f, 0, 1));
+                    PushRect(RenderGroup, V3(0, 0, Entity->WalkableHeight), Entity->WalkableDim, V4(1, 1, 0, 1));
+                } break;
+
+                case EntityType_Sword:
+                {
+                    PushBitmap(RenderGroup, &GameState->Shadow, 0.5f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
+                    PushBitmap(RenderGroup, &GameState->Sword, 0.5f, V3(0, 0, 0));
+                } break;
+
+                case EntityType_Familiar:
+                {
                     Entity->tBob += dt;
                     if(Entity->tBob > 2.0f*Pi32)
                     {
                         Entity->tBob -= 2.0f*Pi32;
                     }
                     real32 BobSin = Sin(2.0f*Entity->tBob);
-                  
                     PushBitmap(RenderGroup, &GameState->Shadow, 0.25f, V3(0, 0, 0), V4(1, 1, 1, (0.5f*ShadowAlpha) + 0.2f*BobSin));
                     PushBitmap(RenderGroup, &HeroBitmaps->Hero, 0.5f, V3(0, 0, 0.5f*BobSin));
                 } break;
@@ -1381,14 +1399,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     InvalidCodePath;
                 }
             }
-
-            if(!IsSet(Entity, EntityFlag_Nonspatial) && 
-                IsSet(Entity, EntityFlag_Moveable))
-            {
-                MoveEntity(GameState, SimRegion, Entity, Input->dtForFrame, &MoveSpec, ddP);
-            }
-
-            Basis->P = GetEntityGroundPoint(Entity);
         }
     }
 
@@ -1452,9 +1462,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v2 YAxis = {0, 60.0f};
 #endif
 
-    render_entry_coordinate_system *C = CoordinateSystem(RenderGroup, Origin - 0.5f*XAxis - 0.5f*YAxis + Disp, XAxis, YAxis, V4(1, 1, 1, 1), &GameState->TestDiffuse, 
-                                                         &GameState->TestNormal, 
-                                                         TranState->EnvMaps + 2, TranState->EnvMaps + 1, TranState->EnvMaps + 0);
+    CoordinateSystem(RenderGroup, Origin - 0.5f*XAxis - 0.5f*YAxis + Disp, XAxis, YAxis, V4(1, 1, 1, 1), &GameState->TestDiffuse, 
+                     &GameState->TestNormal, 
+                     TranState->EnvMaps + 2, TranState->EnvMaps + 1, TranState->EnvMaps + 0);
 
     v2 MapP = {0.0f, 0.0f};
     for(uint32 MapIndex = 0;

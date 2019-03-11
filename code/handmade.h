@@ -15,7 +15,16 @@
 
 /*
     TODO(george):
-    
+
+    - Rendering
+        - Straighten out all coordinate systems!
+            - Screen
+            - World
+            - Texture
+        - Particle systems
+        - Lighting
+        - Final optimization
+
     ARCHITECTURE EXPLORATION
     - Collision detection?
         - Transient collision rules! Clear based on flag.
@@ -63,7 +72,6 @@
         - Particle systems
 
     PRODUCTION
-    - Rendering
     -> GAME
         - Entity system
         - World generation
