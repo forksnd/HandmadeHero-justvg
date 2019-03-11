@@ -370,9 +370,8 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
     Buffer->Info.bmiHeader.biBitCount = 32;
     Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-    Buffer->Pitch = Width * BytesPerPixel;
-    
-    int BitmapMemorySize = Width * Height * BytesPerPixel;
+    Buffer->Pitch = Align16(Width * BytesPerPixel);
+    int BitmapMemorySize = Buffer->Pitch  * Height;
     Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     // TODO(george): Probably clear this to black
 }
@@ -1011,7 +1010,6 @@ Win32AddEntry(platform_work_queue *Queue, platform_work_queue_callback *Callback
     Entry->Data = Data;
     Queue->CompletionGoal++;
     _WriteBarrier(); 
-    _mm_sfence();
     Queue->NextEntryToWrite = NewNextEntryToWrite;
     ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
@@ -1170,8 +1168,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
        1024 + 128 = 1152
     */  
     // Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
-    // Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
+    // Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
+    Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
     
     WindowClass.style = CS_VREDRAW | CS_HREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
