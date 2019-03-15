@@ -462,17 +462,17 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
         __m128i StartClipMasks[] = 
         {
             _mm_slli_si128(StartClipMask, 0*4),
-            _mm_slli_si128(StartClipMask, 3*4),
+            _mm_slli_si128(StartClipMask, 1*4),
             _mm_slli_si128(StartClipMask, 2*4),
-            _mm_slli_si128(StartClipMask, 1*4)            
+            _mm_slli_si128(StartClipMask, 3*4)            
         };
 
         __m128i EndClipMasks[] = 
         {
             _mm_srli_si128(EndClipMask, 0*4),
-            _mm_srli_si128(EndClipMask, 1*4),
+            _mm_srli_si128(EndClipMask, 3*4),
             _mm_srli_si128(EndClipMask, 2*4),
-            _mm_srli_si128(EndClipMask, 3*4)            
+            _mm_srli_si128(EndClipMask, 1*4)            
         };
 
         if(FillRect.MinX & 3)
@@ -969,9 +969,11 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 #if 0
                 DrawBitmap(OutputTarget, Entry->Bitmap, P.x, P.y, Entry->Color.a);         
 #else
+                v2 XAxis = {1, 0};
+                v2 YAxis = {0, 1};
                 DrawRectangleQuickly(OutputTarget, Entry->P, 
-                                     V2(Entry->Size.x, 0), 
-                                     V2(0, Entry->Size.y), Entry->Color,
+                                     Entry->Size.x * XAxis, 
+                                     Entry->Size.y * YAxis, Entry->Color,
                                      Entry->Bitmap, NullPixelsToMeters, ClipRect, Even);
 #endif
 				BaseAddress += sizeof(*Entry);
@@ -1090,8 +1092,7 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
             Work->OutputTarget = OutputTarget;
             Work->ClipRect = ClipRect;
 
-#if 1
-            // NOTE(georgy): This is the multi-threaded path
+#if 1            // NOTE(georgy): This is the multi-threaded path
             PlatformAddEntry(RenderQueue, DoTileRenderWork, Work);
 #else
             // NOTE(georgy): This is the single-threaded path
@@ -1104,8 +1105,7 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
 }
 
 internal render_group *
-AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize,
-                    uint32 ResolutionPixelsX, uint32 ResolutionPixelsY)
+AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize)
 {
 	render_group *Result = PushStruct(Arena, render_group);
 	Result->PushBufferBase = (uint8 *)PushSize(Arena, MaxPushBufferSize);
@@ -1113,33 +1113,53 @@ AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize,
     Result->MaxPushBufferSize = MaxPushBufferSize;
     Result->PushBufferSize = 0;
 
-    Result->GlobalAlpha = 1;
+    Result->GlobalAlpha = 1.0f;
 
-#if 1
+#if 0
     real32 FocalLength = 3*0.6f;
     real32 Relationship = 0.635f / 0.6f;
     real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
     WidthOfMonitor = FocalLength*Relationship;
     real32 MetersToPixels = (real32)ResolutionPixelsX/WidthOfMonitor;
     real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
-#else
-    real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
-    real32 MetersToPixels = (real32)ResolutionPixelsX/WidthOfMonitor;
-    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
 #endif
 
-    Result->MonitorHalfDimInMeters = {0.5f*ResolutionPixelsX*PixelsToMeters,
-                                      0.5f*ResolutionPixelsY*PixelsToMeters};
-
     // NOTE(georgy): Default transform
-    Result->Transform.MetersToPixels = MetersToPixels;
-    Result->Transform.FocalLength = 3*0.6f; // NOTE(george): Meters the person is sitting from their monitor
-    Result->Transform.DistanceAboveTarget = 24.0f;
-    Result->Transform.ScreenCenter = V2(0.5f*ResolutionPixelsX, 0.5f*ResolutionPixelsY);
+    
     Result->Transform.OffsetP = V3(0.0f, 0.0f, 0.0f);
     Result->Transform.Scale = 1.0f;
 
 	return(Result);
+}
+
+inline void
+Perspective(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, 
+            real32 MetersToPixels, real32 FocalLength, real32 DistanceAboveTarget)
+{
+    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
+    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters,
+                                           0.5f*PixelHeight*PixelsToMeters};
+
+    RenderGroup->Transform.MetersToPixels = MetersToPixels;
+    RenderGroup->Transform.FocalLength = FocalLength; // NOTE(george): Meters the person is sitting from their monitor
+    RenderGroup->Transform.DistanceAboveTarget = DistanceAboveTarget;
+    RenderGroup->Transform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
+
+    RenderGroup->Transform.Orthographic = false;
+}
+
+inline void
+Orthographic(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, real32 MetersToPixels)
+{
+    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
+    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters, 0.5f*PixelHeight*PixelsToMeters};
+
+    RenderGroup->Transform.MetersToPixels = MetersToPixels;
+    RenderGroup->Transform.FocalLength = 1.0f; // NOTE(george): Meters the person is sitting from their monitor
+    RenderGroup->Transform.DistanceAboveTarget = 1.0f;
+    RenderGroup->Transform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
+
+    RenderGroup->Transform.Orthographic = true;    
 }
 
 struct entity_basis_p_result
@@ -1155,28 +1175,37 @@ GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
 
     v3 P = V3(OriginalP.xy, 0.0f) + Transform->OffsetP;
 
-    real32 OffsetZ = 0.0f;
-
-    real32 DistanceAboveTarget = Transform->DistanceAboveTarget;
-#if 0
-    // TODO(georgy): How do we want to control the debug camera?
-    if(1)
+    if(Transform->Orthographic)
     {
-        DistanceAboveTarget += 30.0f;
+        Result.P = Transform->ScreenCenter + Transform->MetersToPixels*P.xy; 
+        Result.Scale = Transform->MetersToPixels;
+        Result.Valid = true;
     }
+    else
+    {
+        real32 OffsetZ = 0.0f;
+
+        real32 DistanceAboveTarget = Transform->DistanceAboveTarget;
+#if 0
+        // TODO(georgy): How do we want to control the debug camera?
+        if(1)
+        {
+            DistanceAboveTarget += 30.0f;
+        }
 #endif
 
-    real32 DistanceToPZ = DistanceAboveTarget - P.z;
-    real32 NearClipPlane = 0.2f;
+        real32 DistanceToPZ = DistanceAboveTarget - P.z;
+        real32 NearClipPlane = 0.2f;
 
-    v3 RawXY = V3(P.xy, 1.0f);
+        v3 RawXY = V3(P.xy, 1.0f);
 
-    if(DistanceToPZ > NearClipPlane)
-    {
-        v3 ProjectedXY = (1.0f / DistanceToPZ) * Transform->FocalLength*RawXY;
-        Result.Scale = Transform->MetersToPixels*ProjectedXY.z;
-        Result.P = Transform->ScreenCenter + Transform->MetersToPixels*ProjectedXY.xy + V2(0.0f, Result.Scale*OffsetZ);  
-        Result.Valid = true;
+        if(DistanceToPZ > NearClipPlane)
+        {
+            v3 ProjectedXY = (1.0f / DistanceToPZ) * Transform->FocalLength*RawXY;
+            Result.Scale = Transform->MetersToPixels*ProjectedXY.z;
+            Result.P = Transform->ScreenCenter + Transform->MetersToPixels*ProjectedXY.xy + V2(0.0f, Result.Scale*OffsetZ);  
+            Result.Valid = true;
+        }
     }
 
     return(Result);

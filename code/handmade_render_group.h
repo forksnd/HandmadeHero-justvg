@@ -23,6 +23,18 @@
 
 */
 
+#if 0
+struct alignas(16) loaded_bitmap
+{
+    v2 AlignPercentage;
+    real32 WidthOverHeight;
+
+    int32 Width;
+    int32 Height;
+    int32 Pitch;
+    void *Memory;
+};
+#else
 struct loaded_bitmap
 {
     v2 AlignPercentage;
@@ -33,6 +45,7 @@ struct loaded_bitmap
     int32 Pitch;
     void *Memory;
 };
+#endif
 
 struct environment_map
 {
@@ -104,6 +117,8 @@ struct render_entry_rectangle
 
 struct render_transform
 {
+    bool32 Orthographic;
+
     // NOTE(georgy): Camera parameters
     real32 MetersToPixels; // NOTE(george): This translates meters _on the monitor_ into pixels _on the monitor_
     v2 ScreenCenter;

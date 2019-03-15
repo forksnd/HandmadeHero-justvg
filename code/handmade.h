@@ -213,6 +213,7 @@ struct ground_buffer
     // NOTE(george): An invalid P tells us that this ground has not been filled
     world_position P; // NOTE(george): This is the center of the bitmap
     loaded_bitmap Bitmap;
+    float X, Y;
 };
 
 struct game_state
