@@ -239,6 +239,7 @@ extern "C" {
         void *TransientStorage;
 
         platform_work_queue *HighPriorityQueue;
+        platform_work_queue *LowPriorityQueue;
 
         platform_add_entry *PlatformAddEntry;
         platform_complete_all_work *PlatformCompleteAllWork;
