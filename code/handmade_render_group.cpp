@@ -1050,6 +1050,25 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(DoTileRenderWork)
 }
 
 internal void
+RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
+{
+    Assert(((uintptr)OutputTarget->Memory & 15) == 0);
+
+    rectangle2i ClipRect;
+    ClipRect.MinX = 0;
+    ClipRect.MaxX = OutputTarget->Width;
+    ClipRect.MinY = 0;
+    ClipRect.MaxY = OutputTarget->Height;
+
+    tile_render_work Work;
+    Work.RenderGroup = RenderGroup;
+    Work.OutputTarget = OutputTarget;
+    Work.ClipRect = ClipRect;
+
+    DoTileRenderWork(0, &Work);
+}
+
+internal void
 TiledRenderGroupToOutput(platform_work_queue *RenderQueue, 
                          render_group *RenderGroup, loaded_bitmap *OutputTarget)
 {
@@ -1057,7 +1076,7 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
     int32 const TileCountY = 2;
     tile_render_work WorkArray[TileCountX * TileCountY];
 
-    // Assert(((uintptr)OutputTarget & 15) == 0);
+    Assert(((uintptr)OutputTarget->Memory & 15) == 0);
     int32 TileWidth = OutputTarget->Width / TileCountX;
     int32 TileHeight = OutputTarget->Height / TileCountY;
 
@@ -1074,7 +1093,6 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
         {
             tile_render_work *Work = WorkArray + WorkCount++;
 
-            // TODO(george): Buffers with overflow!
             rectangle2i ClipRect;
             ClipRect.MinX = TileX*TileWidth;
             ClipRect.MaxX = ClipRect.MinX + TileWidth;
@@ -1094,7 +1112,8 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
             Work->OutputTarget = OutputTarget;
             Work->ClipRect = ClipRect;
 
-#if 1            // NOTE(georgy): This is the multi-threaded path
+#if 1            
+            // NOTE(georgy): This is the multi-threaded path
             PlatformAddEntry(RenderQueue, DoTileRenderWork, Work);
 #else
             // NOTE(georgy): This is the single-threaded path
@@ -1110,6 +1129,12 @@ internal render_group *
 AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize)
 {
 	render_group *Result = PushStruct(Arena, render_group);
+
+    if(MaxPushBufferSize == 0)
+    {
+        // TODO(georgy): Safe cast from memory_unit to uint32?
+        MaxPushBufferSize = (uint32)GetArenaSizeRemaining(Arena);
+    }
 	Result->PushBufferBase = (uint8 *)PushSize(Arena, MaxPushBufferSize);
 
     Result->MaxPushBufferSize = MaxPushBufferSize;
@@ -1117,17 +1142,7 @@ AllocateRenderGroup(memory_arena *Arena, uint32 MaxPushBufferSize)
 
     Result->GlobalAlpha = 1.0f;
 
-#if 0
-    real32 FocalLength = 3*0.6f;
-    real32 Relationship = 0.635f / 0.6f;
-    real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
-    WidthOfMonitor = FocalLength*Relationship;
-    real32 MetersToPixels = (real32)ResolutionPixelsX/WidthOfMonitor;
-    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
-#endif
-
     // NOTE(georgy): Default transform
-    
     Result->Transform.OffsetP = V3(0.0f, 0.0f, 0.0f);
     Result->Transform.Scale = 1.0f;
 
