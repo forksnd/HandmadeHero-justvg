@@ -252,6 +252,52 @@ struct ground_buffer
     float X, Y;
 };
 
+enum game_asset_id
+{
+    GAI_Backdrop,
+    GAI_Shadow,
+    GAI_Tree,
+    GAI_Sword,
+    GAI_Stairwell,
+
+    GAI_Count
+};
+
+enum asset_state
+{
+    AssetState_Unloaded,
+    AssetState_Queued,
+    AssetState_Loaded,
+};
+struct asset_handle
+{
+    asset_state State;
+    loaded_bitmap *Btimap;
+};
+
+struct game_assets
+{
+    struct transient_state *TranState;
+    memory_arena Arena;
+    debug_platform_read_entire_file *ReadEntireFile;
+
+    loaded_bitmap *Bitmaps[GAI_Count]; 
+
+    // NOTE(georgy): Array'd assets
+    loaded_bitmap Grass[1];
+    loaded_bitmap Stone[1];
+
+    // NOTE(georgy): Structured assets
+    hero_bitmaps HeroBitmaps[4];    
+};
+inline loaded_bitmap *
+GetBitmap(game_assets *Assets, game_asset_id ID)
+{
+    loaded_bitmap *Result = Assets->Bitmaps[ID];
+
+    return(Result);
+}
+
 struct game_state
 {
     memory_arena WorldArena;
@@ -268,16 +314,6 @@ struct game_state
     uint32 LowEntityCount;
     low_entity LowEntities[100000];    
 
-    loaded_bitmap Grass[1];
-    loaded_bitmap Stone[1];
-
-    loaded_bitmap Backdrop;
-    loaded_bitmap Shadow;
-    hero_bitmaps HeroBitmaps[4];
-
-    loaded_bitmap Tree;
-    loaded_bitmap Sword;
-    loaded_bitmap Stairwell;
     real32 MetersToPixels;
     real32 PixelsToMeters;
 
@@ -294,10 +330,10 @@ struct game_state
     sim_entity_collision_volume_group *WallCollision;
     sim_entity_collision_volume_group *StandardRoomCollision;
 
-    loaded_bitmap TestDiffuse; // TODO(george): Re-fill this guy with gray
-    loaded_bitmap TestNormal;    
-
     real32 Time;
+
+    loaded_bitmap TestDiffuse; // TODO(george): Re-fill this guy with gray
+    loaded_bitmap TestNormal;  
 };
 
 struct task_with_memory 
@@ -325,6 +361,7 @@ struct transient_state
     // NOTE(george): 0 is bottom, 1 is middle, 2 is top
     environment_map EnvMaps[3];
 
+    game_assets Assets;  
 };
 
 // TODO(george): This is dumb, this should just be a part of 
@@ -346,6 +383,7 @@ GetLowEntity(game_state *GameState, uint32 Index)
 
 global_variable platform_add_entry *PlatformAddEntry;
 global_variable platform_complete_all_work *PlatformCompleteAllWork;
+internal void LoadAsset(game_assets *Assets, game_asset_id ID);
 
 #endif
 
