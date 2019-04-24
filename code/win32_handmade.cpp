@@ -1118,7 +1118,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     Win32MakeQueue(&HighPriorityQueue, 3);
 
     platform_work_queue LowPriorityQueue;
-    Win32MakeQueue(&LowPriorityQueue, 1);
+    Win32MakeQueue(&LowPriorityQueue, 2);
 
 #if 0
     Win32AddEntry(&Queue, DoWorkerWork, "String A0");
@@ -1183,7 +1183,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     */  
     // Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
+    Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
     
     WindowClass.style = CS_VREDRAW | CS_HREDRAW;
     WindowClass.lpfnWndProc = Win32MainWindowCallback;

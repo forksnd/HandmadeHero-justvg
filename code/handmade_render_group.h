@@ -102,6 +102,7 @@ struct render_entry_coordinate_system
 struct render_entry_bitmap
 {
     loaded_bitmap *Bitmap;
+    game_asset_id ID;
 
     v2 P;
     v2 Size;
@@ -143,6 +144,8 @@ struct render_group
     uint32 MaxPushBufferSize;
     uint32 PushBufferSize;
     uint8 *PushBufferBase;
+
+    uint32 MissingResourceCount;
 };
 
 #endif
