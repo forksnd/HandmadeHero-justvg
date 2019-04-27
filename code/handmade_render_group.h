@@ -23,18 +23,6 @@
 
 */
 
-#if 0
-struct alignas(16) loaded_bitmap
-{
-    v2 AlignPercentage;
-    real32 WidthOverHeight;
-
-    int32 Width;
-    int32 Height;
-    int32 Pitch;
-    void *Memory;
-};
-#else
 struct loaded_bitmap
 {
     v2 AlignPercentage;
@@ -45,7 +33,6 @@ struct loaded_bitmap
     int32 Pitch;
     void *Memory;
 };
-#endif
 
 struct environment_map
 {
@@ -102,7 +89,6 @@ struct render_entry_coordinate_system
 struct render_entry_bitmap
 {
     loaded_bitmap *Bitmap;
-    game_asset_id ID;
 
     v2 P;
     v2 Size;
