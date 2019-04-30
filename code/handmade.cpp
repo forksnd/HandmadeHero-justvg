@@ -428,8 +428,6 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
     {
         fill_ground_chunk_work *Work = PushStruct(&Task->Arena, fill_ground_chunk_work);
 
-        GroundBuffer->P = *ChunkP;
-
         loaded_bitmap *Buffer = &GroundBuffer->Bitmap;
         Buffer->AlignPercentage= V2(0.5f, 0.5f);
         Buffer->WidthOverHeight = 1.0f;
@@ -442,6 +440,10 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
         render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &Task->Arena, 0);
         Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
         Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 1.0f));
+
+		Work->RenderGroup = RenderGroup;
+		Work->Buffer = Buffer;
+		Work->Task = Task;
 
         for(int32 ChunkOffsetY = -1;
             ChunkOffsetY <= 1;
@@ -456,32 +458,24 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
                 int32 ChunkZ = ChunkP->ChunkZ;
                 random_series Series = RandomSeed(139*ChunkX + 593*ChunkY + 329*ChunkZ);
 
-        #if 0
+#if 0
                 v4 Color = V4(1, 0, 0, 1);
                 if((ChunkX % 2) == (ChunkY % 2))
                 {
                     Color = V4(0, 0, 1, 1);
                 }
-        #else
+#else
                 v4 Color = V4(1, 1, 1, 1);
-        #endif
+#endif
                 v2 Center = V2(ChunkOffsetX*Width, ChunkOffsetY*Height);
 
                 for(uint32 GrassIndex = 0;
                     GrassIndex < 100;
                     GrassIndex++)
                 {
-                    loaded_bitmap *Stamp;
-                    #if 1
-                    if(RandomChoice(&Series, 2))
-                    {
-                        Stamp = TranState->Assets->Grass + RandomChoice(&Series, ArrayCount(TranState->Assets->Grass));
-                    }
-                    else
-                    #endif
-                    {
-                        Stamp = TranState->Assets->Stone + RandomChoice(&Series, ArrayCount(TranState->Assets->Stone));
-                    }
+                    bitmap_id Stamp = RandomAssetFrom(TranState->Assets,
+                                                      RandomChoice(&Series, 2) ? Asset_Grass : Asset_Stone,
+                                                      &Series);
 
                     v2 P = Center + Hadamard(HalfDim, V2(RandomBilateral(&Series), RandomBilateral(&Series)));
                     PushBitmap(RenderGroup, Stamp, 2.0f, V3(P, 0), Color);    
@@ -491,11 +485,13 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
 
         if(AllResourcesPresent(RenderGroup))
         {
-            Work->RenderGroup = RenderGroup;
-            Work->Buffer = Buffer;
-            Work->Task = Task;
+            GroundBuffer->P = *ChunkP;
 
             PlatformAddEntry(TranState->LowPriorityQueue, FillGroundChunkWork, Work);
+        }
+        else
+        {
+            EndTaskWithMemory(Work->Task);
         }
     }
 }
@@ -679,14 +675,6 @@ MakePyramidNormalMap(loaded_bitmap *Bitmap, real32 Roughless)
 
         Row += Bitmap->Pitch;
     }
-}
-
-internal void
-SetTopDownAlign(hero_bitmaps *Bitmap, v2 Align)
-{
-    Align = TopDownAlign(&Bitmap->Hero, Align);
-
-    Bitmap->Hero.AlignPercentage = Align;
 }
 
 #if HANDMADE_INTERNAL
