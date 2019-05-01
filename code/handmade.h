@@ -248,6 +248,13 @@ struct ground_buffer
     float X, Y;
 };
 
+struct hero_bitmap_ids
+{
+    bitmap_id Head;
+    bitmap_id Torso;
+    bitmap_id Legs;
+};
+
 struct game_state
 {
     bool32 IsInitialized;
