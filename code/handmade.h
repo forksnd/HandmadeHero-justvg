@@ -291,6 +291,9 @@ struct game_state
 
     real32 Time;
 
+    loaded_sound TestSound;
+    uint32 TestSampleIndex;
+
     loaded_bitmap TestDiffuse; // TODO(george): Re-fill this guy with gray
     loaded_bitmap TestNormal;  
 };

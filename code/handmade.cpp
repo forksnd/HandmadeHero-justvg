@@ -649,6 +649,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     PlatformAddEntry = Memory->PlatformAddEntry;
     PlatformCompleteAllWork = Memory->PlatformCompleteAllWork;
     DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
+
 #if HANDMADE_INTERNAL
     DebugGlobalMemory = Memory;
 #endif
@@ -668,6 +669,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 TilesPerHeight = 9;
 
         GameState->TypicalFloorHeight = 3.0f;
+
+        GameState->TestSound = DEBUGLoadWAV("test2/piano2.wav");
+        // GameState->TestSound = DEBUGLoadWAV("test2/Music.wav");
 
         // TODO(george): Remove this!
         real32 PixelsToMeters = 1.0f / 42.0f;
@@ -1425,5 +1429,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
-    GameOutputSound(GameState, SoundBuffer, 400);
+    // GameOutputSound(GameState, SoundBuffer, 400);
+
+    int16 *SampleOut = SoundBuffer->Samples;
+    for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++)
+    {
+        int16 SampleValue = GameState->TestSound.Samples[0][(GameState->TestSampleIndex + SampleIndex) %
+                                                             GameState->TestSound.SampleCount];
+
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+    }
+
+    GameState->TestSampleIndex += SoundBuffer->SampleCount;
 }
