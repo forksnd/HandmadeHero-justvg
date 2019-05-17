@@ -437,7 +437,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
                     GrassIndex < 100;
                     GrassIndex++)
                 {
-                    bitmap_id Stamp = RandomAssetFrom(TranState->Assets,
+                    bitmap_id Stamp = GetRandomBitmapFrom(TranState->Assets,
                                                       RandomChoice(&Series, 2) ? Asset_Grass : Asset_Stone,
                                                       &Series);
 
@@ -641,6 +641,29 @@ MakePyramidNormalMap(loaded_bitmap *Bitmap, real32 Roughless)
     }
 }
 
+internal playing_sound *
+PlaySound(game_state *GameState, sound_id SoundID)
+{
+    if(!GameState->FirstFreePlayingSound)
+    {
+        GameState->FirstFreePlayingSound = PushStruct(&GameState->WorldArena, playing_sound);
+        GameState->FirstFreePlayingSound->Next = 0;
+    }
+
+    playing_sound *PlayingSound = GameState->FirstFreePlayingSound;
+    GameState->FirstFreePlayingSound = PlayingSound->Next;
+
+    PlayingSound->Volume[0] = 1.0f;
+    PlayingSound->Volume[1] = 1.0f;
+    PlayingSound->SamplesPlayed = 0;
+    PlayingSound->ID = SoundID;
+
+    PlayingSound->Next = GameState->FirstPlayingSound;
+    GameState->FirstPlayingSound = PlayingSound;
+
+    return(PlayingSound);
+}
+
 #if HANDMADE_INTERNAL
     game_memory *DebugGlobalMemory;
 #endif
@@ -668,10 +691,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 TilesPerWidth = 17;
         uint32 TilesPerHeight = 9;
 
+        GameState->GeneralEntropy = RandomSeed(1234);
         GameState->TypicalFloorHeight = 3.0f;
-
-        GameState->TestSound = DEBUGLoadWAV("test2/piano2.wav");
-        // GameState->TestSound = DEBUGLoadWAV("test2/Music.wav");
 
         // TODO(george): Remove this!
         real32 PixelsToMeters = 1.0f / 42.0f;
@@ -680,7 +701,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                     GameState->TypicalFloorHeight};
 
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
-                        (uint8 *)Memory->PermanentStorage + sizeof(game_state));                     
+                        (uint8 *)Memory->PermanentStorage + sizeof(game_state));                      
 
         // NOTE(george): Reserve entity slot 0 for the null entity
         AddLowEntity(GameState, EntityType_Null, NullPosition()); 
@@ -872,6 +893,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 
         TranState->Assets = AllocateGameAssets(&TranState->TranArena, Megabytes(64), TranState);
+
+        PlaySound(GameState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
 
         TranState->GroundBufferCount = 256;
         TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
@@ -1161,9 +1184,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             MatchVector.E[Tag_FacingDirection] = Entity->FacingDirection;
             asset_vector WeightVector = {};
             WeightVector.E[Tag_FacingDirection] = 1.0f;
-            HeroBitmaps.Head = BestMatchAsset(TranState->Assets, Asset_Head, &MatchVector, &WeightVector);
-            HeroBitmaps.Torso = BestMatchAsset(TranState->Assets, Asset_Torso, &MatchVector, &WeightVector);
-            HeroBitmaps.Legs = BestMatchAsset(TranState->Assets, Asset_Legs, &MatchVector, &WeightVector);
+            HeroBitmaps.Head = GetBestMatchBitmapFrom(TranState->Assets, Asset_Head, &MatchVector, &WeightVector);
+            HeroBitmaps.Torso = GetBestMatchBitmapFrom(TranState->Assets, Asset_Torso, &MatchVector, &WeightVector);
+            HeroBitmaps.Legs = GetBestMatchBitmapFrom(TranState->Assets, Asset_Legs, &MatchVector, &WeightVector);
             switch(Entity->Type)
             {
                 case EntityType_Hero:
@@ -1194,7 +1217,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                     Sword->DistanceLimit = 5.0f;
                                     MakeEntitySpatial(Sword, Entity->P, Entity->dP + 5.0f*V3(ConHero->dSword, 0.0f));
 
-                                    AddCollisionRule(GameState, Sword->StorageIndex, Entity->StorageIndex, false);        
+                                    AddCollisionRule(GameState, Sword->StorageIndex, Entity->StorageIndex, false);      
+
+                                    PlaySound(GameState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &GameState->GeneralEntropy));  
                                 }
                             }
                         }
@@ -1265,7 +1290,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 case EntityType_Hero:
                 {
                     real32 HeroSizeC = 1.15f;
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Shadow), HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
                     PushBitmap(RenderGroup, HeroBitmaps.Head, HeroSizeC*1.2f, V3(0, 0, 0));  
                     PushBitmap(RenderGroup, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, 0, 0));  
                     PushBitmap(RenderGroup, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
@@ -1275,7 +1300,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Wall:
                 {
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Tree), 2.5f, V3(0, 0, 0));
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Tree), 2.5f, V3(0, 0, 0));
                 } break;
 
                 case EntityType_Stairwell:
@@ -1286,8 +1311,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Sword:
                 {
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Shadow), 0.5f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Sword), 0.5f, V3(0, 0, 0));
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), 0.5f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Sword), 0.5f, V3(0, 0, 0));
                 } break;
 
                 case EntityType_Familiar:
@@ -1298,13 +1323,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         Entity->tBob -= 2.0f*Pi32;
                     }
                     real32 BobSin = Sin(2.0f*Entity->tBob);
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Shadow), 2.5f*0.25f, V3(0, 0, 0), V4(1, 1, 1, (0.5f*ShadowAlpha) + 0.2f*BobSin));
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), 2.5f*0.25f, V3(0, 0, 0), V4(1, 1, 1, (0.5f*ShadowAlpha) + 0.2f*BobSin));
                     PushBitmap(RenderGroup, HeroBitmaps.Head, 2.5f, V3(0, 0, 0.5f*BobSin));  
                 } break;
 
                 case EntityType_Monstar:
                 {
-                    PushBitmap(RenderGroup, GetFirstBitmapID(TranState->Assets, Asset_Shadow), 4.5f*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
+                    PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), 4.5f*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
                     PushBitmap(RenderGroup, HeroBitmaps.Torso, 4.5f, V3(0, 0, 0));  
                     DrawHitpoints(Entity, RenderGroup);            
                 } break;
@@ -1429,17 +1454,96 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
+    transient_state *TranState = (transient_state *)Memory->TransientStorage;
     // GameOutputSound(GameState, SoundBuffer, 400);
 
-    int16 *SampleOut = SoundBuffer->Samples;
-    for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++)
-    {
-        int16 SampleValue = GameState->TestSound.Samples[0][(GameState->TestSampleIndex + SampleIndex) %
-                                                             GameState->TestSound.SampleCount];
+    temporary_memory MixerMemory = BeginTemporaryMemory(&TranState->TranArena);
+    real32 *RealChannel0 = PushArray(&TranState->TranArena, SoundBuffer->SampleCount, real32);
+    real32 *RealChannel1 = PushArray(&TranState->TranArena, SoundBuffer->SampleCount, real32);
 
-        *SampleOut++ = SampleValue;
-        *SampleOut++ = SampleValue;
+    // NOTE(georgy): Clear out the mixer channels
+    {
+        real32 *Dest0 = RealChannel0;
+        real32 *Dest1 = RealChannel1;
+        for(int SampleIndex = 0;
+            SampleIndex < SoundBuffer->SampleCount;
+            SampleIndex++)
+        {
+            *Dest0++ = 0.0f;
+            *Dest1++ = 0.0f;
+        }
     }
 
-    GameState->TestSampleIndex += SoundBuffer->SampleCount;
+    // NOTE(georgy): Sum all sounds
+    for(playing_sound **PlayingSoundPtr = &GameState->FirstPlayingSound;
+        *PlayingSoundPtr;
+        )
+    {
+        playing_sound *PlayingSound = *PlayingSoundPtr;
+        bool32 SoundFinished = false;
+
+        loaded_sound *LoadedSound = GetSound(TranState->Assets, PlayingSound->ID);
+        if(LoadedSound)
+        {
+            // TODO(georgy): Handle stereo!
+            real32 Volume0 = PlayingSound->Volume[0];
+            real32 Volume1 = PlayingSound->Volume[1];
+            real32 *Dest0 = RealChannel0;
+            real32 *Dest1 = RealChannel1;
+
+            Assert(PlayingSound->SamplesPlayed >= 0);
+
+            uint32 SampleToMix = SoundBuffer->SampleCount;
+            uint32 SamplesRemainingInSound = LoadedSound->SampleCount - PlayingSound->SamplesPlayed;
+            if(SampleToMix > SamplesRemainingInSound)
+            {
+                SampleToMix = SamplesRemainingInSound;
+            }
+
+            for(uint32 SampleIndex = PlayingSound->SamplesPlayed;
+                SampleIndex < (PlayingSound->SamplesPlayed + SampleToMix);
+                SampleIndex++)
+            {
+                real32 SampleValue = LoadedSound->Samples[0][SampleIndex];
+                *Dest0++ += Volume0*SampleValue;
+                *Dest1++ += Volume1*SampleValue;
+            }
+
+            PlayingSound->SamplesPlayed += SampleToMix;
+
+            SoundFinished = (uint32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount;
+        }
+        else
+        {
+            LoadSound(TranState->Assets, PlayingSound->ID);
+        }
+
+        if(SoundFinished)
+        {
+            *PlayingSoundPtr = PlayingSound->Next;
+            PlayingSound->Next = GameState->FirstFreePlayingSound;
+            GameState->FirstFreePlayingSound = PlayingSound;
+        }
+        else
+        {
+            PlayingSoundPtr = &PlayingSound->Next;
+        }
+    }
+
+    // NOTE(georgy): Convert to 16-bit
+    {
+        real32 *Source0 = RealChannel0;
+        real32 *Source1 = RealChannel1;
+
+        int16 *SampleOut = SoundBuffer->Samples;
+        for(int SampleIndex = 0; 
+            SampleIndex < SoundBuffer->SampleCount; 
+            SampleIndex++)
+        {
+            *SampleOut++ = (int16)(*Source0++ + 0.5f);
+            *SampleOut++ = (int16)(*Source1++ + 0.5f);
+        }
+    }
+
+    EndTemporaryMemory(MixerMemory);
 }

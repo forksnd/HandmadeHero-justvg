@@ -10,11 +10,9 @@
 
 #if COMPILER_MSVC
 #define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
-inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 Expected, uint32 New)
+inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 New, uint32 Expected)
 {
-    // uint32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
-    // NOTE(georgy): Wrong arguments order!
-    uint32 Result = _InterlockedCompareExchange((long *)Value, Expected, New);
+    uint32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
 
     return(Result);
 }
