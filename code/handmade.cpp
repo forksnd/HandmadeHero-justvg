@@ -4,35 +4,7 @@
 #include "handmade_sim_region.cpp"
 #include "handmade_entity.cpp"
 #include "handmade_asset.cpp"
-
-internal void
-GameOutputSound(game_state *GameState, game_sound_output_buffer *SoundBuffer, int ToneHz)
-{ 
-    int16 ToneVolume = 3000;
-    int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
-
-    int16 *SampleOut = SoundBuffer->Samples;
-    for(int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; SampleIndex++)
-    {
-#if 0
-        real32 SineValue = sinf(GameState->tSine);
-        int16 SampleValue = (int16)(SineValue * ToneVolume);
-#else
-        int16 SampleValue = 0;
-#endif
-        *SampleOut++ = SampleValue;
-        *SampleOut++ = SampleValue;
-
-#if 0
-		GameState->tSine += 2.0f*Pi32*1.0f / (real32)WavePeriod;
-
-        if (GameState->tSine > 2.0f*Pi32)
-        {
-            GameState->tSine -= 2.0f*Pi32;
-        }
-#endif
-    }
-}
+#include "handmade_audio.cpp"
 
 struct add_low_entity_result
 {   
@@ -641,29 +613,6 @@ MakePyramidNormalMap(loaded_bitmap *Bitmap, real32 Roughless)
     }
 }
 
-internal playing_sound *
-PlaySound(game_state *GameState, sound_id SoundID)
-{
-    if(!GameState->FirstFreePlayingSound)
-    {
-        GameState->FirstFreePlayingSound = PushStruct(&GameState->WorldArena, playing_sound);
-        GameState->FirstFreePlayingSound->Next = 0;
-    }
-
-    playing_sound *PlayingSound = GameState->FirstFreePlayingSound;
-    GameState->FirstFreePlayingSound = PlayingSound->Next;
-
-    PlayingSound->Volume[0] = 1.0f;
-    PlayingSound->Volume[1] = 1.0f;
-    PlayingSound->SamplesPlayed = 0;
-    PlayingSound->ID = SoundID;
-
-    PlayingSound->Next = GameState->FirstPlayingSound;
-    GameState->FirstPlayingSound = PlayingSound;
-
-    return(PlayingSound);
-}
-
 #if HANDMADE_INTERNAL
     game_memory *DebugGlobalMemory;
 #endif
@@ -702,6 +651,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         InitializeArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state),
                         (uint8 *)Memory->PermanentStorage + sizeof(game_state));                      
+
+        InitializeAudioState(&GameState->AudioState, &GameState->WorldArena);
 
         // NOTE(george): Reserve entity slot 0 for the null entity
         AddLowEntity(GameState, EntityType_Null, NullPosition()); 
@@ -894,7 +845,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         TranState->Assets = AllocateGameAssets(&TranState->TranArena, Megabytes(64), TranState);
 
-        PlaySound(GameState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
+        PlaySound(&GameState->AudioState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
 
         TranState->GroundBufferCount = 256;
         TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
@@ -1219,7 +1170,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                                     AddCollisionRule(GameState, Sword->StorageIndex, Entity->StorageIndex, false);      
 
-                                    PlaySound(GameState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &GameState->GeneralEntropy));  
+                                    PlaySound(&GameState->AudioState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &GameState->GeneralEntropy));  
                                 }
                             }
                         }
@@ -1455,95 +1406,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->PermanentStorage;
     transient_state *TranState = (transient_state *)Memory->TransientStorage;
+
+    OutputPlayingSounds(&GameState->AudioState, SoundBuffer, TranState->Assets, &TranState->TranArena);
     // GameOutputSound(GameState, SoundBuffer, 400);
-
-    temporary_memory MixerMemory = BeginTemporaryMemory(&TranState->TranArena);
-    real32 *RealChannel0 = PushArray(&TranState->TranArena, SoundBuffer->SampleCount, real32);
-    real32 *RealChannel1 = PushArray(&TranState->TranArena, SoundBuffer->SampleCount, real32);
-
-    // NOTE(georgy): Clear out the mixer channels
-    {
-        real32 *Dest0 = RealChannel0;
-        real32 *Dest1 = RealChannel1;
-        for(int SampleIndex = 0;
-            SampleIndex < SoundBuffer->SampleCount;
-            SampleIndex++)
-        {
-            *Dest0++ = 0.0f;
-            *Dest1++ = 0.0f;
-        }
-    }
-
-    // NOTE(georgy): Sum all sounds
-    for(playing_sound **PlayingSoundPtr = &GameState->FirstPlayingSound;
-        *PlayingSoundPtr;
-        )
-    {
-        playing_sound *PlayingSound = *PlayingSoundPtr;
-        bool32 SoundFinished = false;
-
-        loaded_sound *LoadedSound = GetSound(TranState->Assets, PlayingSound->ID);
-        if(LoadedSound)
-        {
-            // TODO(georgy): Handle stereo!
-            real32 Volume0 = PlayingSound->Volume[0];
-            real32 Volume1 = PlayingSound->Volume[1];
-            real32 *Dest0 = RealChannel0;
-            real32 *Dest1 = RealChannel1;
-
-            Assert(PlayingSound->SamplesPlayed >= 0);
-
-            uint32 SampleToMix = SoundBuffer->SampleCount;
-            uint32 SamplesRemainingInSound = LoadedSound->SampleCount - PlayingSound->SamplesPlayed;
-            if(SampleToMix > SamplesRemainingInSound)
-            {
-                SampleToMix = SamplesRemainingInSound;
-            }
-
-            for(uint32 SampleIndex = PlayingSound->SamplesPlayed;
-                SampleIndex < (PlayingSound->SamplesPlayed + SampleToMix);
-                SampleIndex++)
-            {
-                real32 SampleValue = LoadedSound->Samples[0][SampleIndex];
-                *Dest0++ += Volume0*SampleValue;
-                *Dest1++ += Volume1*SampleValue;
-            }
-
-            PlayingSound->SamplesPlayed += SampleToMix;
-
-            SoundFinished = (uint32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount;
-        }
-        else
-        {
-            LoadSound(TranState->Assets, PlayingSound->ID);
-        }
-
-        if(SoundFinished)
-        {
-            *PlayingSoundPtr = PlayingSound->Next;
-            PlayingSound->Next = GameState->FirstFreePlayingSound;
-            GameState->FirstFreePlayingSound = PlayingSound;
-        }
-        else
-        {
-            PlayingSoundPtr = &PlayingSound->Next;
-        }
-    }
-
-    // NOTE(georgy): Convert to 16-bit
-    {
-        real32 *Source0 = RealChannel0;
-        real32 *Source1 = RealChannel1;
-
-        int16 *SampleOut = SoundBuffer->Samples;
-        for(int SampleIndex = 0; 
-            SampleIndex < SoundBuffer->SampleCount; 
-            SampleIndex++)
-        {
-            *SampleOut++ = (int16)(*Source0++ + 0.5f);
-            *SampleOut++ = (int16)(*Source1++ + 0.5f);
-        }
-    }
-
-    EndTemporaryMemory(MixerMemory);
 }
