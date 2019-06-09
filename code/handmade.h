@@ -298,6 +298,7 @@ struct game_state
     random_series GeneralEntropy;
 
     audio_state AudioState;
+    playing_sound *Music;
 };
 
 struct task_with_memory 
