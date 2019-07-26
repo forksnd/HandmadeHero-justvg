@@ -86,6 +86,8 @@ extern "C" {
 
     #define ArrayCount(Array) (sizeof(Array)/sizeof((Array)[0]))
 
+    #define AlignPow2(Value, Alignment) ((Value + ((Alignment) - 1)) & ~((Alignemnt) - 1))
+    #define Align4(Value) ((Value + 3) & ~3)
     #define Align16(Value) ((Value + 15) & ~15)
 
     inline uint32
@@ -162,6 +164,7 @@ extern "C" {
 
     struct game_sound_output_buffer
     {
+        // NOTE(georgy): Samples must be padded to a multiple of 4 samples!
         int16 *Samples;
         int SamplesPerSecond;
         int SampleCount;

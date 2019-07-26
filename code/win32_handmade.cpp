@@ -1237,7 +1237,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
-            int16* Samples = (int16 *)VirtualAlloc(0, 48000*2*sizeof(int16), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            uint32 MaxPossibleOverrun = 4*2*sizeof(int16);
+            int16 *Samples = (int16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
 #if HANDMADE_INTERNAL
             LPVOID BaseAddress = (LPVOID)Terabytes(2);
