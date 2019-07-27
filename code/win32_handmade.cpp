@@ -1237,7 +1237,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             Win32InitDSound(Window, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
             Win32ClearBuffer(&SoundOutput);
 
-            uint32 MaxPossibleOverrun = 4*2*sizeof(int16);
+            // TODO(georgy): Remove MaxPossibleOverrun
+            uint32 MaxPossibleOverrun = 8*2*sizeof(int16);
             int16 *Samples = (int16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 
 #if HANDMADE_INTERNAL
@@ -1561,7 +1562,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             game_sound_output_buffer SoundBuffer = {};
                             SoundBuffer.Samples = Samples;
                             SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-                            SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
+                            SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
+                            BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
 
                             if (Game.GetSoundSamples)
                             {
