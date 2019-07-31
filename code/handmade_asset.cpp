@@ -302,13 +302,12 @@ DEBUGLoadWAV(char *Filename, uint32 SectionFirstSampleIndex, uint32 SectionSampl
         
         if(AtEnd)
         {
-            SampleCount = Align8(SampleCount);
             for(uint32 ChannelIndex = 0;
                 ChannelIndex < Result.ChannelCount;
                 ChannelIndex++)
             {   
                 for(uint32 SampleIndex = SampleCount;
-                    SampleIndex < (SampleCount + 8);
+                    SampleIndex < (SampleCount + 4);
                     SampleIndex++)
                 {
                     Result.Samples[ChannelIndex][SampleIndex] = 0;
