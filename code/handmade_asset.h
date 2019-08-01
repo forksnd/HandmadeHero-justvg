@@ -17,6 +17,35 @@ struct loaded_sound
     int16 *Samples[2];
 };
 
+enum asset_tag_id
+{
+    Tag_Smoothness,
+    Tag_Flatness,
+    Tag_FacingDirection, // NOTE(georgy): Angle in raians off of due right
+
+    Tag_Count
+};
+
+struct asset_bitmap_info
+{
+    char *Filename;
+    v2 AlignPercentage;
+};
+
+struct asset_sound_info
+{
+    char *Filename;
+    uint32 FirstSampleIndex;
+    uint32 SampleCount;
+    sound_id NextIDToPlay;
+};
+
+struct asset_tag
+{
+    uint32 ID; // NOTE(georgy): Tag ID
+    real32 Value;
+};
+
 enum asset_state
 {
     AssetState_Unloaded,
@@ -34,60 +63,16 @@ struct asset_slot
     };
 };
 
-enum asset_tag_id
-{
-    Tag_Smoothness,
-    Tag_Flatness,
-    Tag_FacingDirection, // NOTE(georgy): Angle in raians off of due right
-
-    Tag_Count
-};
-
-enum asset_type_id
-{
-    Asset_None,
-
-    // 
-    // NOTE(georgy): Bitmaps!
-    // 
-
-    Asset_Shadow,
-    Asset_Tree,
-    Asset_Sword,
-
-    Asset_Stone,
-    Asset_Grass,
-
-    Asset_Head,
-    Asset_Torso,
-    Asset_Legs,
-
-    // 
-    // NOTE(georgy): Sounds!
-    //
-
-    Asset_Music,
-    Asset_Hit, 
-    Asset_Jump,
-    Asset_Pickup,
-
-    // 
-    // 
-    // 
-
-    Asset_Count
-};
-
-struct asset_tag
-{
-    uint32 ID; // NOTE(georgy): Tag ID
-    real32 Value;
-};
 struct asset
 {
     uint32 FirstTagIndex;
     uint32 OnePastLastTagIndex;
-    uint32 SlotID;
+
+    union
+    {
+        asset_bitmap_info Bitmap;
+        asset_sound_info Sound;
+    };
 };
 
 struct asset_vector
@@ -101,20 +86,6 @@ struct asset_type
     uint32 OnePastLastAssetIndex;
 };
 
-struct asset_bitmap_info
-{
-    char *Filename;
-    v2 AlignPercentage;
-};
-
-struct asset_sound_info
-{
-    char *Filename;
-    uint32 FirstSampleIndex;
-    uint32 SampleCount;
-    sound_id NextIDToPlay;
-};
-
 struct game_assets
 {
     struct transient_state *TranState;
@@ -122,19 +93,12 @@ struct game_assets
 
     real32 TagRange[Tag_Count];
 
-    uint32 BitmapCount;
-    asset_bitmap_info *BitmapInfos;
-    asset_slot *Bitmaps;
-
-    uint32 SoundCount;
-    asset_sound_info *SoundInfos;
-    asset_slot *Sounds;
-
     uint32 TagCount;
     asset_tag *Tags;
 
     uint32 AssetCount;
     asset *Assets;
+    asset_slot *Slots;
 
     asset_type AssetTypes[Asset_Count]; 
 
@@ -153,8 +117,8 @@ struct game_assets
 inline loaded_bitmap *
 GetBitmap(game_assets *Assets, bitmap_id ID)
 {
-    Assert(ID.Value <= Assets->BitmapCount);
-    loaded_bitmap *Result = Assets->Bitmaps[ID.Value].Bitmap;
+    Assert(ID.Value <= Assets->AssetCount);
+    loaded_bitmap *Result = Assets->Slots[ID.Value].Bitmap;
 
     return(Result);
 }
@@ -162,8 +126,8 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 inline loaded_sound *
 GetSound(game_assets *Assets, sound_id ID)
 {
-    Assert(ID.Value <= Assets->SoundCount);
-    loaded_sound *Result = Assets->Sounds[ID.Value].Sound;
+    Assert(ID.Value <= Assets->AssetCount);
+    loaded_sound *Result = Assets->Slots[ID.Value].Sound;
 
     return(Result);
 }
@@ -171,8 +135,8 @@ GetSound(game_assets *Assets, sound_id ID)
 inline asset_sound_info *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
-    Assert(ID.Value <= Assets->SoundCount);
-    asset_sound_info *Result = Assets->SoundInfos + ID.Value;
+    Assert(ID.Value <= Assets->AssetCount);
+    asset_sound_info *Result = &Assets->Assets[ID.Value].Sound;
 
     return(Result);
 }
