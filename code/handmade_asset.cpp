@@ -1,3 +1,4 @@
+#if 0
 
 #pragma pack(push, 1)
 struct bitmap_header
@@ -59,17 +60,6 @@ struct WAVE_fmt
     uint8 SubFormat[16];
 };
 #pragma pack(pop)
-
-internal v2
-TopDownAlign(loaded_bitmap *Bitmap, v2 Align)
-{
-    Align.y = (real32)(Bitmap->Height - 1) - Align.y;
-
-    Align.x = SafeRatio0(Align.x, (real32)Bitmap->Width);
-    Align.y = SafeRatio0(Align.y, (real32)Bitmap->Height);
-
-    return (Align);
-}
 
 internal loaded_bitmap
 DEBUGLoadBMP(char *Filename, v2 AlignPercentage = V2(0.5f, 0.5f))
@@ -306,6 +296,7 @@ DEBUGLoadWAV(char *Filename, uint32 SectionFirstSampleIndex, uint32 SectionSampl
                 ChannelIndex < Result.ChannelCount;
                 ChannelIndex++)
             {   
+                // IMPORTANT(georgy): WE'RE WRITING OUT OF BOUNDS HERE!
                 for(uint32 SampleIndex = SampleCount;
                     SampleIndex < (SampleCount + 4);
                     SampleIndex++)
@@ -318,6 +309,23 @@ DEBUGLoadWAV(char *Filename, uint32 SectionFirstSampleIndex, uint32 SectionSampl
         Result.SampleCount = SampleCount;
     }
 
+    return(Result);
+}
+#endif
+
+internal loaded_bitmap
+DEBUGLoadBMP(char *Filename, v2 AlignPercentage = V2(0.5f, 0.5f))
+{
+    Assert(!"NOOOOOOOOOO");
+    loaded_bitmap Result = {};
+    return(Result);
+}
+
+internal loaded_sound
+DEBUGLoadWAV(char *Filename, uint32 SectionFirstSampleIndex, uint32 SectionSampleCount)
+{
+    Assert(!"NOOOOOOOOOOOOOO");
+    loaded_sound Result = {};
     return(Result);
 }
 
@@ -536,6 +544,7 @@ GetBestMatchSoundFrom(game_assets *Assets, asset_type_id TypeID,
     return(Result);
 }
 
+#if 0
 internal void
 BeginAssetType(game_assets *Assets, asset_type_id TypeID)
 {
@@ -604,6 +613,7 @@ EndAssetType(game_assets *Assets)
     Assets->DEBUGAssetType = 0;
     Assets->DEBUGAsset = 0;
 }
+#endif
 
 internal game_assets *
 AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *TranState)
@@ -620,13 +630,55 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
     }
     Assets->TagRange[Tag_FacingDirection] = 2.0f*Pi32;
 
-    Assets->AssetCount = 2*256*Asset_Count;
-    Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
-    Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
+    debug_read_file_result ReadResult = DEBUGPlatformReadEntireFile("test.hha");
+    if(ReadResult.ContentsSize != 0)
+    {
+        hha_header *Header = (hha_header *)ReadResult.Contents;
+        Assert(Header->MagicValue == HHA_MAGIC_VALUE);
+        Assert(Header->Version == HHA_VERSION);
 
-    Assets->TagCount = 1024*Asset_Count;
-    Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
+        Assets->AssetCount = Header->AssetCount; 
+        Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
+        Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
 
+        Assets->TagCount = Header->TagCount;
+        Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
+
+        // TODO(georgy): Decide what will be flat-loaded and what won't be!
+
+        hha_tag *HHATags = (hha_tag *)((uint8 *)ReadResult.Contents + Header->Tags);
+
+        for(uint32 TagIndex = 0;
+            TagIndex < Assets->TagCount;
+            TagIndex++)
+        {
+            hha_tag *Source = HHATags + TagIndex;
+            asset_tag *Dest = Assets->Tags + TagIndex;
+            
+            Dest->ID = Source->ID;
+            Dest->Value = Source->Value;
+        }
+
+#if 0
+        for()
+        {
+
+        }
+
+        for()
+        {
+
+        }
+
+        Assets->TagCount = ;
+        Assets->Tags = ;
+        Assets->AssetCount = ;
+
+        Assets->Assets = ;
+#endif
+    }
+
+#if 0
     Assets->DEBUGUsedAssetCount = 1;
         
     BeginAssetType(Assets, Asset_Shadow);
@@ -726,6 +778,7 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
     BeginAssetType(Assets, Asset_Pickup);
     AddSoundAsset(Assets, "test2/Pickup_00.wav");
     EndAssetType(Assets);
+#endif
 
     return(Assets);
 }

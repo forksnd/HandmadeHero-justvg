@@ -126,7 +126,7 @@ OutputPlayingSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuff
                 v2 Volume = PlayingSound->CurrentVolume;
                 v2 dVolume = SecondsPerSample*PlayingSound->dCurrentVolume;
                 v2 dVolumeChunk = 4.0f*dVolume;
-                real32 dSample = 2.3f*PlayingSound->dSample;
+                real32 dSample = PlayingSound->dSample;
                 real32 dSampleChunk = 4.0f*dSample;
 
                 // NOTE(georgy): Channel 0

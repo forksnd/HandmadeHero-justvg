@@ -96,11 +96,13 @@ struct game_assets
     // NOTE(georgy): Structured assets
     // hero_bitmaps HeroBitmaps[4];   
 
+#if 0
     // TODO(georgy): These should go away once we actually load an asset pack file
     uint32 DEBUGUsedAssetCount;   
     uint32 DEBUGUsedTagCount;   
     asset_type *DEBUGAssetType; 
     asset *DEBUGAsset;
+#endif
 };
 
 inline loaded_bitmap *

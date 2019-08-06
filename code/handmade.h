@@ -226,6 +226,7 @@ ZeroSize(memory_index Size, void* Ptr)
 
 #include "handmade_intrinsics.h"
 #include "handmade_math.h"
+#include "handmade_file_formats.h"
 #include "handmade_world.h"
 #include "handmade_sim_region.h"
 #include "handmade_entity.h"

@@ -41,8 +41,8 @@ struct hha_bitmap
 };
 struct hha_sound
 {
-    uint32 FirstSampleIndex;
     uint32 SampleCount;
+	uint32 ChannelCount;
     uint32 NextIDToPlay;
 };
 struct hha_asset
