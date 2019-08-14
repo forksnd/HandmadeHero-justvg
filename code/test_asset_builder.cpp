@@ -408,7 +408,7 @@ AddSoundAsset(game_assets *Assets, char *Filename, uint32 FirstSampleIndex = 0, 
     HHA->FirstTagIndex = Assets->TagCount;
     HHA->OnePastLastTagIndex = HHA->FirstTagIndex;
     HHA->Sound.SampleCount = SampleCount;
-    HHA->Sound.NextIDToPlay = 0;
+    HHA->Sound.NextIDToPlay.Value = 0;
 
     Source->Type = AssetType_Sound;
     Source->Filename = Filename;
@@ -532,7 +532,7 @@ main(int ArgCount, char **Args)
         sound_id ThisMusic = AddSoundAsset(Assets, "test2/Music.wav", FirstSampleIndex, SampleCount);
         if(LastMusic.Value)
         {
-            Assets->Assets[LastMusic.Value].Sound.NextIDToPlay = ThisMusic.Value;
+            Assets->Assets[LastMusic.Value].Sound.NextIDToPlay = ThisMusic;
         }
         LastMusic = ThisMusic;
     }
