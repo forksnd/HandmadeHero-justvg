@@ -39,6 +39,12 @@ struct asset_slot
     };
 };
 
+struct asset
+{
+    hha_asset HHA;
+    uint32 FileIndex;
+};
+
 struct asset_vector
 {
     real32 E[Tag_Count];
@@ -74,17 +80,17 @@ struct game_assets
     hha_tag *Tags;
 
     uint32 AssetCount;
-    hha_asset *Assets;
+    asset *Assets;
     asset_slot *Slots;
 
     asset_type AssetTypes[Asset_Count]; 
 
+#if 0
     uint8 *HHAContents;
 
     // NOTE(georgy): Structured assets
     // hero_bitmaps HeroBitmaps[4];   
 
-#if 0
     // TODO(georgy): These should go away once we actually load an asset pack file
     uint32 DEBUGUsedAssetCount;   
     uint32 DEBUGUsedTagCount;   
@@ -98,7 +104,13 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 {
     Assert(ID.Value <= Assets->AssetCount);
     asset_slot *Slot = Assets->Slots + ID.Value;
-    loaded_bitmap *Result = (Slot->State >= AssetState_Loaded) ? Slot->Bitmap : 0;
+
+    loaded_bitmap *Result = 0;
+    if(Slot->State >= AssetState_Loaded)
+    {
+        CompletePreviousReadsBeforeFutureReads;
+        Result = Slot->Bitmap;
+    }
 
     return(Result);
 }
@@ -108,7 +120,13 @@ GetSound(game_assets *Assets, sound_id ID)
 {
     Assert(ID.Value <= Assets->AssetCount);
     asset_slot *Slot = Assets->Slots + ID.Value;
-    loaded_sound *Result = (Slot->State >= AssetState_Loaded) ? Slot->Sound : 0;
+
+    loaded_sound *Result = 0;
+    if(Slot->State >= AssetState_Loaded)
+    {
+        CompletePreviousReadsBeforeFutureReads;
+        Result = Slot->Sound;
+    }
 
     return(Result);
 }
@@ -117,7 +135,7 @@ inline hha_sound *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
     Assert(ID.Value <= Assets->AssetCount);
-    hha_sound *Result = &Assets->Assets[ID.Value].Sound;
+    hha_sound *Result = &Assets->Assets[ID.Value].HHA.Sound;
 
     return(Result);
 }
