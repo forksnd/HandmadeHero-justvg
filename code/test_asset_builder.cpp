@@ -408,7 +408,7 @@ AddSoundAsset(game_assets *Assets, char *Filename, uint32 FirstSampleIndex = 0, 
     HHA->FirstTagIndex = Assets->TagCount;
     HHA->OnePastLastTagIndex = HHA->FirstTagIndex;
     HHA->Sound.SampleCount = SampleCount;
-    HHA->Sound.NextIDToPlay.Value = 0;
+    HHA->Sound.Chain = HHASoundChain_None;
 
     Source->Type = AssetType_Sound;
     Source->Filename = Filename;
@@ -441,117 +441,11 @@ EndAssetType(game_assets *Assets)
     Assets->AssetIndex = 0;
 }
 
-int 
-main(int ArgCount, char **Args)
+internal void
+WriteHHA(game_assets *Assets, char *Filename)
 {
-    game_assets Assets_;
-    game_assets *Assets = &Assets_;
-
-    Assets->TagCount = 1;
-    Assets->AssetCount = 1;
-    Assets->DEBUGAssetType = 0; 
-    Assets->AssetIndex = 0;
-
-	BeginAssetType(Assets, Asset_Shadow);
-    AddBitmapAsset(Assets, "test/hero_shadow.bmp", 0.5f, 0.409090906f);
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Tree);
-    AddBitmapAsset(Assets, "test/tree00.bmp", 0.506329119f, 0.282051295f);
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Sword);
-    AddBitmapAsset(Assets, "test/sword1.bmp", 0.333333343f, 0.566666663f);
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Stone);
-    AddBitmapAsset(Assets, "test/stone3.bmp");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Grass);
-    AddBitmapAsset(Assets, "test/grass3.bmp");
-    EndAssetType(Assets);
-
-    real32 AngleRight = 0.0f*Pi32;
-    real32 AngleBack = 0.5f*Pi32;
-    real32 AngleLeft = 1.0f*Pi32;
-    real32 AngleFront = 1.5f*Pi32;
-
-    real32 HeroAlign[] = {0.461538464f , 0.0f};
-
-    BeginAssetType(Assets, Asset_Head);
-    AddBitmapAsset(Assets, "test/hero_right_head.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleRight);
-    AddBitmapAsset(Assets, "test/hero_back_head.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleBack);
-    AddBitmapAsset(Assets, "test/hero_left_head.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleLeft);
-    AddBitmapAsset(Assets, "test/hero_front_head.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleFront);
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Torso);
-    AddBitmapAsset(Assets, "test/hero_right_torso.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleRight);
-    AddBitmapAsset(Assets, "test/hero_back_torso.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleBack);
-    AddBitmapAsset(Assets, "test/hero_left_torso.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleLeft);
-    AddBitmapAsset(Assets, "test/hero_front_torso.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleFront);
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Legs);
-    AddBitmapAsset(Assets, "test/hero_right_legs.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleRight);
-    AddBitmapAsset(Assets, "test/hero_back_legs.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleBack);
-    AddBitmapAsset(Assets, "test/hero_left_legs.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleLeft);
-    AddBitmapAsset(Assets, "test/hero_front_legs.bmp", HeroAlign[0], HeroAlign[1]);
-    AddTag(Assets, Tag_FacingDirection, AngleFront);
-    EndAssetType(Assets);
-
-    // 
-    // 
-    // 
-
-    uint32 OneMusicChunk = 10*48000;
-    uint32 TotalMusicSampleCount = 8640540;
-    BeginAssetType(Assets, Asset_Music);
-    sound_id LastMusic = {0};
-    for(uint32 FirstSampleIndex = 0;
-        FirstSampleIndex < TotalMusicSampleCount;
-        FirstSampleIndex += OneMusicChunk)
-    {
-        uint32 SampleCount = TotalMusicSampleCount - FirstSampleIndex;
-        if(SampleCount > OneMusicChunk)
-        {
-            SampleCount = OneMusicChunk;
-        }
-        sound_id ThisMusic = AddSoundAsset(Assets, "test2/Music.wav", FirstSampleIndex, SampleCount);
-        if(LastMusic.Value)
-        {
-            Assets->Assets[LastMusic.Value].Sound.NextIDToPlay = ThisMusic;
-        }
-        LastMusic = ThisMusic;
-    }
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Hit);
-    AddSoundAsset(Assets, "test2/Hit_00.wav");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Jump);
-    AddSoundAsset(Assets, "test2/Jump_00.wav");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Pickup);
-    AddSoundAsset(Assets, "test2/Pickup_00.wav");
-    EndAssetType(Assets);
-
-	FILE *Out = fopen("test.hha", "wb");
-	if(Out)
+	FILE *Out = fopen(Filename, "wb");
+    if(Out)
 	{
 		hha_header Header = {};
         Header.MagicValue = HHA_MAGIC_VALUE;
@@ -622,6 +516,149 @@ main(int ArgCount, char **Args)
     {
         printf("ERROR: Couldn't open file!\n");
     }
+}
+
+internal void
+Initialize(game_assets *Assets)
+{
+    Assets->TagCount = 1;
+    Assets->AssetCount = 1;
+    Assets->DEBUGAssetType = 0; 
+    Assets->AssetIndex = 0;
+
+    Assets->AssetTypeCount = Asset_Count;
+    memset(Assets->AssetTypes, 0, sizeof(Assets->AssetTypes));
+}
+
+internal void
+WriteHero(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    real32 AngleRight = 0.0f*Pi32;
+    real32 AngleBack = 0.5f*Pi32;
+    real32 AngleLeft = 1.0f*Pi32;
+    real32 AngleFront = 1.5f*Pi32;
+
+    real32 HeroAlign[] = {0.461538464f , 0.0f};
+
+    BeginAssetType(Assets, Asset_Head);
+    AddBitmapAsset(Assets, "test/hero_right_head.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleRight);
+    AddBitmapAsset(Assets, "test/hero_back_head.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleBack);
+    AddBitmapAsset(Assets, "test/hero_left_head.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleLeft);
+    AddBitmapAsset(Assets, "test/hero_front_head.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleFront);
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Torso);
+    AddBitmapAsset(Assets, "test/hero_right_torso.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleRight);
+    AddBitmapAsset(Assets, "test/hero_back_torso.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleBack);
+    AddBitmapAsset(Assets, "test/hero_left_torso.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleLeft);
+    AddBitmapAsset(Assets, "test/hero_front_torso.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleFront);
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Legs);
+    AddBitmapAsset(Assets, "test/hero_right_legs.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleRight);
+    AddBitmapAsset(Assets, "test/hero_back_legs.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleBack);
+    AddBitmapAsset(Assets, "test/hero_left_legs.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleLeft);
+    AddBitmapAsset(Assets, "test/hero_front_legs.bmp", HeroAlign[0], HeroAlign[1]);
+    AddTag(Assets, Tag_FacingDirection, AngleFront);
+    EndAssetType(Assets);
+
+	WriteHHA(Assets, "test1.hha");
+}
+
+
+internal void
+WriteSounds(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    uint32 OneMusicChunk = 10*48000;
+    uint32 TotalMusicSampleCount = 8640540;
+    BeginAssetType(Assets, Asset_Music);
+    for(uint32 FirstSampleIndex = 0;
+        FirstSampleIndex < TotalMusicSampleCount;
+        FirstSampleIndex += OneMusicChunk)
+    {
+        uint32 SampleCount = TotalMusicSampleCount - FirstSampleIndex;
+        if(SampleCount > OneMusicChunk)
+        {
+            SampleCount = OneMusicChunk;
+        }
+        sound_id ThisMusic = AddSoundAsset(Assets, "test2/Music.wav", FirstSampleIndex, SampleCount);
+        if((FirstSampleIndex + OneMusicChunk) < TotalMusicSampleCount)
+        {
+            Assets->Assets[ThisMusic.Value].Sound.Chain = HHASoundChain_Advance;
+        }
+    }
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Hit);
+    AddSoundAsset(Assets, "test2/Hit_00.wav");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Jump);
+    AddSoundAsset(Assets, "test2/Jump_00.wav");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Pickup);
+    AddSoundAsset(Assets, "test2/Pickup_00.wav");
+    EndAssetType(Assets);
+
+	WriteHHA(Assets, "test2.hha");
+}
+
+internal void
+WriteNonHero(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    BeginAssetType(Assets, Asset_Shadow);
+    AddBitmapAsset(Assets, "test/hero_shadow.bmp", 0.5f, 0.409090906f);
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Tree);
+    AddBitmapAsset(Assets, "test/tree00.bmp", 0.506329119f, 0.282051295f);
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Sword);
+    AddBitmapAsset(Assets, "test/sword1.bmp", 0.333333343f, 0.566666663f);
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Stone);
+    AddBitmapAsset(Assets, "test/stone3.bmp");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Grass);
+    AddBitmapAsset(Assets, "test/grass3.bmp");
+    EndAssetType(Assets);
+
+	WriteHHA(Assets, "test3.hha");
+}
+
+int 
+main(int ArgCount, char **Args)
+{
+    WriteHero();
+    WriteSounds();
+    WriteNonHero();
 
 	return(0);
 }

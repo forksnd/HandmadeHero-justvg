@@ -8,20 +8,6 @@ struct loaded_sound
     int16 *Samples[2];
 };
 
-struct asset_bitmap_info
-{
-    char *Filename;
-    v2 AlignPercentage;
-};
-
-struct asset_sound_info
-{
-    char *Filename;
-    uint32 FirstSampleIndex;
-    uint32 SampleCount;
-    sound_id NextIDToPlay;
-};
-
 enum asset_state
 {
     AssetState_Unloaded,
@@ -160,5 +146,37 @@ internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
 inline void PrefetchBitmap(game_assets *Assets, bitmap_id ID) {LoadBitmap(Assets, ID);}
 internal void LoadSound(game_assets *Assets, sound_id ID);
 inline void PrefetchSound(game_assets *Assets, sound_id ID) {LoadSound(Assets, ID);}
+
+inline sound_id 
+GetNextSoundInChain(game_assets *Assets, sound_id ID)
+{
+    sound_id Result = {};
+
+    hha_sound *Info = GetSoundInfo(Assets, ID);
+    switch(Info->Chain)
+    {
+        case HHASoundChain_None:
+        {
+            // NOTE(georgy): Nothing to do.
+        } break;
+
+        case HHASoundChain_Loop:
+        {
+            Result = ID;
+        } break;
+
+        case HHASoundChain_Advance:
+        {
+            Result.Value = ID.Value + 1;
+        } break;
+
+        default:
+        {
+            InvalidCodePath;
+        } break;
+    }
+
+    return(Result);
+}
 
 #endif

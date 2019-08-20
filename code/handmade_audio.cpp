@@ -120,8 +120,8 @@ OutputPlayingSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuff
             loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
             if(LoadedSound)
             {
-                hha_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
-                PrefetchSound(Assets, Info->NextIDToPlay);
+                sound_id NextSoundInChain = GetNextSoundInChain(Assets, PlayingSound->ID);
+                PrefetchSound(Assets, NextSoundInChain);
 
                 v2 Volume = PlayingSound->CurrentVolume;
                 v2 dVolume = SecondsPerSample*PlayingSound->dCurrentVolume;
@@ -242,9 +242,9 @@ OutputPlayingSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuff
 
                 if(ChunksToMix == ChunksRemainingInSound)
                 {
-                    if(IsValid(Info->NextIDToPlay))
+                    if(IsValid(NextSoundInChain))
                     {
-                        PlayingSound->ID = Info->NextIDToPlay;
+                        PlayingSound->ID = NextSoundInChain;
                         Assert(PlayingSound->SamplesPlayed >= LoadedSound->SampleCount);
                         PlayingSound->SamplesPlayed -= (real32)LoadedSound->SampleCount;
                         if(PlayingSound->SamplesPlayed < 0)
