@@ -54,22 +54,28 @@ PlaySound(audio_state *AudioState, sound_id SoundID)
 internal void
 ChangeVolume(audio_state *AudioState, playing_sound *Sound, real32 FadeDurationInSeconds, v2 Volume)
 {
-    if(FadeDurationInSeconds <= 0.0f)
+    if(Sound)
     {
-        Sound->CurrentVolume = Sound->TargetVolume = Volume;
-    }
-    else
-    {
-        real32 OneOverFade = 1.0f / FadeDurationInSeconds;
-        Sound->dCurrentVolume = (Sound->TargetVolume - Sound->CurrentVolume) * OneOverFade;
-        Sound->TargetVolume = Volume;
+        if(FadeDurationInSeconds <= 0.0f)
+        {
+            Sound->CurrentVolume = Sound->TargetVolume = Volume;
+        }
+        else
+        {
+            real32 OneOverFade = 1.0f / FadeDurationInSeconds;
+            Sound->dCurrentVolume = (Sound->TargetVolume - Sound->CurrentVolume) * OneOverFade;
+            Sound->TargetVolume = Volume;
+        }
     }
 }
 
 inline void
 ChangePitch(audio_state *AudioState, playing_sound *Sound, real32 dSample)
 {
-    Sound->dSample = dSample;
+    if(Sound)
+    {
+        Sound->dSample = dSample;
+    }
 }
 
 internal void

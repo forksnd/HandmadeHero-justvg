@@ -13,70 +13,6 @@
         1 - Slow code welcome
 */
 
-/*
-    TODO(george):
-
-    - Rendering
-        - Straighten out all coordinate systems!
-            - Screen
-            - World
-            - Texture
-        - Particle systems
-        - Lighting
-        - Final optimization
-
-    ARCHITECTURE EXPLORATION
-    - Collision detection?
-        - Transient collision rules! Clear based on flag.
-            - Allow non-transient rules to override transient ones.
-            - Entry/exit?
-        - What's the plan for robustness / shape definition? 
-    - Z!
-        - Need to make a solid concept of ground levels so the camera can
-          be freely placed in Z and have multiple ground levels in one
-          sim region
-        - How is this rendered?
-    - Implement multiple sim regions per frame
-        - Per-entity clocking
-        - Sim region merging? For multiple players?
-    
-    
-    - Debug code
-        - Logging
-        - Diagramming
-        - Switches / sliders / etc.
-    
-    - Audio
-        - Sound effect triggers
-        - Ambient sounds
-        - Music
-    - Asset streaming
-
-    - Metagame / save game?
-        - How do you enter "save slot"?
-        - Persistent unlocks/etc.
-        - Do we allow saved games? Probably yes, just only for "pausing",
-        * Continuous svae for crash recovery?
-    - Rudimentary world gen
-        - Placement of background things
-        - Connectivity?
-        - Non-overlapping?
-        - Map display
-    - AI
-        - Rudimentary monstar behavior example
-        * Pathfinding
-        - AI "storage"
-
-    * Animation should probably lead into rendering
-        - Skeletal animation
-        - Particle systems
-
-    PRODUCTION
-    -> GAME
-        - Entity system
-        - World generation
-*/
-
 #include "handmade_platform.h"
 
 #define Minimum(A, B) ((A < B) ? (A) : (B))
@@ -294,6 +230,14 @@ struct hero_bitmap_ids
     bitmap_id Legs;
 };
 
+struct particle
+{
+    v3 P;
+    v3 dP;
+    v4 Color;
+    v4 dColor;
+};
+
 struct game_state
 {
     bool32 IsInitialized;
@@ -333,10 +277,13 @@ struct game_state
     loaded_bitmap TestDiffuse; // TODO(george): Re-fill this guy with gray
     loaded_bitmap TestNormal;  
 
-    random_series GeneralEntropy;
+    random_series EffectsEntropy; // NOTE(georgy): This is entropy that doesn't affect the gameplay
 
     audio_state AudioState;
     playing_sound *Music;
+
+    uint32 NextParticle;
+    particle Particles[256];
 };
 
 struct task_with_memory 

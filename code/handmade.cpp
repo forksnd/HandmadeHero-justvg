@@ -638,7 +638,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         uint32 TilesPerWidth = 17;
         uint32 TilesPerHeight = 9;
 
-        GameState->GeneralEntropy = RandomSeed(1234);
+        GameState->EffectsEntropy = RandomSeed(1234);
         GameState->TypicalFloorHeight = 3.0f;
 
         // TODO(george): Remove this!
@@ -843,7 +843,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         TranState->Assets = AllocateGameAssets(&TranState->TranArena, Megabytes(64), TranState);
 
-        GameState->Music = PlaySound(&GameState->AudioState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
+        GameState->Music = 0; // PlaySound(&GameState->AudioState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
 
         TranState->GroundBufferCount = 256;
         TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
@@ -1170,7 +1170,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                                     AddCollisionRule(GameState, Sword->StorageIndex, Entity->StorageIndex, false);      
 
-                                    PlaySound(&GameState->AudioState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &GameState->GeneralEntropy));  
+                                    PlaySound(&GameState->AudioState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &GameState->EffectsEntropy));  
                                 }
                             }
                         }
@@ -1245,8 +1245,53 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap(RenderGroup, HeroBitmaps.Head, HeroSizeC*1.2f, V3(0, 0, 0));  
                     PushBitmap(RenderGroup, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, 0, 0));  
                     PushBitmap(RenderGroup, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
-
                     DrawHitpoints(Entity, RenderGroup);
+
+                    for(uint32 ParticleSpawnIndex = 0;
+                        ParticleSpawnIndex < 2;
+                        ParticleSpawnIndex++)
+                    {
+                        particle *Particle = GameState->Particles + GameState->NextParticle++;
+                        if(GameState->NextParticle >= ArrayCount(GameState->Particles))
+                        {
+                            GameState->NextParticle = 0;
+                        }
+
+                        Particle->P = V3(RandomBetween(&GameState->EffectsEntropy, -0.25f, 0.25f), 0.0f, 0.0f);
+                        Particle->dP = V3(RandomBetween(&GameState->EffectsEntropy, -0.5f, 0.5f), RandomBetween(&GameState->EffectsEntropy, 0.7f, 1.0f), 0.0f);
+                        Particle->Color = V4(RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
+                                             RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
+                                             RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
+                                             1.0f);
+                        Particle->dColor = V4(0.0f, 0.0f, 0.0f, -0.2f);
+                    }
+
+                    // NOTE(georgy): Particle system test
+                    for(uint32 ParticleIndex = 0;
+                        ParticleIndex < ArrayCount(GameState->Particles);
+                        ParticleIndex++)
+                    {
+                        particle *Particle = GameState->Particles + ParticleIndex;
+
+                        // NOTE(georgy): Simulate the particle forward in time
+                        Particle->P += Particle->dP*Input->dtForFrame;
+                        Particle->Color += Particle->dColor*Input->dtForFrame;
+
+                        // TODO(georgy): Shouldn't we just clamp colors in the renderer?
+                        v4 Color;
+                        Color.r = Clamp01(Particle->Color.r);
+                        Color.g = Clamp01(Particle->Color.g);
+                        Color.b = Clamp01(Particle->Color.b);
+                        Color.a = Clamp01(Particle->Color.a);
+
+                        if(Color.a > 0.9f)
+                        {
+                            Color.a = 0.9f*Clamp01MapToRange(1.0f, Color.a, 0.9f);
+                        }
+
+                        // NOTE(georgy): Render the particle
+                        PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), 0.2f, Particle->P, Color);//Particle->Color);
+                    }
                 } break;
 
                 case EntityType_Wall:
