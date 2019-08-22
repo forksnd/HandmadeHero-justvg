@@ -1257,8 +1257,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             GameState->NextParticle = 0;
                         }
 
-                        Particle->P = V3(RandomBetween(&GameState->EffectsEntropy, -0.25f, 0.25f), 0.0f, 0.0f);
-                        Particle->dP = V3(RandomBetween(&GameState->EffectsEntropy, -0.5f, 0.5f), RandomBetween(&GameState->EffectsEntropy, 0.7f, 1.0f), 0.0f);
+                        Particle->BitmapID = GetRandomBitmapFrom(TranState->Assets, Asset_Head, &GameState->EffectsEntropy);
+                        Particle->P = V3(RandomBetween(&GameState->EffectsEntropy, -0.05f, 0.05f), 0.0f, 0.0f);
+                        Particle->dP = V3(RandomBetween(&GameState->EffectsEntropy, -0.01f, 0.01f), 7.0f*RandomBetween(&GameState->EffectsEntropy, 0.7f, 1.0f), 0.0f);
+                        Particle->ddP = V3(0.0f, -9.8f, 0.0f);
                         Particle->Color = V4(RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
                                              RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
                                              RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
@@ -1267,14 +1269,81 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     }
 
                     // NOTE(georgy): Particle system test
+                    ZeroStruct(GameState->ParticleCels);
+
+                    real32 GridScale = 0.2f;
+                    real32 InvGridScale = 1.0f / GridScale;
+                    v3 GridOrigin = {-0.5f*GridScale*PARTICLE_CEL_DIM, 0.0f, 0.0f};
                     for(uint32 ParticleIndex = 0;
                         ParticleIndex < ArrayCount(GameState->Particles);
                         ParticleIndex++)
                     {
                         particle *Particle = GameState->Particles + ParticleIndex;
 
+                        v3 P = InvGridScale*(Particle->P - GridOrigin);
+
+                        int32 X = TruncateReal32ToInt32(P.x);
+                        int32 Y = TruncateReal32ToInt32(P.y);
+
+                        if(X < 0) { X = 0; }
+                        if(X > (PARTICLE_CEL_DIM - 1)) { X = (PARTICLE_CEL_DIM - 1); }
+                        if(Y < 0) { Y = 0; }
+                        if(Y > (PARTICLE_CEL_DIM - 1)) { Y = (PARTICLE_CEL_DIM - 1); }
+
+                        particle_cel *Cel = &GameState->ParticleCels[Y][X];
+                        real32 Density = Particle->Color.a;
+                        Cel->Density += Density;
+                        Cel->VelocityTimesDensity += Density*Particle->dP;
+                    }
+
+                    for(uint32 Y = 0;
+                        Y < PARTICLE_CEL_DIM;
+                        Y++)
+                    {
+                        for(uint32 X = 0;
+                            X < PARTICLE_CEL_DIM;
+                            X++)
+                        {
+                            particle_cel *Cel = &GameState->ParticleCels[Y][X];
+                            real32 Alpha = Clamp01(0.1f*Cel->Density);
+                            PushRect(RenderGroup, GridScale*V3((real32)X, (real32)Y, 0) + GridOrigin, GridScale*V2(1.0f, 1.0f), V4(Alpha, Alpha, Alpha, 1.0f));
+                        }
+                    }
+
+                    for(uint32 ParticleIndex = 0;
+                        ParticleIndex < ArrayCount(GameState->Particles);
+                        ParticleIndex++)
+                    {
+                        particle *Particle = GameState->Particles + ParticleIndex;
+
+                        v3 P = InvGridScale*(Particle->P - GridOrigin);
+
+                        int32 X = TruncateReal32ToInt32(P.x);
+                        int32 Y = TruncateReal32ToInt32(P.y);
+
+                        if(X < 1) { X = 1; }
+                        if(X > (PARTICLE_CEL_DIM - 2)) { X = (PARTICLE_CEL_DIM - 2); }
+                        if(Y < 1) { Y = 1; }
+                        if(Y > (PARTICLE_CEL_DIM - 2)) { Y = (PARTICLE_CEL_DIM - 2); }
+
+                        particle_cel *CelCenter = &GameState->ParticleCels[Y][X];
+                        particle_cel *CelLeft = &GameState->ParticleCels[Y][X - 1];
+                        particle_cel *CelRight = &GameState->ParticleCels[Y][X + 1];
+                        particle_cel *CelUp = &GameState->ParticleCels[Y + 1][X];
+                        particle_cel *CelDown = &GameState->ParticleCels[Y - 1][X];
+
+                        v3 Dispersion = {};
+                        real32 Dc = 1.0f;
+                        Dispersion += Dc*(CelCenter->Density - CelLeft->Density)*V3(-1.0f, 0.0f, 0.0f);
+                        Dispersion += Dc*(CelCenter->Density - CelRight->Density)*V3(1.0f, 0.0f, 0.0f);
+                        Dispersion += Dc*(CelCenter->Density - CelDown->Density)*V3(0.0f, -1.0f, 0.0f);
+                        Dispersion += Dc*(CelCenter->Density - CelUp->Density)*V3(0.0f, 1.0f, 0.0f);
+
+                        v3 ddP = Particle->ddP + Dispersion;
+
                         // NOTE(georgy): Simulate the particle forward in time
-                        Particle->P += Particle->dP*Input->dtForFrame;
+                        Particle->P += 0.5f*Square(Input->dtForFrame)*ddP + Particle->dP*Input->dtForFrame;
+                        Particle->dP += Input->dtForFrame*ddP;
                         Particle->Color += Particle->dColor*Input->dtForFrame;
 
                         // TODO(georgy): Shouldn't we just clamp colors in the renderer?
@@ -1284,13 +1353,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         Color.b = Clamp01(Particle->Color.b);
                         Color.a = Clamp01(Particle->Color.a);
 
+                        if(Particle->P.y < 0.0f)
+                        {
+                            real32 CoefficientOfRestitution = 0.3f;
+                            real32 CoefficientOfFriction = 0.7f;
+                            Particle->P.y =  -Particle->P.y;
+                            Particle->dP.y = -CoefficientOfRestitution*Particle->dP.y;
+                            Particle->dP.y = CoefficientOfFriction*Particle->dP.x;
+                        } 
+
                         if(Color.a > 0.9f)
                         {
                             Color.a = 0.9f*Clamp01MapToRange(1.0f, Color.a, 0.9f);
                         }
 
                         // NOTE(georgy): Render the particle
-                        PushBitmap(RenderGroup, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), 0.2f, Particle->P, Color);//Particle->Color);
+                        PushBitmap(RenderGroup, Particle->BitmapID, 1.0f, Particle->P, Color);//Particle->Color);
                     }
                 } break;
 
