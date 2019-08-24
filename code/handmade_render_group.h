@@ -25,13 +25,14 @@
 
 struct loaded_bitmap
 {
+    void *Memory;
+
     v2 AlignPercentage;
     real32 WidthOverHeight;
-
-    int32 Width;
-    int32 Height;
-    int32 Pitch;
-    void *Memory;
+    int16 Width;
+    int16 Height;
+    // TODO(georgy): Get rid of pitch
+    int16 Pitch;
 };
 
 struct environment_map

@@ -99,6 +99,16 @@ SafeTruncateUInt64(uint64 Value)
     return (Result);
 }
 
+inline uint16
+SafeTruncateToUInt16(uint32 Value)
+{
+    Assert(Value <= 65535);
+    Assert(Value >= 0);
+    uint16 Result = (uint16) Value;
+    return (Result);
+}
+
+
 /*
     NOTE(george): Services that the platform layer provides to the game
 */
