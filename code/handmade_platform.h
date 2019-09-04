@@ -108,6 +108,14 @@ SafeTruncateToUInt16(uint32 Value)
     return (Result);
 }
 
+inline int16
+SafeTruncateToInt16(int32 Value)
+{
+    Assert(Value < 32767);
+    Assert(Value >= -32768);
+    int16 Result = (int16) Value;
+    return (Result);
+}
 
 /*
     NOTE(george): Services that the platform layer provides to the game
@@ -257,6 +265,12 @@ typedef PLATFORM_FILE_ERROR(platform_file_error);
 
 #define PlatformNoFileErrors(Handle) ((Handle)->NoErrors) 
 
+#define PLATFORM_ALLOCATE_MEMORY(name) void *name(memory_index Size)
+typedef PLATFORM_ALLOCATE_MEMORY(platform_allocate_memory);
+
+#define PLATFORM_DEALLOCATE_MEMORY(name) void name(void *Memory)
+typedef PLATFORM_DEALLOCATE_MEMORY(platform_deallocate_memory);
+
 struct platform_work_queue; 
 #define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(platform_work_queue *Queue, void *Data)    
 typedef PLATFORM_WORK_QUEUE_CALLBACK(platform_work_queue_callback);
@@ -273,6 +287,9 @@ struct platform_api
     platform_open_next_file *OpenNextFile;
     platform_read_data_from_file *ReadDataFromFile;
     platform_file_error *FileError;
+
+    platform_allocate_memory *AllocateMemory;
+    platform_deallocate_memory *DeallocateMemory;
 
     debug_platform_read_entire_file *DEBUGReadEntireFile;
     debug_platform_free_file_memory *DEBUGFreeFileMemory;

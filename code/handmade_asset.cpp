@@ -8,7 +8,7 @@ struct load_asset_work
     uint64 Size;
     void *Destination;
 
-    asset_state FinalState;
+    uint32 FinalState;
 };
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
 {
@@ -18,12 +18,14 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
 
     CompletePreviousWritesBeforeFutureWrites;
 
-    // TODO(georgy): Should we actually fill in bogus data here and set to final state anyway?
-    if(PlatformNoFileErrors(Work->Handle))
+    if(!PlatformNoFileErrors(Work->Handle))
     {
-        Work->Slot->State = Work->FinalState;
+        // TODO(georgy): Should we actually fill in bogus data here and set to final state anyway?
+        ZeroSize(Work->Size, Work->Destination);
     }
 
+    Work->Slot->State = Work->FinalState;
+    
     EndTaskWithMemory(Work->Task);
 }
 
@@ -34,6 +36,87 @@ GetFileHandleFor(game_assets *Assets, uint32 FileIndex)
 
     platform_file_handle *Result = Assets->Files[FileIndex].Handle;
     return(Result);
+}
+
+inline void *
+AcquireAssetMemory(game_assets *Assets, memory_index Size)
+{
+    void *Result = Platform.AllocateMemory(Size);
+    if(Result)
+    {
+        Assets->TotalMemoryUsed += Size;
+    }
+    return(Result);
+}
+
+inline void 
+ReleaseAssetMemory(game_assets *Assets, memory_index Size, void *Memory)
+{
+    if(Memory)
+    {
+        Assets->TotalMemoryUsed -= Size;
+    }
+    Platform.DeallocateMemory(Memory);
+}
+
+struct asset_memory_size
+{
+    uint32 Total;
+    uint32 Data;
+    uint32 Section;
+};
+asset_memory_size
+GetSizeOfAsset(game_assets *Assets, uint32 Type, uint32 SlotIndex)
+{
+    asset *Asset = Assets->Assets + SlotIndex;
+
+    asset_memory_size Result = {};
+    if(Type == AssetState_Sound)
+    {
+        hha_sound *Info = &Asset->HHA.Sound;
+
+        Result.Section = Info->SampleCount*sizeof(int16);
+        Result.Data = Info->ChannelCount*Result.Section;
+    }
+    else
+    {
+        Assert(Type == AssetState_Bitmap);
+        
+        hha_bitmap *Info = &Asset->HHA.Bitmap;
+
+        uint16 Width = SafeTruncateToUInt16(Info->Dim[0]);
+        uint16 Height = SafeTruncateToUInt16(Info->Dim[1]);
+        Result.Section = 4*Width;
+        Result.Data = Height*Result.Section;
+    }
+
+    Result.Total = Result.Data + sizeof(asset_memory_header);
+
+    return(Result);
+}
+
+internal void
+AddAssetsHeaderToList(game_assets *Assets, uint32 SlotIndex, void *Memory, asset_memory_size Size)
+{
+    asset_memory_header *Header = (asset_memory_header *)((uint8 *)Memory + Size.Data);
+
+    asset_memory_header *Sentinel = &Assets->LoadedAssetSentinel;
+    
+    Header->SlotIndex = SlotIndex;
+    Header->Prev = Sentinel;
+    Header->Next = Sentinel->Next;
+
+    Header->Prev->Next = Header;
+    Header->Next->Prev = Header;
+}
+
+internal void
+RemoveAssetsHeaderFromList(asset_memory_header *Header)
+{
+    Header->Prev->Next = Header->Next;
+    Header->Next->Prev = Header->Prev;
+
+    Header->Next = Header->Prev = 0;
 }
 
 internal void
@@ -54,18 +137,21 @@ LoadBitmap(game_assets *Assets, bitmap_id ID)
             Bitmap->WidthOverHeight = (real32)Info->Dim[0] / (real32)Info->Dim[1];
             Bitmap->Width = SafeTruncateToUInt16(Info->Dim[0]);
             Bitmap->Height = SafeTruncateToUInt16(Info->Dim[1]);
-            Bitmap->Pitch = 4*SafeTruncateToUInt16(Info->Dim[0]);
-            uint32 MemorySize = Bitmap->Pitch*Bitmap->Height;
-            Bitmap->Memory = PushSize(&Assets->Arena, MemorySize);
+
+            asset_memory_size Size = GetSizeOfAsset(Assets, AssetState_Bitmap, ID.Value);
+            Bitmap->Pitch = SafeTruncateToInt16(Size.Section);
+            Bitmap->Memory = AcquireAssetMemory(Assets, Size.Total);// PushSize(&Assets->Arena, MemorySize);
 
             load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);
             Work->Task = Task;
             Work->Slot =  Assets->Slots + ID.Value;
             Work->Handle = GetFileHandleFor(Assets, Asset->FileIndex);
             Work->Offset = Asset->HHA.DataOffset;
-            Work->Size = MemorySize;
+            Work->Size = Size.Data;
             Work->Destination = Bitmap->Memory;
-            Work->FinalState = AssetState_Loaded;
+            Work->FinalState = (AssetState_Bitmap | AssetState_Loaded);
+
+            AddAssetsHeaderToList(Assets, ID.Value, Bitmap->Memory, Size);
 
             Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, Work);
         }
@@ -91,9 +177,10 @@ LoadSound(game_assets *Assets, sound_id ID)
             loaded_sound *Sound = &Slot->Sound;
             Sound->SampleCount = Info->SampleCount;
             Sound->ChannelCount = Info->ChannelCount;
-            uint32 ChannelSize = Sound->SampleCount*sizeof(int16); 
-            uint32 MemorySize = Sound->ChannelCount*ChannelSize;
-            void *Memory = PushSize(&Assets->Arena, MemorySize);
+            
+            asset_memory_size Size = GetSizeOfAsset(Assets, AssetState_Sound, ID.Value);
+            uint32 ChannelSize = Size.Section; 
+            void *Memory = AcquireAssetMemory(Assets, Size.Total); //PushSize(&Assets->Arena, MemorySize);
             
             int16 *SoundAt = (int16 *)Memory;
             for(uint32 ChannelIndex = 0;
@@ -109,9 +196,11 @@ LoadSound(game_assets *Assets, sound_id ID)
             Work->Slot =  Assets->Slots + ID.Value;
             Work->Handle = GetFileHandleFor(Assets, Asset->FileIndex);
             Work->Offset = Asset->HHA.DataOffset;
-            Work->Size = MemorySize;
+            Work->Size = Size.Data;
             Work->Destination = Memory;
-            Work->FinalState = AssetState_Loaded;
+            Work->FinalState = (AssetState_Sound | AssetState_Loaded);
+
+            AddAssetsHeaderToList(Assets, ID.Value, Memory, Size);
 
             Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, Work);
         }
@@ -245,6 +334,11 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
 	game_assets *Assets = PushStruct(Arena, game_assets);
 	SubArena(&Assets->Arena, Arena, Size);
 	Assets->TranState = TranState;
+    Assets->TotalMemoryUsed = 0;
+    Assets->TargetMemoryUsed = Size;
+
+    Assets->LoadedAssetSentinel.Next = &Assets->LoadedAssetSentinel;
+    Assets->LoadedAssetSentinel.Prev = &Assets->LoadedAssetSentinel;
 
     for(uint32 TagType = 0;
         TagType < Tag_Count;
@@ -354,7 +448,7 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
 
                         temporary_memory TempMem = BeginTemporaryMemory(&TranState->TranArena);
                         hha_asset *HHAAssetArray = PushArray(&TranState->TranArena, AssetCountForType, hha_asset);
-
+						
                         Platform.ReadDataFromFile(File->Handle, 
                                                   File->Header.Assets + SourceType->FirstAssetIndex*sizeof(hha_asset), 
                                                   AssetCountForType*sizeof(hha_asset), 
@@ -394,4 +488,47 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
     Assert(AssetCount == Assets->AssetCount);
 
     return(Assets);
+}
+
+internal void
+EvictAsset(game_assets *Assets, asset_memory_header *Header)
+{
+    uint32 SlotIndex = Header->SlotIndex;
+    asset_slot *Slot = Assets->Slots + SlotIndex;
+    Assert(Slot->State == AssetState_Loaded);
+
+    asset_memory_size Size = GetSizeOfAsset(Assets, GetType(Slot), SlotIndex);
+    void *Memory = 0;
+    if(GetType(Slot) == AssetState_Sound)
+    {
+        Memory = Slot->Sound.Samples[0];
+    }
+    else
+    {
+        Assert(GetType(Slot) == AssetState_Bitmap);
+        Memory = Slot->Bitmap.Memory;
+    }
+
+    RemoveAssetsHeaderFromList(Header);
+    ReleaseAssetMemory(Assets, Size.Total, Memory);
+
+    Slot->State = AssetState_Unloaded;
+}
+
+internal void 
+EvictAssetsAsNecessary(game_assets *Assets)
+{
+    while(Assets->TotalMemoryUsed > Assets->TargetMemoryUsed)
+    {
+        asset_memory_header *Asset = Assets->LoadedAssetSentinel.Prev;
+        if(Asset != &Assets->LoadedAssetSentinel)
+        {
+            EvictAsset(Assets, Asset);            
+        }
+        else
+        {
+            InvalidCodePath;
+            break;
+        }
+    }
 }
