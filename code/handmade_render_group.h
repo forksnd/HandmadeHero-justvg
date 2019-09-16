@@ -29,10 +29,9 @@ struct loaded_bitmap
 
     v2 AlignPercentage;
     real32 WidthOverHeight;
-    int16 Width;
-    int16 Height;
-    // TODO(georgy): Get rid of pitch
-    int16 Pitch;
+    int32 Width;
+    int32 Height;
+    int32 Pitch;
 };
 
 struct environment_map
@@ -133,6 +132,8 @@ struct render_group
     uint8 *PushBufferBase;
 
     uint32 MissingResourceCount;
+
+    bool32 AssetsShouldBeLocked;
 };
 
 #endif
