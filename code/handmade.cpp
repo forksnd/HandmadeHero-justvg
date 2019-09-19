@@ -841,7 +841,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             SubArena(&Task->Arena, &TranState->TranArena, Megabytes(1));
         }
 
-        TranState->Assets = AllocateGameAssets(&TranState->TranArena, Megabytes(3), TranState);
+        TranState->Assets = AllocateGameAssets(&TranState->TranArena, Megabytes(16), TranState);
 
         GameState->Music = PlaySound(&GameState->AudioState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
 
@@ -1520,8 +1520,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     EndSim(SimRegion, GameState);    
     EndTemporaryMemory(SimMemory);
     EndTemporaryMemory(RenderMemory);
-
-    EvictAssetsAsNecessary(TranState->Assets);
 
     CheckArena(&GameState->WorldArena);
     CheckArena(&TranState->TranArena);

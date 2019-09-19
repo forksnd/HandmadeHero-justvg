@@ -54,7 +54,7 @@ struct asset_type
 
 struct asset_file
 {
-    platform_file_handle *Handle;
+    platform_file_handle Handle;
 
     hha_header Header;
     hha_asset_type *AssetTypeArray;
@@ -80,8 +80,6 @@ struct game_assets
 
     asset_memory_block MemorySentinel;
 
-    uint64 TargetMemoryUsed;
-    uint64 TotalMemoryUsed;
     asset_memory_header LoadedAssetSentinel;
 
     real32 TagRange[Tag_Count];
