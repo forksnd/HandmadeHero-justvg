@@ -447,6 +447,9 @@ MakeEmptyBitmap(memory_arena *Arena, int32 Width, int32 Height, bool32 ClearToZe
 {
     loaded_bitmap Result = {};
 
+    Result.AlignPercentage = V2(0.5f, 0.5f);
+    Result.WidthOverHeight = SafeRatio1((real32)Width, (real32)Height);
+
     Result.Width = Width;
     Result.Height = Height;
     Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
@@ -1257,7 +1260,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                             GameState->NextParticle = 0;
                         }
 
-                        Particle->BitmapID = GetRandomBitmapFrom(TranState->Assets, Asset_Head, &GameState->EffectsEntropy);
                         Particle->P = V3(RandomBetween(&GameState->EffectsEntropy, -0.05f, 0.05f), 0.0f, 0.0f);
                         Particle->dP = V3(RandomBetween(&GameState->EffectsEntropy, -0.01f, 0.01f), 7.0f*RandomBetween(&GameState->EffectsEntropy, 0.7f, 1.0f), 0.0f);
                         Particle->ddP = V3(0.0f, -9.8f, 0.0f);
@@ -1266,6 +1268,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                                              RandomBetween(&GameState->EffectsEntropy, 0.75f, 1.0f), 
                                              1.0f);
                         Particle->dColor = V4(0.0f, 0.0f, 0.0f, -0.2f);
+
+                        char Nothings[] = "NOTHINGS";
+                        asset_vector MatchVector = {};
+                        asset_vector WeightVector = {};
+                        MatchVector.E[Tag_UnicodeCodepoint] = (real32)Nothings[RandomChoice(&GameState->EffectsEntropy, ArrayCount(Nothings) - 1)];
+                        WeightVector.E[Tag_UnicodeCodepoint] = 1.0f;
+                        Particle->BitmapID = GetBestMatchBitmapFrom(TranState->Assets, Asset_Font, &MatchVector, &WeightVector);
+                        // Particle->BitmapID = GetRandomBitmapFrom(TranState->Assets, Asset_Font, &GameState->EffectsEntropy);
                     }
 
                     // NOTE(georgy): Particle system test
@@ -1370,7 +1380,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         }
 
                         // NOTE(georgy): Render the particle
-                        PushBitmap(RenderGroup, Particle->BitmapID, 1.0f, Particle->P, Color);//Particle->Color);
+                        PushBitmap(RenderGroup, Particle->BitmapID, 0.2f, Particle->P, Color);//Particle->Color);
                     }
                 } break;
 

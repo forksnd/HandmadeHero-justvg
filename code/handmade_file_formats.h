@@ -1,6 +1,53 @@
 #if !defined(HANDMADE_FILE_FORMATS_H)
 #define HANDMADE_FILE_FORMATS_H
 
+enum asset_tag_id
+{
+    Tag_Smoothness,
+    Tag_Flatness,
+    Tag_FacingDirection, // NOTE(georgy): Angle in radians off of dued right
+	Tag_UnicodeCodepoint,
+
+    Tag_Count
+};
+
+enum asset_type_id
+{
+    Asset_None,
+
+    // 
+    // NOTE(georgy): Bitmaps!
+    // 
+
+    Asset_Shadow,
+    Asset_Tree,
+    Asset_Sword,
+
+    Asset_Stone,
+    Asset_Grass,
+
+    Asset_Head,
+    Asset_Torso,
+    Asset_Legs,
+
+	Asset_Font,
+
+    // 
+    // NOTE(georgy): Sounds!
+    //
+
+    Asset_Music,
+    Asset_Hit, 
+    Asset_Jump,
+    Asset_Pickup,
+
+    // 
+    // 
+    // 
+
+    Asset_Count
+};
+
 #define HHA_CODE(a, b, c, d) (((uint32)(a) << 0) | ((uint32)(b) << 8) | ((uint32)(c) << 16) | ((uint32)(d) << 24))
 
 #pragma pack(push, 1)
