@@ -20,6 +20,7 @@ struct asset_source
 {
     asset_type Type;
     char *Filename;
+    char *FontName;
     union 
     {
         uint32 FirstSampleIndex;
