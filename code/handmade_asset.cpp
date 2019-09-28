@@ -152,12 +152,11 @@ AcquireAssetMemory(game_assets *Assets, memory_index Size)
                 Header = Header->Prev)
             {
                 asset *Asset = Assets->Assets + Header->AssetIndex;
-                if(GetState(Asset) >= AssetState_Loaded)
+                if(Asset->State >= AssetState_Loaded)
                 {
                     uint32 AssetIndex = Header->AssetIndex;
                     asset *Asset = Assets->Assets + AssetIndex;
-                    Assert(GetState(Asset) == AssetState_Loaded);
-                    Assert(!IsLocked(Asset));
+                    Assert(Asset->State == AssetState_Loaded);
 
                     RemoveAssetsHeaderFromList(Header);
 
@@ -214,7 +213,7 @@ AddAssetsHeaderToList(game_assets *Assets, uint32 AssetIndex, asset_memory_size 
 }
 
 internal void
-LoadBitmap(game_assets *Assets, bitmap_id ID, bool32 Locked)
+LoadBitmap(game_assets *Assets, bitmap_id ID)
 {
     asset *Asset = Assets->Assets + ID.Value;
     if((ID.Value) && (AtomicCompareExchangeUInt32((uint32 *)&Asset->State, AssetState_Queued, AssetState_Unloaded) ==
@@ -250,14 +249,9 @@ LoadBitmap(game_assets *Assets, bitmap_id ID, bool32 Locked)
             Work->Offset = Asset->HHA.DataOffset;
             Work->Size = Size.Data;
             Work->Destination = Bitmap->Memory;
-            Work->FinalState = (AssetState_Loaded | (Locked ? AssetState_Lock : 0));
+            Work->FinalState = AssetState_Loaded;
 
-            Asset->State |= AssetState_Lock;
-
-            if(!Locked)
-            {
-                AddAssetsHeaderToList(Assets, ID.Value, Size);
-            }
+            AddAssetsHeaderToList(Assets, ID.Value, Size);
 
             Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, Work);
         }
@@ -609,11 +603,8 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
 internal void
 MoveHeaderToFront(game_assets *Assets, asset *Asset)
 {
-    if(!IsLocked(Asset))
-    {
-        asset_memory_header *Header = Asset->Header;
+    asset_memory_header *Header = Asset->Header;
 
-        RemoveAssetsHeaderFromList(Header);
-        InsertAssetHeaderAtFront(Assets, Header);
-    }
+    RemoveAssetsHeaderFromList(Header);
+    InsertAssetHeaderAtFront(Assets, Header);
 }

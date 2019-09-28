@@ -373,7 +373,7 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
         Assert(Width == Height);
         v2 HalfDim = 0.5f*V2(Width, Height);
 
-        render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &Task->Arena, 0, true);
+        render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &Task->Arena, 0);
         Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
         Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 1.0f));
 
@@ -990,7 +990,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DrawBuffer->Height = 719;
 #endif
 
-    render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4), false);
+    render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4));
     real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
     real32 MetersToPixels = (real32)DrawBuffer->Width/WidthOfMonitor;
     real32 FocalLength = 0.6f;
