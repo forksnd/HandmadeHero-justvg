@@ -343,15 +343,72 @@ EndTaskWithMemory(task_with_memory *Task)
 
 struct fill_ground_chunk_work
 {
-    render_group *RenderGroup;
-    loaded_bitmap *Buffer;
+    transient_state *TranState;
+    game_state *GameState; 
+    ground_buffer *GroundBuffer;
+    world_position ChunkP;
+
     task_with_memory *Task;
 };
 internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
 {
     fill_ground_chunk_work *Work = (fill_ground_chunk_work *)Data;
 
-    RenderGroupToOutput(Work->RenderGroup, Work->Buffer);
+    loaded_bitmap *Buffer = &Work->GroundBuffer->Bitmap;
+    Buffer->AlignPercentage= V2(0.5f, 0.5f);
+    Buffer->WidthOverHeight = 1.0f;
+
+    real32 Width = Work->GameState->World->ChunkDimInMeters.x;
+    real32 Height = Work->GameState->World->ChunkDimInMeters.y;
+    Assert(Width == Height);
+    v2 HalfDim = 0.5f*V2(Width, Height);
+
+    render_group *RenderGroup = AllocateRenderGroup(Work->TranState->Assets, &Work->Task->Arena, 0, true);
+    Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
+    Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 1.0f));
+
+    for(int32 ChunkOffsetY = -1;
+        ChunkOffsetY <= 1;
+        ChunkOffsetY++)
+    {
+        for(int32 ChunkOffsetX = -1;
+        ChunkOffsetX <= 1;
+        ChunkOffsetX++)
+        {
+            int32 ChunkX = Work->ChunkP.ChunkX + ChunkOffsetX;
+            int32 ChunkY = Work->ChunkP.ChunkY + ChunkOffsetY;
+            int32 ChunkZ = Work->ChunkP.ChunkZ;
+            random_series Series = RandomSeed(139*ChunkX + 593*ChunkY + 329*ChunkZ);
+
+#if 0
+            v4 Color = V4(1, 0, 0, 1);
+            if((ChunkX % 2) == (ChunkY % 2))
+            {
+                Color = V4(0, 0, 1, 1);
+            }
+#else
+            v4 Color = V4(1, 1, 1, 1);
+#endif
+            v2 Center = V2(ChunkOffsetX*Width, ChunkOffsetY*Height);
+
+            for(uint32 GrassIndex = 0;
+                GrassIndex < 100;
+                GrassIndex++)
+            {
+                bitmap_id Stamp = GetRandomBitmapFrom(Work->TranState->Assets,
+                                                      RandomChoice(&Series, 2) ? Asset_Grass : Asset_Stone,
+                                                      &Series);
+
+                v2 P = Center + Hadamard(HalfDim, V2(RandomBilateral(&Series), RandomBilateral(&Series)));
+                PushBitmap(RenderGroup, Stamp, 2.0f, V3(P, 0), Color);    
+            }
+        }
+    }
+
+    Assert(AllResourcesPresent(RenderGroup));
+
+    RenderGroupToOutput(RenderGroup, Buffer);
+    FinishRenderGroup(RenderGroup);
     
     EndTaskWithMemory(Work->Task);
 }
@@ -363,72 +420,13 @@ FillGroundChunk(transient_state *TranState, game_state *GameState, ground_buffer
     if(Task)
     {
         fill_ground_chunk_work *Work = PushStruct(&Task->Arena, fill_ground_chunk_work);
-
-        loaded_bitmap *Buffer = &GroundBuffer->Bitmap;
-        Buffer->AlignPercentage= V2(0.5f, 0.5f);
-        Buffer->WidthOverHeight = 1.0f;
-
-        real32 Width = GameState->World->ChunkDimInMeters.x;
-        real32 Height = GameState->World->ChunkDimInMeters.y;
-        Assert(Width == Height);
-        v2 HalfDim = 0.5f*V2(Width, Height);
-
-        render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &Task->Arena, 0);
-        Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
-        Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 1.0f));
-
-		Work->RenderGroup = RenderGroup;
-		Work->Buffer = Buffer;
-		Work->Task = Task;
-
-        for(int32 ChunkOffsetY = -1;
-            ChunkOffsetY <= 1;
-            ChunkOffsetY++)
-        {
-            for(int32 ChunkOffsetX = -1;
-            ChunkOffsetX <= 1;
-            ChunkOffsetX++)
-            {
-                int32 ChunkX = ChunkP->ChunkX + ChunkOffsetX;
-                int32 ChunkY = ChunkP->ChunkY + ChunkOffsetY;
-                int32 ChunkZ = ChunkP->ChunkZ;
-                random_series Series = RandomSeed(139*ChunkX + 593*ChunkY + 329*ChunkZ);
-
-#if 0
-                v4 Color = V4(1, 0, 0, 1);
-                if((ChunkX % 2) == (ChunkY % 2))
-                {
-                    Color = V4(0, 0, 1, 1);
-                }
-#else
-                v4 Color = V4(1, 1, 1, 1);
-#endif
-                v2 Center = V2(ChunkOffsetX*Width, ChunkOffsetY*Height);
-
-                for(uint32 GrassIndex = 0;
-                    GrassIndex < 100;
-                    GrassIndex++)
-                {
-                    bitmap_id Stamp = GetRandomBitmapFrom(TranState->Assets,
-                                                          RandomChoice(&Series, 2) ? Asset_Grass : Asset_Stone,
-                                                          &Series);
-
-                    v2 P = Center + Hadamard(HalfDim, V2(RandomBilateral(&Series), RandomBilateral(&Series)));
-                    PushBitmap(RenderGroup, Stamp, 2.0f, V3(P, 0), Color);    
-                }
-            }
-        }
-
-        if(AllResourcesPresent(RenderGroup))
-        {
-            GroundBuffer->P = *ChunkP;
-
-            Platform.AddEntry(TranState->LowPriorityQueue, FillGroundChunkWork, Work);
-        }
-        else
-        {
-            EndTaskWithMemory(Work->Task);
-        }
+        Work->Task = Task;
+        Work->TranState = TranState;
+        Work->GameState = GameState;
+        Work->GroundBuffer = GroundBuffer;
+        Work->ChunkP = *ChunkP;
+        GroundBuffer->P = *ChunkP;
+        Platform.AddEntry(TranState->LowPriorityQueue, FillGroundChunkWork, Work);
     }
 }
 
@@ -990,7 +988,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DrawBuffer->Height = 719;
 #endif
 
-    render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4));
+    render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4), false);
     real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
     real32 MetersToPixels = (real32)DrawBuffer->Width/WidthOfMonitor;
     real32 FocalLength = 0.6f;
@@ -1526,6 +1524,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #endif
 
     TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
+    FinishRenderGroup(RenderGroup);    
 
     EndSim(SimRegion, GameState);    
     EndTemporaryMemory(SimMemory);

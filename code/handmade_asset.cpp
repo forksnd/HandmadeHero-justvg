@@ -10,10 +10,9 @@ struct load_asset_work
 
     uint32 FinalState;
 };
-internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
+internal void
+LoadAssetWorkDirectly(load_asset_work *Work)
 {
-    load_asset_work *Work = (load_asset_work *)Data;
-
     Platform.ReadDataFromFile(Work->Handle, Work->Offset, Work->Size, Work->Destination);
 
     CompletePreviousWritesBeforeFutureWrites;
@@ -25,6 +24,12 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
     }
 
     Work->Asset->State = Work->FinalState;
+}
+internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
+{
+    load_asset_work *Work = (load_asset_work *)Data;
+
+    LoadAssetWorkDirectly(Work);
     
     EndTaskWithMemory(Work->Task);
 }
@@ -36,15 +41,6 @@ GetFileHandleFor(game_assets *Assets, uint32 FileIndex)
 
     platform_file_handle *Result = &Assets->Files[FileIndex].Handle;
     return(Result);
-}
-
-inline void
-RemoveAssetsHeaderFromList(asset_memory_header *Header)
-{
-    Header->Prev->Next = Header->Next;
-    Header->Next->Prev = Header->Prev;
-
-    Header->Next = Header->Prev = 0;
 }
 
 internal asset_memory_block *
@@ -115,10 +111,38 @@ MergeIfPossible(game_assets *Assets, asset_memory_block *First, asset_memory_blo
     return (Result);
 }
 
-internal void *
-AcquireAssetMemory(game_assets *Assets, memory_index Size)
+struct asset_memory_size
 {
-    void *Result = 0;
+    uint32 Total;
+    uint32 Data;
+    uint32 Section;
+};
+
+internal bool32
+GenerationHasCompleted(game_assets *Assets, uint32 CheckID) 
+{
+    bool32 Result = true;
+
+    for(uint32 Index = 0;
+        Index < Assets->InFlightGenerationCount;
+        Index++)
+    {
+        if(Assets->InFlightGenerations[Index] == CheckID)
+        {
+            Result = false;
+            break;
+        }
+    }
+
+    return(Result);
+}
+
+internal asset_memory_header *
+AcquireAssetMemory(game_assets *Assets, uint32 Size, uint32 AssetIndex)
+{
+    asset_memory_header *Result = 0;
+
+    BeginAssetLock(Assets);
 
     asset_memory_block *Block = FindBlockForSize(Assets, Size);
     for(;;)
@@ -127,7 +151,7 @@ AcquireAssetMemory(game_assets *Assets, memory_index Size)
         {
             Block->Flags |= AssetMemory_Used;
 
-            Result = (uint8 *)(Block + 1);
+            Result = (asset_memory_header *)(Block + 1);
 
             memory_index RemainingSize = Block->Size - Size;
             memory_index BlockSplitThreshold = 4096; // TODO(georgy): Set this on the smallest asset size
@@ -152,10 +176,9 @@ AcquireAssetMemory(game_assets *Assets, memory_index Size)
                 Header = Header->Prev)
             {
                 asset *Asset = Assets->Assets + Header->AssetIndex;
-                if(Asset->State >= AssetState_Loaded)
+                if((Asset->State >= AssetState_Loaded) &&
+                    GenerationHasCompleted(Assets, Asset->Header->GenerationID)) 
                 {
-                    uint32 AssetIndex = Header->AssetIndex;
-                    asset *Asset = Assets->Assets + AssetIndex;
                     Assert(Asset->State == AssetState_Loaded);
 
                     RemoveAssetsHeaderFromList(Header);
@@ -180,84 +203,89 @@ AcquireAssetMemory(game_assets *Assets, memory_index Size)
             }
         }
     }
+    
+    if(Result)
+    {
+        Result->AssetIndex = AssetIndex;
+        Result->TotalSize = Size;
+        InsertAssetHeaderAtFront(Assets, Result);
+    }
+
+    EndAssetLock(Assets);
 
     return(Result);
 }
 
-struct asset_memory_size
-{
-    uint32 Total;
-    uint32 Data;
-    uint32 Section;
-};
-
-inline void
-InsertAssetHeaderAtFront(game_assets *Assets, asset_memory_header *Header)
-{
-    asset_memory_header *Sentinel = &Assets->LoadedAssetSentinel;
-    
-    Header->Prev = Sentinel;
-    Header->Next = Sentinel->Next;
-
-    Header->Prev->Next = Header;
-    Header->Next->Prev = Header;
-}
-
-inline void
-AddAssetsHeaderToList(game_assets *Assets, uint32 AssetIndex, asset_memory_size Size)
-{
-    asset_memory_header *Header = Assets->Assets[AssetIndex].Header;
-    Header->AssetIndex = AssetIndex;
-    Header->TotalSize = Size.Total;
-    InsertAssetHeaderAtFront(Assets, Header);
-}
-
 internal void
-LoadBitmap(game_assets *Assets, bitmap_id ID)
+LoadBitmap(game_assets *Assets, bitmap_id ID, bool32 Immediate)
 {
     asset *Asset = Assets->Assets + ID.Value;
-    if((ID.Value) && (AtomicCompareExchangeUInt32((uint32 *)&Asset->State, AssetState_Queued, AssetState_Unloaded) ==
-       AssetState_Unloaded))   
-    {
-        task_with_memory *Task = BeginTaskWithMemory(Assets->TranState);
-        if(Task)
+    if(ID.Value)   
+    {   
+        if((AtomicCompareExchangeUInt32((uint32 *)&Asset->State, AssetState_Queued, AssetState_Unloaded) ==
+            AssetState_Unloaded))
         {
-            asset *Asset = Assets->Assets + ID.Value;
-            hha_bitmap *Info = &Asset->HHA.Bitmap;
 
-            asset_memory_size Size = {};
-            uint32 Width = Info->Dim[0];
-            uint32 Height = Info->Dim[1];
-            Size.Section = 4*Width;
-            Size.Data = Height*Size.Section;
-            Size.Total = Size.Data + sizeof(asset_memory_header);
+            task_with_memory *Task = 0;
 
-            Asset->Header = (asset_memory_header *)AcquireAssetMemory(Assets, Size.Total);
+            if(!Immediate)
+            {
+                Task = BeginTaskWithMemory(Assets->TranState);
+            }
 
-            loaded_bitmap *Bitmap = &Asset->Header->Bitmap;
-            Bitmap->AlignPercentage = V2(Info->AlignPercentage[0], Info->AlignPercentage[1]);
-            Bitmap->WidthOverHeight = (real32)Info->Dim[0] / (real32)Info->Dim[1];
-            Bitmap->Width = Width;
-            Bitmap->Height = Height;
-            Bitmap->Pitch = Size.Section;
-            Bitmap->Memory = (Asset->Header + 1);
+            if(Immediate || Task)
+            {
+                asset *Asset = Assets->Assets + ID.Value;
+                hha_bitmap *Info = &Asset->HHA.Bitmap;
 
-            load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);
-            Work->Task = Task;
-            Work->Asset =  Assets->Assets + ID.Value;
-            Work->Handle = GetFileHandleFor(Assets, Asset->FileIndex);
-            Work->Offset = Asset->HHA.DataOffset;
-            Work->Size = Size.Data;
-            Work->Destination = Bitmap->Memory;
-            Work->FinalState = AssetState_Loaded;
+                asset_memory_size Size = {};
+                uint32 Width = Info->Dim[0];
+                uint32 Height = Info->Dim[1];
+                Size.Section = 4*Width;
+                Size.Data = Height*Size.Section;
+                Size.Total = Size.Data + sizeof(asset_memory_header);
 
-            AddAssetsHeaderToList(Assets, ID.Value, Size);
+                Asset->Header = AcquireAssetMemory(Assets, Size.Total, ID.Value);
 
-            Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, Work);
+                loaded_bitmap *Bitmap = &Asset->Header->Bitmap;
+                Bitmap->AlignPercentage = V2(Info->AlignPercentage[0], Info->AlignPercentage[1]);
+                Bitmap->WidthOverHeight = (real32)Info->Dim[0] / (real32)Info->Dim[1];
+                Bitmap->Width = Width;
+                Bitmap->Height = Height;
+                Bitmap->Pitch = Size.Section;
+                Bitmap->Memory = (Asset->Header + 1);
+
+                load_asset_work Work;
+                Work.Task = Task;
+                Work.Asset =  Assets->Assets + ID.Value;
+                Work.Handle = GetFileHandleFor(Assets, Asset->FileIndex);
+                Work.Offset = Asset->HHA.DataOffset;
+                Work.Size = Size.Data;
+                Work.Destination = Bitmap->Memory;
+                Work.FinalState = AssetState_Loaded;
+                if(Task)
+                {
+                    load_asset_work *TaskWork = PushStruct(&Task->Arena, load_asset_work);
+                    *TaskWork = Work;
+                    Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, TaskWork);
+                }
+                else
+                {
+                    LoadAssetWorkDirectly(&Work);
+                }
+            }
+            else
+            {
+                Asset->State = AssetState_Unloaded;
+            }
         }
         else
         {
-            Asset->State = AssetState_Unloaded;
+            // TODO(georgy): Do we want to have a more coherent story here
+            // for what happens when two force-load people all hit the load
+            // at the same time
+            asset_state volatile *State = (asset_state volatile *)&Asset->State;
+            while(*State == AssetState_Queued) {}
         }
     }    
 }
@@ -280,7 +308,7 @@ LoadSound(game_assets *Assets, sound_id ID)
             Size.Data = Info->ChannelCount*Size.Section;
             Size.Total = Size.Data + sizeof(asset_memory_header);
 
-            Asset->Header = (asset_memory_header *)AcquireAssetMemory(Assets, Size.Total);
+            Asset->Header = AcquireAssetMemory(Assets, Size.Total, ID.Value);
             loaded_sound *Sound = &Asset->Header->Sound;
 
             Sound->SampleCount = Info->SampleCount;
@@ -305,8 +333,6 @@ LoadSound(game_assets *Assets, sound_id ID)
             Work->Size = Size.Data;
             Work->Destination = Memory;
             Work->FinalState = AssetState_Loaded;
-
-            AddAssetsHeaderToList(Assets, ID.Value, Size);
 
             Platform.AddEntry(Assets->TranState->LowPriorityQueue, LoadAssetWork, Work);
         }
@@ -438,6 +464,9 @@ internal game_assets *
 AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *TranState)
 {
 	game_assets *Assets = PushStruct(Arena, game_assets);
+
+    Assets->NextGenerationID = 0;
+    Assets->InFlightGenerationCount = 0;
 
     Assets->MemorySentinel.Flags = 0;
     Assets->MemorySentinel.Size = 0;
@@ -598,13 +627,4 @@ AllocateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Tran
     Assert(AssetCount == Assets->AssetCount);
 
     return(Assets);
-}
-
-internal void
-MoveHeaderToFront(game_assets *Assets, asset *Asset)
-{
-    asset_memory_header *Header = Asset->Header;
-
-    RemoveAssetsHeaderFromList(Header);
-    InsertAssetHeaderAtFront(Assets, Header);
 }

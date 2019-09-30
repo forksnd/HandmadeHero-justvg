@@ -14,7 +14,6 @@ enum asset_state
     AssetState_Unloaded,
     AssetState_Queued,
     AssetState_Loaded,
-    AssetState_Operating,
 };
 
 struct asset_memory_header
@@ -76,6 +75,8 @@ struct asset_memory_block
 
 struct game_assets
 {
+    uint32 NextGenerationID;
+
     struct transient_state *TranState;
 
     asset_memory_block MemorySentinel;
@@ -94,52 +95,86 @@ struct game_assets
     asset *Assets;
 
     asset_type AssetTypes[Asset_Count]; 
+
+    uint32 OperationLock;
+
+    uint32 InFlightGenerationCount;
+    uint32 InFlightGenerations[16];
 };
 
-internal void MoveHeaderToFront(game_assets *Assets, asset *Asset);
+inline void
+BeginAssetLock(game_assets *Assets)
+{
+    for(;;)
+    {
+        if(AtomicCompareExchangeUInt32(&Assets->OperationLock, 1, 0) == 0)
+        {
+            break;
+        }
+    }
+}
+
+inline void
+EndAssetLock(game_assets *Assets)
+{
+    CompletePreviousWritesBeforeFutureWrites;
+    Assets->OperationLock = 0;
+}
+
+inline void
+InsertAssetHeaderAtFront(game_assets *Assets, asset_memory_header *Header)
+{
+    asset_memory_header *Sentinel = &Assets->LoadedAssetSentinel;
+    
+    Header->Prev = Sentinel;
+    Header->Next = Sentinel->Next;
+
+    Header->Prev->Next = Header;
+    Header->Next->Prev = Header;
+}
+
+inline void
+RemoveAssetsHeaderFromList(asset_memory_header *Header)
+{
+    Header->Prev->Next = Header->Next;
+    Header->Next->Prev = Header->Prev;
+
+    Header->Next = Header->Prev = 0;
+}
 
 inline asset_memory_header *
-GetAsset(game_assets *Assets, uint32 ID)
+GetAsset(game_assets *Assets, uint32 ID, uint32 GenerationID)
 {
     Assert(ID <= Assets->AssetCount);
     asset *Asset = Assets->Assets + ID;
 
     asset_memory_header *Result = 0;
-    for(;;)
+           
+    BeginAssetLock(Assets);
+
+    if(Asset->State == AssetState_Loaded)
     {
-        uint32 State = Asset->State;
-        if(State == AssetState_Loaded)
-        {
-            if(AtomicCompareExchangeUInt32(&Asset->State, AssetState_Operating, State) == State)
-            {
-                Result = Asset->Header;
-                MoveHeaderToFront(Assets, Asset);
+        Result = Asset->Header;
+        RemoveAssetsHeaderFromList(Result);
+        InsertAssetHeaderAtFront(Assets, Result);
 
-#if 0
-                if(Asset->Header->GenerationID < GenerationID)
-                {
-                    Asset->Header->GenerationID = GenerationID;
-                }
-#endif
-                CompletePreviousWritesBeforeFutureWrites;
-
-                Asset->State = State;
-                break;
-            }
-        }
-        else if(State != AssetState_Operating)
+        if(Asset->Header->GenerationID < GenerationID)
         {
-            break;
+            Asset->Header->GenerationID = GenerationID;
         }
+
+        CompletePreviousWritesBeforeFutureWrites;
     }
+
+    EndAssetLock(Assets);
     
     return(Result);
 }
 
 inline loaded_bitmap *
-GetBitmap(game_assets *Assets, bitmap_id ID)
+GetBitmap(game_assets *Assets, bitmap_id ID, uint32 GenerationID)
 {
-    asset_memory_header *Header = GetAsset(Assets, ID.Value);
+    asset_memory_header *Header = GetAsset(Assets, ID.Value, GenerationID);
 
     loaded_bitmap *Result = Header ? &Header->Bitmap : 0;
     
@@ -147,9 +182,9 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 }
 
 inline loaded_sound *
-GetSound(game_assets *Assets, sound_id ID)
+GetSound(game_assets *Assets, sound_id ID, uint32 GenerationID)
 {
-    asset_memory_header *Header = GetAsset(Assets, ID.Value);
+    asset_memory_header *Header = GetAsset(Assets, ID.Value, GenerationID);
 
     loaded_sound *Result = Header ? &Header->Sound : 0;
     
@@ -181,8 +216,8 @@ IsValid(sound_id ID)
     return(Result);
 }   
 
-internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
-inline void PrefetchBitmap(game_assets *Assets, bitmap_id ID) {LoadBitmap(Assets, ID);}
+internal void LoadBitmap(game_assets *Assets, bitmap_id ID, bool32 Immediate);
+inline void PrefetchBitmap(game_assets *Assets, bitmap_id ID) {LoadBitmap(Assets, ID, false);}
 internal void LoadSound(game_assets *Assets, sound_id ID);
 inline void PrefetchSound(game_assets *Assets, sound_id ID) {LoadSound(Assets, ID);}
 
@@ -216,6 +251,40 @@ GetNextSoundInChain(game_assets *Assets, sound_id ID)
     }
 
     return(Result);
+}
+
+inline uint32 
+BeginGeneration(game_assets *Assets)
+{
+    BeginAssetLock(Assets);
+
+    Assert(Assets->InFlightGenerationCount < ArrayCount(Assets->InFlightGenerations));
+    uint32 Result = Assets->NextGenerationID++;
+    Assets->InFlightGenerations[Assets->InFlightGenerationCount++] = Result;
+
+    EndAssetLock(Assets);
+
+    return(Result);
+}
+
+inline void 
+EndGeneration(game_assets *Assets, uint32 GenerationID)
+{
+    BeginAssetLock(Assets);
+
+    for(uint32 Index = 0;
+        Index < Assets->InFlightGenerationCount;
+        Index++)
+    {
+        if(Assets->InFlightGenerations[Index] == GenerationID)
+        {
+            Assets->InFlightGenerations[Index] = 
+                Assets->InFlightGenerations[--Assets->InFlightGenerationCount];
+            break;
+        }
+    }
+
+    EndAssetLock(Assets);
 }
 
 #endif

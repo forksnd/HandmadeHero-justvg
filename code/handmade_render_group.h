@@ -121,8 +121,9 @@ struct render_transform
 struct render_group
 {
     struct game_assets *Assets;
-
     real32 GlobalAlpha;
+
+    uint32 GenerationID;
 
     v2 MonitorHalfDimInMeters;
     render_transform Transform;
@@ -132,6 +133,7 @@ struct render_group
     uint8 *PushBufferBase;
 
     uint32 MissingResourceCount;
+    bool32 RendersInBackground;
 };
 
 #endif
