@@ -145,6 +145,7 @@ typedef DEBUG_PLATFROM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 #define DEBUG_PLATFROM_WRITE_ENTIRE_FILE(name) bool32 name(char *Filename, uint32 MemorySize, void *Memory)
 typedef DEBUG_PLATFROM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
+// TODO(georgy): Give these things names soon!
 enum 
 {
     DebugCycleCounter_GameUpdateAndRender,
