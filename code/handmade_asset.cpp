@@ -279,7 +279,7 @@ LoadBitmap(game_assets *Assets, bitmap_id ID, bool32 Immediate)
                 Asset->State = AssetState_Unloaded;
             }
         }
-        else
+        else if(Immediate)
         {
             // TODO(georgy): Do we want to have a more coherent story here
             // for what happens when two force-load people all hit the load

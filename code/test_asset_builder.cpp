@@ -378,7 +378,10 @@ LoadGlyphBitmap(char *Filename, char *FontName, uint32 Codepoint)
     loaded_bitmap Result = {};
 
 #if USE_FONTS_FROM_WINDOWS
+    int MaxWidth = 1024;
+    int MaxHeight = 1024;
     static HDC DeviceContext = 0;
+    static VOID *Bits = 0;
     if(!DeviceContext)
     {
         AddFontResourceEx(Filename, FR_PRIVATE, 0);
@@ -394,8 +397,22 @@ LoadGlyphBitmap(char *Filename, char *FontName, uint32 Codepoint)
                      ANTIALIASED_QUALITY,
                      DEFAULT_PITCH|FF_DONTCARE,
                      FontName);
-        DeviceContext = CreateCompatibleDC(0);
-        HBITMAP Bitmap = CreateCompatibleBitmap(DeviceContext, 1024, 1024);
+
+        DeviceContext = CreateCompatibleDC(GetDC(0));
+
+        BITMAPINFO Info = {};
+        Info.bmiHeader.biSize = sizeof(Info.bmiHeader);
+        Info.bmiHeader.biWidth = MaxWidth;
+        Info.bmiHeader.biHeight = MaxHeight;
+        Info.bmiHeader.biPlanes = 1;
+        Info.bmiHeader.biBitCount = 32;
+        Info.bmiHeader.biCompression = BI_RGB;
+        Info.bmiHeader.biSizeImage = 0;
+        Info.bmiHeader.biXPelsPerMeter = 0;
+        Info.bmiHeader.biYPelsPerMeter = 0;
+        Info.bmiHeader.biClrUsed = 0;
+        Info.bmiHeader.biClrImportant = 0;
+        HBITMAP Bitmap = CreateDIBSection(DeviceContext, &Info, DIB_RGB_COLORS, &Bits, 0, 0);
         SelectObject(DeviceContext, Bitmap);
         SelectObject(DeviceContext, Font);
         SetBkColor(DeviceContext, RGB(0, 0, 0));
@@ -410,7 +427,15 @@ LoadGlyphBitmap(char *Filename, char *FontName, uint32 Codepoint)
     GetTextExtentPoint32W(DeviceContext, &CheesePoint, 1, &Size);
 
     int Width = Size.cx;
+    if(Width > MaxWidth)
+    {
+        Width = MaxWidth;
+    }
     int Height = Size.cy;
+    if(Height > MaxHeight)
+    {
+        Height = MaxHeight;
+    }
 
     // PatBlt(DeviceContext, 0, 0, Width, Height, BLACKNESS);
     SetTextColor(DeviceContext, RGB(255, 255, 255));
@@ -420,16 +445,18 @@ LoadGlyphBitmap(char *Filename, char *FontName, uint32 Codepoint)
     int32 MinY = 10000;
     int32 MaxX = -10000;
     int32 MaxY = -10000;
+
+    uint32 *Row = (uint32 *)Bits + (MaxHeight - 1)*MaxWidth;
     for(int32 Y = 0;
         Y < Height;
         Y++)
     {
+        uint32 *Pixel = Row;
         for(int32 X = 0;
             X < Width;
             X++)
         {
-            COLORREF Pixel = GetPixel(DeviceContext, X, Y);
-            if (Pixel != 0)
+            if (*Pixel != 0)
             {
                 if(MinX > X)
                 {
@@ -448,44 +475,57 @@ LoadGlyphBitmap(char *Filename, char *FontName, uint32 Codepoint)
                     MaxY = Y;
                 }
             }
+
+            Pixel++;
         }
+        Row -= MaxWidth;
     }
 
     if(MinX <= MaxX)
     {
+#if 0
         MinX--;
         MinY--;
         MaxX++;
         MaxY++;
-
+#endif 
         int Width = (MaxX - MinX) + 1;
         int Height = (MaxY - MinY) + 1;
 
-        Result.Width = Width;
-        Result.Height = Height;
+        Result.Width = Width + 2;
+        Result.Height = Height + 2;
         Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
         Result.Memory = malloc(Result.Height*Result.Pitch);
         Result.Free = Result.Memory;
 
-        uint8 *DestRow = (uint8 *)Result.Memory + (Height - 1)*Result.Pitch;
+        memset(Result.Memory, 0, Result.Height*Result.Pitch);
+
+        uint8 *DestRow = (uint8 *)Result.Memory + (Result.Height - 1)*Result.Pitch;
+        uint32 *SourceRow = (uint32 *)Bits + (MaxHeight - 1 - MinY)*MaxWidth;
         for(int32 Y = MinY;
             Y <= MaxY;
             Y++)
         {
-            uint32 *Dest = (uint32 *)DestRow;
+            uint32 *Source = (uint32 *)SourceRow + MinX;
+            uint32 *Dest = (uint32 *)DestRow + 1;
             for(int32 X = MinX;
                 X <= MaxX;
                 X++)
             {
+#if 0
                 COLORREF Pixel = GetPixel(DeviceContext, X, Y);
-                uint8 Grey = (uint8)(Pixel & 0xFF);
-                uint8 Alpha = 0xFF;
+                Assert(Pixel == *Source);
+#endif
+                uint32 Pixel = *Source++;
+                uint8 Gray = (uint8)(Pixel & 0xFF);
+                uint8 Alpha = Gray;
                 *Dest++ = ((Alpha << 24) | 
-                        (Grey << 16) |
-                        (Grey <<  8) | 
-                        (Grey <<  0));
+                          (Gray << 16) |
+                          (Gray <<  8) | 
+                          (Gray <<  0));
             }
             DestRow -= Result.Pitch;
+            SourceRow -= MaxWidth;
         }
     }
 #else
