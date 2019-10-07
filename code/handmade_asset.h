@@ -12,6 +12,7 @@ struct loaded_font
 {
     bitmap_id *CodePoints;
     real32 *HorizontalAdvance;
+    uint32 BitmapIDOffset;
 };
 
 // TODO(georgy): Streaming this, by using header pointer as an indicator of unloaded status?
@@ -44,7 +45,7 @@ struct asset
     asset_memory_header *Header;
 
     hha_asset HHA;
-    uint32 FileIndex;
+    int32 FileIndex;
 };
 
 struct asset_vector
@@ -66,6 +67,7 @@ struct asset_file
     hha_asset_type *AssetTypeArray;
 
     uint32 TagBase;
+    uint32 FontBitmapIDOffset;
 };
 
 enum asset_memory_block_flags
