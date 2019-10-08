@@ -417,6 +417,41 @@ LoadFont(char *Filename, char *FontName, uint32 CodePointCount)
     Result->BitmapIDs = (bitmap_id *)malloc(sizeof(bitmap_id)*CodePointCount);
     Result->HorizontalAdvance = (real32 *)malloc(sizeof(real32)*CodePointCount*CodePointCount);
 
+    ABC *ABCs = (ABC *)malloc(sizeof(ABC)*Result->CodePointCount);
+    GetCharABCWidthsW(GlobalFontDeviceContext, 0, (Result->CodePointCount - 1), ABCs);
+    for(uint32 CodePointIndex = 0;
+        CodePointIndex < Result->CodePointCount;
+        CodePointIndex++)
+    {
+        ABC *This = ABCs + CodePointIndex;
+        real32 W = (real32)This->abcA + (real32)This->abcB + (real32)This->abcC;
+        for(uint32 OtherCodePointIndex = 0;
+            OtherCodePointIndex < Result->CodePointCount;
+            OtherCodePointIndex++)
+        {
+            Result->HorizontalAdvance[CodePointIndex*Result->CodePointCount + OtherCodePointIndex] = W;
+        }
+    }
+    free(ABCs);
+
+    // TODO(georgy): Eventually pull the real kerning tables 
+    DWORD KerningPairCount = GetKerningPairsW(GlobalFontDeviceContext, 0, 0);
+    KERNINGPAIR *KerningPairs = (KERNINGPAIR *)malloc(KerningPairCount*sizeof(KERNINGPAIR));
+    GetKerningPairsW(GlobalFontDeviceContext, KerningPairCount, KerningPairs);
+    for(DWORD KerningPairIndex = 0;
+        KerningPairIndex < KerningPairCount;
+        KerningPairIndex++)
+    {
+        KERNINGPAIR *Pair = KerningPairs + KerningPairIndex;
+        if((Pair->wFirst < Result->CodePointCount) &&
+           (Pair->wSecond < Result->CodePointCount))
+        {
+            Result->HorizontalAdvance[Pair->wFirst*Result->CodePointCount + Pair->wSecond] += (real32)Pair->iKernAmount;
+        }
+    }
+
+    free(KerningPairs);
+
     return(Result);
 }
 
@@ -457,13 +492,19 @@ LoadGlyphBitmap(loaded_font *Font, uint32 Codepoint, hha_asset *Asset)
 #if USE_FONTS_FROM_WINDOWS
 
     SelectObject(GlobalFontDeviceContext, Font->Win32Handle);
+#if 0
+    ABC ThisABC;
+    GetCharABCWidthsW(GlobalFontDeviceContext, Codepoint, Codepoint, &ThisABC);
+#endif
 
     wchar_t CheesePoint = (wchar_t)Codepoint;
 
     SIZE Size;
     GetTextExtentPoint32W(GlobalFontDeviceContext, &CheesePoint, 1, &Size);
 
-    int BoundWidth = Size.cx;
+    int PreStepX = 128;
+
+    int BoundWidth = Size.cx + 2*PreStepX;
     if(BoundWidth > MAX_FONT_WIDTH)
     {
         BoundWidth = MAX_FONT_WIDTH;
@@ -473,10 +514,9 @@ LoadGlyphBitmap(loaded_font *Font, uint32 Codepoint, hha_asset *Asset)
     {
         BoundHeight = MAX_FONT_HEIGHT;
     }
-
     // PatBlt(DeviceContext, 0, 0, Width, Height, BLACKNESS);
     SetTextColor(GlobalFontDeviceContext, RGB(255, 255, 255));
-    TextOutW(GlobalFontDeviceContext, 0, 0, &CheesePoint, 1);
+    TextOutW(GlobalFontDeviceContext, PreStepX, 0, &CheesePoint, 1);
 
     int32 MinX = 10000;
     int32 MinY = 10000;
@@ -564,15 +604,8 @@ LoadGlyphBitmap(loaded_font *Font, uint32 Codepoint, hha_asset *Asset)
             SourceRow -= MAX_FONT_WIDTH;
         }
 
-        Asset->Bitmap.AlignPercentage[0] = 1.0f / (real32)Result.Width;
+        Asset->Bitmap.AlignPercentage[0] = (1.0f - (MinX - PreStepX)) / (real32)Result.Width;
         Asset->Bitmap.AlignPercentage[1] = (1.0f + (MaxY - (BoundHeight - Font->TextMetric.tmDescent))) / (real32)Result.Height;
-
-        for(uint32 OtherCodePointIndex = 0;
-            OtherCodePointIndex < Font->CodePointCount;
-            OtherCodePointIndex++)
-        {
-            Font->HorizontalAdvance[Codepoint*Font->CodePointCount + OtherCodePointIndex] = (real32)Result.Width;
-        }
     }
 #else
     entire_file TTFFile = ReadEntireFile(Filename);
@@ -672,12 +705,12 @@ AddBitmapAsset(game_assets *Assets, char *Filename, real32 AlignPercentageX = 0.
 }
 
 internal bitmap_id
-AddCharacterAsset(game_assets *Assets, loaded_font *Font, uint32 CodePoint, real32 AlignPercentageX = 0.5f, real32  AlignPercentageY = 0.5f)
+AddCharacterAsset(game_assets *Assets, loaded_font *Font, uint32 CodePoint)
 {
     added_asset Asset = AddAsset(Assets);
-    Asset.HHA->Bitmap.AlignPercentage[0] = AlignPercentageX;
-    Asset.HHA->Bitmap.AlignPercentage[1] = AlignPercentageY;
-    Asset.Source->Type = AssetType_Font;
+    Asset.HHA->Bitmap.AlignPercentage[0] = 0.0f; // NOTE(georgy): Set later by extraction
+    Asset.HHA->Bitmap.AlignPercentage[1] = 0.0f; // NOTE(georgy): Set later by extraction
+    Asset.Source->Type = AssetType_FontGlyph;
     Asset.Source->Glyph.Font = Font;
     Asset.Source->Glyph.CodePoint = CodePoint;
 
@@ -958,7 +991,17 @@ WriteNonHero(void)
     AddBitmapAsset(Assets, "test/grass3.bmp");
     EndAssetType(Assets);
 
-    loaded_font *DebugFont = LoadFont("C:/Windows/Fonts/arial.ttf", "Arial", ('-' + 1));
+	WriteHHA(Assets, "test3.hha");
+}
+
+internal void
+WriteFonts(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    loaded_font *DebugFont = LoadFont("C:/Windows/Fonts/arial.ttf", "Arial", ('~' + 1));
     // AddCharacterAsset(Assets, "C:/Windows/Fonts/cour.ttf", "Courier New", Character);
 
     BeginAssetType(Assets, Asset_Font);
@@ -975,13 +1018,14 @@ WriteNonHero(void)
     // FreeFont(DebugFont);
     EndAssetType(Assets);
 
-	WriteHHA(Assets, "test3.hha");
+	WriteHHA(Assets, "test_fonts.hha");
 }
 
 int 
 main(int ArgCount, char **Args)
 {
     InitializeFontDC();
+    WriteFonts();
     WriteHero();
     WriteSounds();
     WriteNonHero();

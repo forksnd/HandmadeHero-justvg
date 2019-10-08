@@ -352,7 +352,7 @@ LoadSound(game_assets *Assets, sound_id ID)
 }
 
 internal void
-LoadFont(game_assets *Assets, bitmap_id ID, bool32 Immediate)
+LoadFont(game_assets *Assets, font_id ID, bool32 Immediate)
 {
     // TODO(georgy): Merge all the same between LoadBitmap, LoadSound, LoadFont
     asset *Asset = Assets->Assets + ID.Value;

@@ -1182,7 +1182,7 @@ Orthographic(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, r
     RenderGroup->Transform.DistanceAboveTarget = 1.0f;
     RenderGroup->Transform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
 
-    RenderGroup->Transform.Orthographic = true;    
+    RenderGroup->Transform.Orthographic = true;
 }
 
 struct entity_basis_p_result
@@ -1300,6 +1300,25 @@ PushBitmap(render_group *Group, bitmap_id ID, real32 Height, v3 Offset, v4 Color
         LoadBitmap(Group->Assets, ID, false);
         Group->MissingResourceCount++;
     }
+}
+
+inline loaded_font *
+PushFont(render_group *Group, font_id ID)
+{
+    loaded_font *Font = GetFont(Group->Assets, ID, Group->GenerationID);
+   
+    if(Font)
+    {
+        // NOTE(georgy): Nothing to do
+    }
+    else
+    {
+        Assert(!Group->RendersInBackground);
+        LoadFont(Group->Assets, ID, false);
+        Group->MissingResourceCount++;
+    }
+
+    return(Font);
 }
 
 inline void

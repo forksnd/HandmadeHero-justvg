@@ -624,7 +624,7 @@ global_variable real32 FontScale;
 internal void 
 DEBUGReset(uint32 Width, uint32 Height)
 {
-    FontScale = 0.5f;
+    FontScale = 1.0f;
     Orthographic(DEBUGRenderGroup, Width, Height, 1.0f);
     AtY = 0.5f*Height - 0.5f*FontScale;
     LeftEdge = -0.5f*Width + 0.5f*FontScale;
@@ -640,7 +640,7 @@ DEBUGTextLine(char *String)
         asset_vector MatchVector = {};
         asset_vector WeightVector = {};
         font_id FontID = GetBestMatchFontFrom(RenderGroup->Assets, Asset_Font, &MatchVector, &WeightVector);
-        loaded_font *Font = GetFont(RenderGroup->Assets, FontID, RenderGroup->GenerationID);
+        loaded_font *Font = PushFont(RenderGroup, FontID);
 
         if(Font)
         {
@@ -653,7 +653,7 @@ DEBUGTextLine(char *String)
             {
                 uint32 CodePoint = *At;
                 real32 AdvanceX = FontScale*GetHorizontalAdvanceForPair(Info, Font, PrevCodePoint, CodePoint);
-                AtX += AdvanceX;;
+                AtX += AdvanceX;
 
                 if(*At != ' ')
                 {
