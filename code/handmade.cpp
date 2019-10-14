@@ -637,6 +637,31 @@ DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height)
     AtY = 0.5f*Height - FontScale*GetStartingBaselineY(Info);
 }
 
+inline bool32
+IsHex(char Char)
+{
+    bool32 Result = (((Char >= '0') && (Char <= '9')) ||
+                    ((Char >= 'A') && (Char <= 'F')));
+    return(Result);
+}
+
+inline uint32
+GetHex(char Char)
+{
+    uint32 Result = 0;
+
+    if((Char >= '0') && (Char <= '9'))
+    {
+        Result = Char - '0';
+    }
+    else if((Char >= 'A') && (Char <= 'F'))
+    {
+        Result = 0xA + (Char - 'A');
+    }
+
+    return(Result);
+}
+
 internal void
 DEBUGTextLine(char *String)
 {
@@ -655,6 +680,20 @@ DEBUGTextLine(char *String)
                 At++)
             {
                 uint32 CodePoint = *At;
+                if((At[0] == '\\') &&
+                   (IsHex(At[1])) && 
+                   (IsHex(At[2])) &&
+                   (IsHex(At[3])) &&
+                   (IsHex(At[4])))
+                {
+                    CodePoint = ((GetHex(At[1]) << 12) |
+                                 (GetHex(At[2]) << 8) |
+                                 (GetHex(At[3]) << 4) |
+                                 (GetHex(At[4]) << 0));
+                                
+                    At += 4;
+                }
+
                 real32 AdvanceX = FontScale*GetHorizontalAdvanceForPair(Info, Font, PrevCodePoint, CodePoint);
                 AtX += AdvanceX;
 
@@ -687,6 +726,7 @@ OverlayCycleCounters(game_memory *Memory)
     };
 
 #if HANDMADE_INTERNAL
+    DEBUGTextLine("\\5C0F\\8033\\6728\\514E");
     DEBUGTextLine("DEBUG CYCLE COUNTS:");
     for(int CounterIndex = 0;
         CounterIndex < ArrayCount(Memory->Counters);

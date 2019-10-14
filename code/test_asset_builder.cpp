@@ -1,11 +1,12 @@
 #include "test_asset_builder.h"
 
+#define ONE_PAST_MAX_FONT_CODEPOINT (0x10FFFF + 1)
+
 #define USE_FONTS_FROM_WINDOWS 1
 
 #if USE_FONTS_FROM_WINDOWS
 #include <Windows.h>
 
-#define ONE_PAST_MAX_FONT_CODEPOINT (0x10FFFF + 1)
 #define MAX_FONT_WIDTH 1024
 #define MAX_FONT_HEIGHT 1024
 
@@ -103,6 +104,7 @@ struct loaded_font
     uint32 GlyphCount;
 
     uint32 *GlyphIndexFromCodePoint;
+    uint32 OnePastHighestCodepoint;
 };
 
 struct entire_file
@@ -437,6 +439,13 @@ LoadFont(char *Filename, char *FontName)
     Result->HorizontalAdvance = (real32 *)malloc(HorizontalAdvanceSize);
     memset(Result->HorizontalAdvance, 0, HorizontalAdvanceSize);
 
+    Result->OnePastHighestCodepoint = 0;
+
+    // NOTE(georgy): Reserve space for the null glyph
+    Result->GlyphCount = 1;
+    Result->Glyphs[0].UnicodeCodePoint = 0;
+    Result->Glyphs[0].BitmapID.Value = 0;
+
     return(Result);
 }
 
@@ -458,7 +467,10 @@ FinalizeFontKerning(loaded_font *Font)
         {
             uint32 First = Font->GlyphIndexFromCodePoint[Pair->wFirst];
             uint32 Second = Font->GlyphIndexFromCodePoint[Pair->wSecond];
-            Font->HorizontalAdvance[First*Font->MaxGlyphCount + Second] += (real32)Pair->iKernAmount;
+            if((First != 0) && (Second != 0))
+            {
+                Font->HorizontalAdvance[First*Font->MaxGlyphCount + Second] += (real32)Pair->iKernAmount;
+            }
         }
     }
 
@@ -762,6 +774,11 @@ AddCharacterAsset(game_assets *Assets, loaded_font *Font, uint32 CodePoint)
     Glyph->BitmapID = Result;
     Font->GlyphIndexFromCodePoint[CodePoint] = GlyphIndex;
 
+    if(Font->OnePastHighestCodepoint <= CodePoint)
+    {
+        Font->OnePastHighestCodepoint = CodePoint + 1;
+    }
+
     return(Result);
 }
 
@@ -783,6 +800,7 @@ internal font_id
 AddFontAsset(game_assets *Assets, loaded_font *Font)
 {
     added_asset Asset = AddAsset(Assets);
+    Asset.HHA->Font.OnePastHighestCodepoint = Font->OnePastHighestCodepoint;
     Asset.HHA->Font.GlyphCount = Font->GlyphCount;
     Asset.HHA->Font.AscenderHeight = (real32)Font->TextMetric.tmAscent;
     Asset.HHA->Font.DescenderHeight = (real32)Font->TextMetric.tmDescent;
@@ -875,6 +893,7 @@ WriteHHA(game_assets *Assets, char *Filename)
 
                 uint32 GlyphsSize = Font->GlyphCount*sizeof(hha_font_glyph);
                 fwrite(Font->Glyphs, GlyphsSize, 1, Out);
+
                 uint8 *HorizontalAdvance = (uint8 *)Font->HorizontalAdvance;
                 for(uint32 GlyphIndex = 0;
                     GlyphIndex < Font->GlyphCount;

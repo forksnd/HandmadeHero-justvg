@@ -10,9 +10,10 @@ struct loaded_sound
 
 struct loaded_font
 {
-    bitmap_id *CodePoints;
+    hha_font_glyph *Glyphs;
     real32 *HorizontalAdvance;
     uint32 BitmapIDOffset;
+    uint16 *UnicodeMap;
 };
 
 // TODO(georgy): Streaming this, by using header pointer as an indicator of unloaded status?

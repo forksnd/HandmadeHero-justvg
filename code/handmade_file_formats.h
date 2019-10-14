@@ -127,6 +127,7 @@ struct hha_font_glyph
 };
 struct hha_font
 {
+    uint32 OnePastHighestCodepoint;
     uint32 GlyphCount;
     real32 AscenderHeight;
     real32 DescenderHeight;
