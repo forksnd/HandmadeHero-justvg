@@ -163,8 +163,10 @@ struct debug_cycle_counter
 
 extern struct game_memory *DebugGlobalMemory;
 #if _MSC_VER
-#define BEGIN_TIMED_BLOCK(ID) uint64 StartCycleCount##ID = __rdtsc();
-#define END_TIMED_BLOCK(ID) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount++;
+#define BEGIN_TIMED_BLOCK_(StartCycleCount) StartCycleCount = __rdtsc();
+#define BEGIN_TIMED_BLOCK(ID) uint64 BEGIN_TIMED_BLOCK_(StartCycleCount##ID)
+#define END_TIMED_BLOCK_(StartCycleCount, ID) DebugGlobalMemory->Counters[ID].CycleCount += __rdtsc() - StartCycleCount; DebugGlobalMemory->Counters[ID].HitCount++;
+#define END_TIMED_BLOCK(ID) END_TIMED_BLOCK_(StartCycleCount##ID, DebugCycleCounter_##ID)
 #define END_TIMED_BLOCK_COUNTED(ID, Count) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount += (Count);
 #else
 #define BEGIN_TIMED_BLOCK(ID)

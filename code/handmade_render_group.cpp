@@ -902,7 +902,7 @@ internal void
 RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
                     rectangle2i ClipRect, bool32 Even)
 {
-    BEGIN_TIMED_BLOCK(RenderGroupToOutput);
+    TIMED_BLOCK(RenderGroupToOutput);
 
     real32 NullPixelsToMeters = 1.0f;
 
@@ -1000,8 +1000,6 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 			InvalidDefaultCase;
 		}
 	}
-
-    END_TIMED_BLOCK(RenderGroupToOutput);    
 }
 
 struct tile_render_work
