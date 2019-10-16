@@ -1,22 +1,41 @@
 #if !defined(HANDMADE_DEBUG_H)
 #define HANDMADE_DEBUG_H
 
-#define TIMED_BLOCK(ID) timed_block TimedBlock##ID(DebugCycleCounter_##ID)
+#define TIMED_BLOCK__(Number, ...) timed_block TimedBlock_##Number(__COUNTER__, __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
+#define TIMED_BLOCK_(Number, ...) TIMED_BLOCK__(Number, ## __VA_ARGS__)
+#define TIMED_BLOCK(...) TIMED_BLOCK_(__LINE__, ## __VA_ARGS__)
+
+struct debug_record
+{
+	uint64 CycleCount;
+
+	char *FileName;
+	char *FunctionName;
+
+	uint32 LineNumber;
+	uint32 HitCount;
+};
+
+debug_record DebugRecords[];
 
 struct timed_block 
 {	
-	uint64 StartCycleCount;
-	uint32 ID;
+	debug_record *Record;
 
-	timed_block(uint32 IDInit)
+	timed_block(int Counter, char *FileName, int LineNumber, char *FunctionName, int HitCount = 1)
 	{
-		ID = IDInit;
-		BEGIN_TIMED_BLOCK_(StartCycleCount);
+		// TODO(georgy): Thread safety
+		Record = DebugRecords + Counter;
+		Record->FileName=  FileName;
+		Record->FunctionName = FunctionName;
+		Record->LineNumber = LineNumber;
+		Record->CycleCount -= __rdtsc();
+		Record->HitCount += HitCount;
 	}
 
 	~timed_block()
 	{
-		END_TIMED_BLOCK_(StartCycleCount, ID);
+		Record->CycleCount += __rdtsc();
 	}
 };
 

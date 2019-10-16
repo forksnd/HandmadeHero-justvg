@@ -145,23 +145,9 @@ typedef DEBUG_PLATFROM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 #define DEBUG_PLATFROM_WRITE_ENTIRE_FILE(name) bool32 name(char *Filename, uint32 MemorySize, void *Memory)
 typedef DEBUG_PLATFROM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-// TODO(georgy): Give these things names soon!
-enum 
-{
-    DebugCycleCounter_GameUpdateAndRender,
-    DebugCycleCounter_RenderGroupToOutput,
-    DebugCycleCounter_DrawRectangleSlowly,
-    DebugCycleCounter_ProcessPixel,
-    DebugCycleCounter_DrawRectangleQuickly,
-    DebugCycleCounter_Count, 
-};
-struct debug_cycle_counter
-{
-    uint64 CycleCount;
-    uint32 HitCount;
-};
-
 extern struct game_memory *DebugGlobalMemory;
+
+#if 0
 #if _MSC_VER
 #define BEGIN_TIMED_BLOCK_(StartCycleCount) StartCycleCount = __rdtsc();
 #define BEGIN_TIMED_BLOCK(ID) uint64 BEGIN_TIMED_BLOCK_(StartCycleCount##ID)
@@ -172,7 +158,7 @@ extern struct game_memory *DebugGlobalMemory;
 #define BEGIN_TIMED_BLOCK(ID)
 #define END_TIMED_BLOCK(ID)
 #endif
-
+#endif
 #endif
 
 #define BITMAP_BYTES_PER_PIXEL 4
@@ -320,10 +306,6 @@ struct game_memory
     platform_work_queue *LowPriorityQueue;
 
     platform_api PlatformAPI;
-
-#if HANDMADE_INTERNAL
-    debug_cycle_counter Counters[DebugCycleCounter_Count];
-#endif
 };
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)

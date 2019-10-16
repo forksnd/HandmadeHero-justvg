@@ -379,7 +379,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
                      loaded_bitmap *Texture, real32 PixelsToMeters, 
                      rectangle2i ClipRect, bool32 Even)
 {
-    BEGIN_TIMED_BLOCK(DrawRectangleQuickly);
+    TIMED_BLOCK();
 
     // NOTE(george): Premultiply color up front
     Color.rgb *= Color.a;
@@ -498,7 +498,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
         int32 MaxY = FillRect.MaxY;
         int32 MinX = FillRect.MinX;
         int32 MaxX = FillRect.MaxX;
-        BEGIN_TIMED_BLOCK(ProcessPixel);
+        TIMED_BLOCK(GetClampedRectArea(FillRect) / 2);
         for (int Y = MinY; Y < MaxY; Y+=2)
         {
             __m128 PixelPy = _mm_set1_ps((real32)Y - Origin.y);
@@ -711,9 +711,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
             }
             Row += RowAdvance;
         }
-        END_TIMED_BLOCK_COUNTED(ProcessPixel, GetClampedRectArea(FillRect) / 2);            
     }
-    END_TIMED_BLOCK(DrawRectangleQuickly);
 }
 
 internal void
@@ -755,6 +753,8 @@ DrawBitmap(loaded_bitmap *Buffer, loaded_bitmap *Bitmap,
            real32 RealX, real32 RealY, 
            real32 CAlpha = 1.0f)
 {
+    TIMED_BLOCK();
+
     int32 MinX = RoundReal32ToInt32(RealX);
     int32 MinY = RoundReal32ToInt32(RealY);
     int32 MaxX = MinX + Bitmap->Width;
@@ -902,7 +902,7 @@ internal void
 RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
                     rectangle2i ClipRect, bool32 Even)
 {
-    TIMED_BLOCK(RenderGroupToOutput);
+    TIMED_BLOCK();
 
     real32 NullPixelsToMeters = 1.0f;
 
