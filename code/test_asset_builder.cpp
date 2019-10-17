@@ -400,23 +400,22 @@ LoadWAV(char *Filename, uint32 SectionFirstSampleIndex, uint32 SectionSampleCoun
 }
 
 internal loaded_font *
-LoadFont(char *Filename, char *FontName)
+LoadFont(char *Filename, char *FontName, int PixelHeight)
 {
     loaded_font *Result = (loaded_font *)malloc(sizeof(loaded_font));
 
     AddFontResourceEx(Filename, FR_PRIVATE, 0);
-    int Height = 128; // TODO(georgy): Figure out how to specify pixels properly here
-    Result->Win32Handle = CreateFontA(Height, 0, 0, 0, 
-                                    FW_NORMAL, // NOTE(georgy): Weight
-                                    FALSE, // NOTE(georgy): Italic
-                                    FALSE, // NOTE(georgy): Underline
-                                    FALSE, // NOTE(georgy): StrikeOut,
-                                    DEFAULT_CHARSET,
-                                    OUT_DEFAULT_PRECIS,
-                                    CLIP_DEFAULT_PRECIS,
-                                    ANTIALIASED_QUALITY,
-                                    DEFAULT_PITCH|FF_DONTCARE,
-                                    FontName);
+    Result->Win32Handle = CreateFontA(PixelHeight, 0, 0, 0, 
+                                      FW_NORMAL, // NOTE(georgy): Weight
+                                      FALSE, // NOTE(georgy): Italic
+                                      FALSE, // NOTE(georgy): Underline
+                                      FALSE, // NOTE(georgy): StrikeOut,
+                                      DEFAULT_CHARSET,
+                                      OUT_DEFAULT_PRECIS,
+                                      CLIP_DEFAULT_PRECIS,
+                                      ANTIALIASED_QUALITY,
+                                      DEFAULT_PITCH|FF_DONTCARE,
+                                      FontName);
 
     SelectObject(GlobalFontDeviceContext, Result->Win32Handle);
 
@@ -1079,28 +1078,39 @@ WriteFonts(void)
     game_assets *Assets = &Assets_;
     Initialize(Assets);
 
-    loaded_font *DebugFont = LoadFont("C:/Windows/Fonts/arial.ttf", "Arial");
-    // AddCharacterAsset(Assets, "C:/Windows/Fonts/cour.ttf", "Courier New", Character);
+    loaded_font *Fonts[] = 
+    {
+        LoadFont("C:/Windows/Fonts/arial.ttf", "Arial", 128),
+        LoadFont("C:/Windows/Fonts/LiberationMono-Regular.ttf", "Liberation Mono", 40)
+    };
 
     BeginAssetType(Assets, Asset_FontGlyph);
-    for(uint32 Character = ' ';
-        Character <= '~';
-        Character++)
+    for(uint32 FontIndex = 0;
+        FontIndex < ArrayCount(Fonts);
+        FontIndex++)
     {
-        AddCharacterAsset(Assets, DebugFont, Character);
-    }
+        for(uint32 Character = ' ';
+            Character <= '~';
+            Character++)
+        {
+            AddCharacterAsset(Assets, Fonts[FontIndex], Character);
+        }
 
-    // NOTE(georgy): Kanji owl!
-    AddCharacterAsset(Assets, DebugFont, 0x5c0f);
-    AddCharacterAsset(Assets, DebugFont, 0x8033);
-    AddCharacterAsset(Assets, DebugFont, 0x6728);
-    AddCharacterAsset(Assets, DebugFont, 0x514e);
+        // NOTE(georgy): Kanji owl!
+        AddCharacterAsset(Assets, Fonts[FontIndex], 0x5c0f);
+        AddCharacterAsset(Assets, Fonts[FontIndex], 0x8033);
+        AddCharacterAsset(Assets, Fonts[FontIndex], 0x6728);
+        AddCharacterAsset(Assets, Fonts[FontIndex], 0x514e);
+    }
     EndAssetType(Assets);
 
     // TODO(georgy): This is kinda janky, because it means you have to get this
     // order right always!
     BeginAssetType(Assets, Asset_Font);
-    AddFontAsset(Assets, DebugFont);
+    AddFontAsset(Assets, Fonts[0]);
+    AddTag(Assets, Tag_FontType, (real32)FontType_Default);
+    AddFontAsset(Assets, Fonts[1]);
+    AddTag(Assets, Tag_FontType, (real32)FontType_Debug);
     EndAssetType(Assets);
 
 	WriteHHA(Assets, "test_fonts.hha");

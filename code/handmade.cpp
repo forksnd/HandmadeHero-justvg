@@ -629,6 +629,8 @@ DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height)
 {
     asset_vector MatchVector = {};
     asset_vector WeightVector = {};
+    MatchVector.E[Tag_FontType] = (real32)FontType_Debug;
+    WeightVector.E[Tag_FontType] = (real32)1.0f;
     FontID = GetBestMatchFontFrom(Assets, Asset_Font, &MatchVector, &WeightVector);
 
     FontScale = 0.5f;
@@ -1664,6 +1666,7 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 
 debug_record DebugRecords[__COUNTER__];
 
+// TODO(georgy): Stop using stdio!
 #include <stdio.h>
 
 internal void
@@ -1672,25 +1675,28 @@ OverlayCycleCounters(game_memory *Memory)
     // DEBUGTextLine("\\5C0F\\8033\\6728\\514E");
 #if HANDMADE_INTERNAL
     DEBUGTextLine("DEBUG CYCLE COUNTS:");
-    for(int CounterIndex = 0;
+    for(uint32 CounterIndex = 0;
         CounterIndex < ArrayCount(DebugRecords);
         ++CounterIndex)
     {
         debug_record *Counter = DebugRecords + CounterIndex;
 
-        if(Counter->HitCount)
+        uint64 HitCount_CycleCount = AtomicExchangeUInt64(&Counter->HitCount_CycleCount, 0);
+        uint32 HitCount = (uint32)(HitCount_CycleCount >> 32);
+        uint32 CycleCount = (uint32)(HitCount_CycleCount & 0xFFFFFFFF); 
+
+        if(HitCount)
         {
 #if 1
             char TextBuffer[256];
             _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                        "%s: %I64ucy %uh %I64ucy/h\n", 
-                        Counter->FunctionName, 
-                        Counter->CycleCount,
-                        Counter->HitCount, 
-                        Counter->CycleCount/Counter->HitCount);
+                        "%s(%d): %ucy %uh %ucy/h\n", 
+                        Counter->FunctionName,
+                        Counter->LineNumber,
+                        CycleCount,
+                        HitCount, 
+                        CycleCount/HitCount);
             DEBUGTextLine(TextBuffer);
-            Counter->HitCount = 0;
-            Counter->CycleCount = 0;
 #else
 #endif
         }
