@@ -42,4 +42,28 @@ struct timed_block
 	}
 };
 
+struct debug_counter_snapshot
+{
+	uint32 HitCount;
+	uint32 CycleCount;
+};
+
+#define DEBUG_SNAPSHOT_COUNT 128
+struct debug_counter_state
+{
+	char *FileName;
+	char *FunctionName;
+
+	uint32 LineNumber;
+
+	debug_counter_snapshot Snapshots[DEBUG_SNAPSHOT_COUNT];
+};
+
+struct debug_state
+{
+	uint32 SnapshotIndex;
+	uint32 CounterCount;
+	debug_counter_state CounterStates[512];
+};
+
 #endif
