@@ -3,6 +3,12 @@
 // TODO(georgy): Stop using stdio!
 #include <stdio.h>
 
+// TODO(georgy): Fix this for looped live code editing
+global_variable real32 LeftEdge;
+global_variable real32 AtY;
+global_variable real32 FontScale;
+global_variable font_id FontID;
+
 internal void
 UpdateDebugRecords(debug_state *DebugState, uint32 CounterCount)
 {
@@ -19,17 +25,8 @@ UpdateDebugRecords(debug_state *DebugState, uint32 CounterCount)
         Dest->LineNumber = Source->LineNumber;
         Dest->Snapshots[DebugState->SnapshotIndex].HitCount = (uint32)(HitCount_CycleCount >> 32);
         Dest->Snapshots[DebugState->SnapshotIndex].CycleCount = (uint32)(HitCount_CycleCount & 0xFFFFFFFF); 
-        if(Dest->Snapshots[DebugState->SnapshotIndex].HitCount)
-        {
-        }
     }
 }
-
-// TODO(georgy): Fix this for looped live code editing
-global_variable real32 LeftEdge;
-global_variable real32 AtY;
-global_variable real32 FontScale;
-global_variable font_id FontID;
 
 internal void 
 DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height)
@@ -201,7 +198,7 @@ DEBUGOverlay(game_memory *Memory)
                     SnapshotIndex++)
                 {
                     AccumulateDebugStatistic(&HitCount, Counter->Snapshots[SnapshotIndex].HitCount);
-                    AccumulateDebugStatistic(&CycleCount, Counter->Snapshots[SnapshotIndex].CycleCount);
+                    AccumulateDebugStatistic(&CycleCount, (uint32)Counter->Snapshots[SnapshotIndex].CycleCount);
 
                     real64 HOC = 0.0;
                     if(Counter->Snapshots[SnapshotIndex].HitCount)
@@ -307,14 +304,63 @@ DEBUGOverlay(game_memory *Memory)
 
 debug_record DebugRecords[__COUNTER__];
 
+global_variable uint32 GlobalCurrentEventArrayIndex = 0;
+
+internal void
+CollateDebugRecords(debug_state *DebugState, uint32 EventCount, debug_event *Events)
+{
+    DebugState->CounterCount = ArrayCount(DebugRecords);
+    for(uint32 CounterIndex = 0;
+        CounterIndex < DebugState->CounterCount;
+        ++CounterIndex)
+    {
+        debug_counter_state *Dest = DebugState->CounterStates + CounterIndex;
+        Dest->Snapshots[DebugState->SnapshotIndex].HitCount = 0;
+        Dest->Snapshots[DebugState->SnapshotIndex].CycleCount = 0; 
+    }
+
+    for(uint32 EventIndex = 0;
+        EventIndex < EventCount;
+        ++EventIndex)
+    {
+        debug_event *Event = Events + EventIndex;
+        debug_counter_state *Dest = DebugState->CounterStates + Event->DebugRecordIndex;
+        debug_record *Source = DebugRecords + Event->DebugRecordIndex;
+        Dest->FileName = Source->FileName;
+        Dest->FunctionName = Source->FunctionName;
+        Dest->LineNumber = Source->LineNumber;
+
+        if(Event->Type == DebugEvent_BeginBlock)
+        {
+            Dest->Snapshots[DebugState->SnapshotIndex].HitCount++;
+            Dest->Snapshots[DebugState->SnapshotIndex].CycleCount -= Event->Clock;
+        }
+        else
+        {
+            Assert(Event->Type == DebugEvent_EndBlock);
+            Dest->Snapshots[DebugState->SnapshotIndex].CycleCount += Event->Clock;
+        }
+    }
+}
+
 extern "C" DEBUG_GAME_FRAME_END(DEBUGGameFrameEnd)
 {
+    GlobalCurrentEventArrayIndex = !GlobalCurrentEventArrayIndex;
+    uint64 ArrayIndex_EventIndex = AtomicExchangeUInt64(&Global_DebugEventArrayIndex_DebugEventIndex, 
+                                                        (uint64)GlobalCurrentEventArrayIndex << 32);
+
+    uint32 EventArrayIndex = ArrayIndex_EventIndex >> 32;
+    uint32 EventCount = ArrayIndex_EventIndex & 0xFFFFFFFF;
+
     debug_state *DebugState = (debug_state *)Memory->DebugStorage;
     if(DebugState)
     {
         DebugState->CounterCount = 0;
+#if 0
         UpdateDebugRecords(DebugState, ArrayCount(DebugRecords));
-
+#else
+        CollateDebugRecords(DebugState, EventCount, GlobalDebugEventArray[EventArrayIndex]);
+#endif
         DebugState->FrameEndInfos[DebugState->SnapshotIndex] = *Info;
 
         DebugState->SnapshotIndex++;
