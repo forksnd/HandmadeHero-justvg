@@ -1281,7 +1281,7 @@ Win32RecordTimestamp(debug_frame_end_info *Info, char *Name, real32 Seconds)
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
-    win32_state Win32State = {};    
+     win32_state Win32State = {};    
 
     platform_work_queue HighPriorityQueue;
     Win32MakeQueue(&HighPriorityQueue, 3);

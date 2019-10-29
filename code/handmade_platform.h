@@ -321,6 +321,40 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 #define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
 typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
 
+#if COMPILER_MSVC
+#define CompletePreviousReadsBeforeFutureReads _ReadBarrier()
+#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
+inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 New, uint32 Expected)
+{
+    uint32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
+
+    return(Result);
+}
+inline uint64 AtomicExchangeUInt64(uint64 volatile *Value, uint64 New)
+{
+    uint64 Result = _InterlockedExchange64((__int64 *)Value, New);
+
+    return(Result);
+}
+inline uint64 AtomicAddU64(uint64 volatile *Value, uint64 Addend)
+{
+    // NOTE(georgy): Returns the original value _prior_ to adding
+    uint64 Result = _InterlockedExchangeAdd64((__int64 *)Value, Addend);
+
+    return(Result);
+}
+inline uint32
+GetThreadID(void)
+{
+    uint8 *ThreadLocalStorage = (uint8 *)__readgsqword(0x30);
+    uint32 ThreadID = *(uint32 *)(ThreadLocalStorage + 0x48);
+    
+    return(ThreadID);
+}
+#else
+// TODO(georgy): Need GCC/LLVM equivalents!
+#endif
+
 struct  debug_frame_timestamp
 {
     char *Name;
@@ -342,6 +376,92 @@ inline game_controller_input *GetController(game_input *Input, unsigned int Cont
     game_controller_input *Result = &Input->Controllers[ControllerIndex];
     return(Result);
 }
+
+struct debug_record
+{
+	char *FileName;
+	char *FunctionName;
+
+	uint32 LineNumber;
+	uint32 Reserved;
+
+	uint64 HitCount_CycleCount;
+};
+
+enum debug_event_type
+{
+	DebugEvent_BeginBlock,
+	DebugEvent_EndBlock
+};
+struct debug_event
+{
+	uint64 Clock;
+	uint16 ThreadIndex;
+	uint16 CoreIndex;
+	uint16 DebugRecordIndex;
+    uint8 TranslationUnit;
+	uint8 Type;
+};
+
+#define MAX_DEBUG_TRANSLATION_UNITS 2
+#define MAX_DEBUG_EVENT_COUNT 65536
+#define MAX_DEBUG_RECORD_COUNT 65536
+struct debug_table
+{
+	uint32 CurrentEventArrayIndex;
+	uint64 volatile EventArrayIndex_EventIndex;
+	debug_event Events[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_EVENT_COUNT];
+	debug_record Records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
+};
+
+extern debug_table GlobalDebugTable;
+
+inline void
+RecordDebugEvent(int RecordIndex, debug_event_type EventType)					
+{
+    uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable.EventArrayIndex_EventIndex, 1);	
+	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									
+	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												
+	debug_event *Event = GlobalDebugTable.Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	
+	Event->Clock = __rdtsc();										 
+	Event->ThreadIndex = (uint16)GetThreadID();											 
+	Event->CoreIndex = 0;											 
+	Event->DebugRecordIndex = (uint16)RecordIndex;					
+    Event->TranslationUnit = TRANSLATION_UNIT_INDEX;
+	Event->Type = (uint8)EventType;								
+}
+
+#define TIMED_BLOCK__(Number, ...) timed_block TimedBlock_##Number(__COUNTER__, __FILE__, __LINE__, __FUNCTION__, ## __VA_ARGS__)
+#define TIMED_BLOCK_(Number, ...) TIMED_BLOCK__(Number, ## __VA_ARGS__)
+#define TIMED_BLOCK(...) TIMED_BLOCK_(__LINE__, ## __VA_ARGS__)
+struct timed_block 
+{	
+	int Counter;
+
+	timed_block(int CounterInit, char *FileName, int LineNumber, char *FunctionName, int HitCountInit = 1)
+	{
+        // TODO(georgy): Record the hit count value here?
+
+		Counter = CounterInit;
+        debug_record *Record = GlobalDebugTable.Records[TRANSLATION_UNIT_INDEX] + Counter;
+		Record->FileName=  FileName;
+		Record->FunctionName = FunctionName;
+		Record->LineNumber = LineNumber;
+
+		RecordDebugEvent(Counter, DebugEvent_BeginBlock);
+	}
+
+	~timed_block()
+	{
+		RecordDebugEvent(Counter, DebugEvent_EndBlock);
+	}
+};
+
+struct debug_counter_snapshot
+{
+	uint32 HitCount;
+	uint64 CycleCount;
+};
 
 #ifdef __cplusplus
 }

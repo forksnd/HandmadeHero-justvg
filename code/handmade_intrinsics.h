@@ -8,32 +8,6 @@
 
 #include <math.h>
 
-#if COMPILER_MSVC
-#define CompletePreviousReadsBeforeFutureReads _ReadBarrier()
-#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
-inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 New, uint32 Expected)
-{
-    uint32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
-
-    return(Result);
-}
-inline uint64 AtomicExchangeUInt64(uint64 volatile *Value, uint64 New)
-{
-    uint64 Result = _InterlockedExchange64((__int64 *)Value, New);
-
-    return(Result);
-}
-inline uint64 AtomicAddU64(uint64 volatile *Value, uint64 Addend)
-{
-    // NOTE(georgy): Returns the original value _prior_ to adding
-    uint64 Result = _InterlockedExchangeAdd64((__int64 *)Value, Addend);
-
-    return(Result);
-}
-#else
-// TODO(georgy): Need GCC/LLVM equivalents!
-#endif
-
 inline int32
 SignOf(int32 Value)
 {
