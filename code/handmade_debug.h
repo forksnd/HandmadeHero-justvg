@@ -1,11 +1,17 @@
 #if !defined(HANDMADE_DEBUG_H)
 #define HANDMADE_DEBUG_H
 
+struct debug_counter_snapshot
+{
+	uint32 HitCount;
+	uint64 CycleCount;
+};
+
 #define DEBUG_SNAPSHOT_COUNT 128
 struct debug_counter_state
 {
 	char *FileName;
-	char *FunctionName;
+	char *BlockName;
 
 	uint32 LineNumber;
 
@@ -17,7 +23,6 @@ struct debug_state
 	uint32 SnapshotIndex;
 	uint32 CounterCount;
 	debug_counter_state CounterStates[512];
-	debug_frame_end_info FrameEndInfos[DEBUG_SNAPSHOT_COUNT];
 };
 
 // TODO(georgy): Fix this for looped live code editing
