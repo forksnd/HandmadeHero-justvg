@@ -7,22 +7,44 @@ struct debug_counter_snapshot
 	uint64 CycleCount;
 };
 
-#define DEBUG_SNAPSHOT_COUNT 128
 struct debug_counter_state
 {
 	char *FileName;
 	char *BlockName;
 
 	uint32 LineNumber;
+};
 
-	debug_counter_snapshot Snapshots[DEBUG_SNAPSHOT_COUNT];
+struct debug_frame_region
+{
+	uint32 LaneIndex;
+	real32 MinT;
+	real32 MaxT;
+};
+
+
+struct debug_frame
+{
+	uint64 BeginClock;
+	uint64 EndClock;
+	
+	uint32 RegionCount;
+	debug_frame_region *Regions;
 };
 
 struct debug_state
 {
-	uint32 SnapshotIndex;
-	uint32 CounterCount;
-	debug_counter_state CounterStates[512];
+	bool32 Initialized;
+	
+	// NOTE(georgy): Collation
+	memory_arena CollateArena;
+	temporary_memory CollateTemp;
+
+	uint32 FrameBarLaneCount;
+	uint32 FrameCount;
+	real32 FrameBarScale;
+
+	debug_frame *Frames;
 };
 
 // TODO(georgy): Fix this for looped live code editing

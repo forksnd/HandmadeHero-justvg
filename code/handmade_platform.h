@@ -362,8 +362,6 @@ struct debug_record
 
 	uint32 LineNumber;
 	uint32 Reserved;
-
-	uint64 HitCount_CycleCount;
 };
 
 enum debug_event_type
@@ -382,6 +380,7 @@ struct debug_event
 	uint8 Type;
 };
 
+#define MAX_DEBUG_FRAME_COUNT 64
 #define MAX_DEBUG_TRANSLATION_UNITS 2
 #define MAX_DEBUG_EVENT_COUNT 65536
 #define MAX_DEBUG_RECORD_COUNT 65536
@@ -389,7 +388,8 @@ struct debug_table
 {
 	uint32 CurrentEventArrayIndex;
 	uint64 volatile EventArrayIndex_EventIndex;
-	debug_event Events[64][MAX_DEBUG_EVENT_COUNT];
+    uint32 EventCount[MAX_DEBUG_FRAME_COUNT];
+	debug_event Events[MAX_DEBUG_FRAME_COUNT][MAX_DEBUG_EVENT_COUNT];
 
 	uint32 RecordCount[MAX_DEBUG_TRANSLATION_UNITS];
 	debug_record Records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
