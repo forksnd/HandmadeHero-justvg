@@ -373,14 +373,15 @@ enum debug_event_type
 struct debug_event
 {
 	uint64 Clock;
-	uint16 ThreadIndex;
+	uint16 ThreadID;
 	uint16 CoreIndex;
 	uint16 DebugRecordIndex;
     uint8 TranslationUnit;
 	uint8 Type;
 };
 
-#define MAX_DEBUG_FRAME_COUNT 64
+#define MAX_DEBUG_THREAD_COUNT 256
+#define MAX_DEBUG_EVENT_ARRAY_COUNT 64
 #define MAX_DEBUG_TRANSLATION_UNITS 2
 #define MAX_DEBUG_EVENT_COUNT 65536
 #define MAX_DEBUG_RECORD_COUNT 65536
@@ -388,8 +389,8 @@ struct debug_table
 {
 	uint32 CurrentEventArrayIndex;
 	uint64 volatile EventArrayIndex_EventIndex;
-    uint32 EventCount[MAX_DEBUG_FRAME_COUNT];
-	debug_event Events[MAX_DEBUG_FRAME_COUNT][MAX_DEBUG_EVENT_COUNT];
+    uint32 EventCount[MAX_DEBUG_EVENT_ARRAY_COUNT];
+	debug_event Events[MAX_DEBUG_EVENT_ARRAY_COUNT][MAX_DEBUG_EVENT_COUNT];
 
 	uint32 RecordCount[MAX_DEBUG_TRANSLATION_UNITS];
 	debug_record Records[MAX_DEBUG_TRANSLATION_UNITS][MAX_DEBUG_RECORD_COUNT];
@@ -405,7 +406,7 @@ RecordDebugEvent(int RecordIndex, debug_event_type EventType)
 	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												
 	debug_event *Event = GlobalDebugTable->Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	
 	Event->Clock = __rdtsc();										 
-	Event->ThreadIndex = (uint16)GetThreadID();											 
+	Event->ThreadID = (uint16)GetThreadID();											 
 	Event->CoreIndex = 0;											 
 	Event->DebugRecordIndex = (uint16)RecordIndex;					
     Event->TranslationUnit = TRANSLATION_UNIT_INDEX;
@@ -421,7 +422,7 @@ RecordDebugEvent(int RecordIndex, debug_event_type EventType)
         Record->BlockName = "Frame Marker";                                                   \
         Record->LineNumber = __LINE__;                                                    \
         RecordDebugEvent(Counter, DebugEvent_BeginBlock);                               \
-}
+    }
 
 #define TIMED_BLOCK__(BlockName, Number, ...) timed_block TimedBlock_##Number(__COUNTER__, __FILE__, __LINE__, BlockName, ## __VA_ARGS__)
 #define TIMED_BLOCK_(BlockName, Number, ...) TIMED_BLOCK__(BlockName, Number, ## __VA_ARGS__)
