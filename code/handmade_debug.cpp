@@ -230,6 +230,8 @@ DEBUGOverlay(game_memory *Memory)
             }
 #endif
 
+            AtY -= 150.0f;
+
             real32 LaneWidth = 8.0f;
             uint32 LaneCount = DebugState->FrameBarLaneCount;
             real32 BarWidth = LaneWidth*LaneCount;
