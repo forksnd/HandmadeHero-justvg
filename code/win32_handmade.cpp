@@ -1507,11 +1507,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                 win32_game_code Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
 
-                uint64 LastCycleCount = __rdtsc();
                 while (GlobalRunning)
                 {   
-                    FRAME_MARKER();
-
                     // 
                     // 
                     // 
@@ -1879,25 +1876,30 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         NewInput = OldInput;
                         OldInput = Temp;
 
-                        LARGE_INTEGER EndCounter = Win32GetWallClock();  
-                        LastCounter = EndCounter;
+                        
 
                         END_BLOCK(FrameDisplay);
 #if HANDMADE_INTERNAL
-
-                        uint64 EndCycleCount = __rdtsc();
-                        int64 CyclesElapsed = EndCycleCount - LastCycleCount;
-                        LastCycleCount = EndCycleCount;
+                        BEGIN_BLOCK(CollationTime);
 
                         if(Game.DEBUGFrameEnd)
                         {
                             GlobalDebugTable = Game.DEBUGFrameEnd(&GameMemory);
+                        }
+                        GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
+#endif
+                        END_BLOCK(CollationTime);
+
+                        LARGE_INTEGER EndCounter = Win32GetWallClock();  
+                        FRAME_MARKER(Win32GetSecondsElapsed(LastCounter, EndCounter));
+                        LastCounter = EndCounter;
+
+                        if(GlobalDebugTable)
+                        {
                             // TODO(georgy): Move this to a global variable so that
                             // there can be timers below this one?
                             GlobalDebugTable->RecordCount[TRANSLATION_UNIT_INDEX] = __COUNTER__;
                         }
-                        GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
-#endif
                     }
                 }   
             }

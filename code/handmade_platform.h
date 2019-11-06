@@ -363,18 +363,25 @@ struct debug_record
 	uint32 LineNumber;
 	uint32 Reserved;
 };
-
 enum debug_event_type
 {
     DebugEvent_FrameMarker,
 	DebugEvent_BeginBlock,
 	DebugEvent_EndBlock,
 };
+struct threadid_coreindex
+{
+    uint16 ThreadID;
+    uint16 CoreIndex;
+};
 struct debug_event
 {
 	uint64 Clock;
-	uint16 ThreadID;
-	uint16 CoreIndex;
+    union
+    {
+        threadid_coreindex TC;
+        real32 SecondsElapsed;
+    };
 	uint16 DebugRecordIndex;
     uint8 TranslationUnit;
 	uint8 Type;
@@ -398,30 +405,35 @@ struct debug_table
 
 extern debug_table *GlobalDebugTable;
 
-inline void
-RecordDebugEvent(int RecordIndex, debug_event_type EventType)					
-{
-    uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, 1);	
-	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									
-	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												
-	debug_event *Event = GlobalDebugTable->Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	
-	Event->Clock = __rdtsc();										 
-	Event->ThreadID = (uint16)GetThreadID();											 
-	Event->CoreIndex = 0;											 
-	Event->DebugRecordIndex = (uint16)RecordIndex;					
-    Event->TranslationUnit = TRANSLATION_UNIT_INDEX;
+#define RecordDebugEventCommon(RecordIndex, EventType) \
+    uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, 1); \
+	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									\
+	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												\
+	debug_event *Event = GlobalDebugTable->Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	\
+    Event->Clock = __rdtsc();										 \
+	Event->DebugRecordIndex = (uint16)RecordIndex;					\
+    Event->TranslationUnit = TRANSLATION_UNIT_INDEX;            \
 	Event->Type = (uint8)EventType;								
-}
 
-#define FRAME_MARKER()  \
+#define RecordDebugEvent(RecordIndex, EventType)		\
+    {   \
+        RecordDebugEventCommon(RecordIndex, EventType)  \
+	    Event->TC.CoreIndex = 0;											 \
+        Event->TC.ThreadID = (uint16)GetThreadID();											 \
+    }
+
+#define FRAME_MARKER(SecondsElapsedInit)  \
     { \
         int Counter = __COUNTER__; \
-        RecordDebugEvent(Counter, DebugEvent_FrameMarker); \
+        RecordDebugEventCommon(Counter, DebugEvent_FrameMarker); \
+        Event->SecondsElapsed = SecondsElapsedInit; \
         debug_record *Record = GlobalDebugTable->Records[TRANSLATION_UNIT_INDEX] + Counter;  \
         Record->FileName=  __FILE__;                                                        \
         Record->BlockName = "Frame Marker";                                                   \
         Record->LineNumber = __LINE__;                                                    \
     }
+
+#if HANDMADE_PROFILE
 
 #define TIMED_BLOCK__(BlockName, Number, ...) timed_block TimedBlock_##Number(__COUNTER__, __FILE__, __LINE__, BlockName, ## __VA_ARGS__)
 #define TIMED_BLOCK_(BlockName, Number, ...) TIMED_BLOCK__(BlockName, Number, ## __VA_ARGS__)
@@ -460,6 +472,13 @@ struct timed_block
         END_BLOCK_(Counter);
 	}
 };
+
+#else
+    #define TIMED_BLOCK(BlockName, ...) 
+    #define TIMED_FUNCTION(...) 
+    #define BEGIN_BLOCK(Name) 
+    #define END_BLOCK(Name) 
+#endif
 
 #ifdef __cplusplus
 }
