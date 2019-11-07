@@ -17,6 +17,8 @@ struct debug_counter_state
 
 struct debug_frame_region
 {
+	debug_record *Record;
+	uint64 CycleCount;
 	uint32 LaneIndex;
 	real32 MinT;
 	real32 MaxT;
@@ -53,7 +55,8 @@ struct debug_thread
 struct debug_state
 {
 	bool32 Initialized;
-	
+	bool32 Paused;
+
 	// NOTE(georgy): Collation
 	memory_arena CollateArena;
 	temporary_memory CollateTemp;
@@ -73,7 +76,6 @@ struct game_assets;
 global_variable render_group *DEBUGRenderGroup;
 
 internal void DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height);
-
-internal void DEBUGOverlay(game_memory *Memory);
+internal void DEBUGOverlay(game_memory *Memory, game_input *Input);
 
 #endif
