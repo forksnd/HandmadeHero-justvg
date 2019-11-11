@@ -1849,7 +1849,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                                 // TODO(george): LOG MISS HERE
                             }
 
-                            while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+                            while(SecondsElapsedForFrame < TargetSecondsPerFrame)
                             {
                                 SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
                             }
@@ -1886,9 +1886,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         // TODO(george): Should I clean this?
                         game_input *Temp = NewInput;
                         NewInput = OldInput;
-                        OldInput = Temp;
-
-                        
+                        OldInput = Temp;                        
 
                         END_BLOCK(FrameDisplay);
 #if HANDMADE_INTERNAL

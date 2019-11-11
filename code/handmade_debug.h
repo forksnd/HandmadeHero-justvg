@@ -19,7 +19,8 @@ struct debug_frame_region
 {
 	debug_record *Record;
 	uint64 CycleCount;
-	uint32 LaneIndex;
+	uint16 LaneIndex;
+	uint16 ColorIndex;
 	real32 MinT;
 	real32 MaxT;
 };
@@ -38,6 +39,7 @@ struct debug_frame
 struct open_debug_block
 {
 	uint32 StartingFrameIndex;
+	debug_record *Source;
 	debug_event *OpeningEvent;
 	open_debug_block *Parent;
 
@@ -57,10 +59,14 @@ struct debug_state
 	bool32 Initialized;
 	bool32 Paused;
 
+	debug_record *ScopeToRecord;
+
 	// NOTE(georgy): Collation
 	memory_arena CollateArena;
 	temporary_memory CollateTemp;
 
+	uint32 CollationArrayIndex;
+    debug_frame *CollationFrame;
 	uint32 FrameBarLaneCount;
 	uint32 FrameCount;
 	real32 FrameBarScale;
@@ -77,5 +83,6 @@ global_variable render_group *DEBUGRenderGroup;
 
 internal void DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height);
 internal void DEBUGOverlay(game_memory *Memory, game_input *Input);
+internal void RefreshCollation(debug_state *DebugState);
 
 #endif
