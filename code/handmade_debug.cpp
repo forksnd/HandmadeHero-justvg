@@ -3,32 +3,70 @@
 // TODO(georgy): Stop using stdio!
 #include <stdio.h>
 
-// TODO(georgy): Fix this for looped live code editing
-global_variable real32 LeftEdge;
-global_variable real32 AtY;
-global_variable real32 FontScale;
-global_variable font_id FontID;
-global_variable real32 GlobalWidth;
-global_variable real32 GlobalHeight;
+internal void RestartCollation(debug_state *DebugState, uint32 InvalidEventArrayIndex);
+
+inline debug_state *
+DEBUGGetState(game_memory *Memory)
+{
+    debug_state *DebugState = (debug_state *)Memory->DebugStorage;
+    Assert(DebugState && DebugState->Initialized);
+
+    return(DebugState);
+}
+
+inline debug_state *
+DEBUGGetState(void)
+{
+    debug_state *DebugState = DEBUGGetState(DebugGlobalMemory);
+
+    return(DebugState);
+}
 
 internal void 
-DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height)
+DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
 {
-    GlobalWidth = (real32)Width;
-    GlobalHeight = (real32)Height;
+    TIMED_FUNCTION();
 
-    asset_vector MatchVector = {};
-    asset_vector WeightVector = {};
-    MatchVector.E[Tag_FontType] = (real32)FontType_Debug;
-    WeightVector.E[Tag_FontType] = (real32)1.0f;
-    FontID = GetBestMatchFontFrom(Assets, Asset_Font, &MatchVector, &WeightVector);
+    debug_state *DebugState = (debug_state *)DebugGlobalMemory->DebugStorage;
+    if(DebugState)
+    {
+        if(!DebugState->Initialized)
+        {
+            DebugState->HighPriorityQueue = DebugGlobalMemory->HighPriorityQueue;
 
-    FontScale = 0.5f;
-    Orthographic(DEBUGRenderGroup, Width, Height, 1.0f);
-    LeftEdge = -0.5f*Width;
+            InitializeArena(&DebugState->DebugArena, DebugGlobalMemory->DebugStorageSize - sizeof(debug_state), DebugState + 1);
+            DebugState->RenderGroup = AllocateRenderGroup(Assets, &DebugState->DebugArena, 
+                                                            Megabytes(16), false);
 
-    hha_font *Info = GetFontInfo(Assets, FontID);
-    AtY = 0.5f*Height - FontScale*GetStartingBaselineY(Info);
+            DebugState->Paused = false;
+            DebugState->ScopeToRecord = 0;
+
+            DebugState->Initialized = true;
+
+            SubArena(&DebugState->CollateArena, &DebugState->DebugArena, Megabytes(32), 4);
+            DebugState->CollateTemp = BeginTemporaryMemory(&DebugState->CollateArena);
+
+            RestartCollation(DebugState, 0);
+        }
+
+        BeginRender(DebugState->RenderGroup);
+
+        DebugState->GlobalWidth = (real32)Width;
+        DebugState->GlobalHeight = (real32)Height;
+
+        asset_vector MatchVector = {};
+        asset_vector WeightVector = {};
+        MatchVector.E[Tag_FontType] = (real32)FontType_Debug;
+        WeightVector.E[Tag_FontType] = (real32)1.0f;
+        DebugState->FontID = GetBestMatchFontFrom(Assets, Asset_Font, &MatchVector, &WeightVector);
+
+        DebugState->FontScale = 0.5f;
+        Orthographic(DebugState->RenderGroup, Width, Height, 1.0f);
+        DebugState->LeftEdge = -0.5f*Width;
+
+        hha_font *Info = GetFontInfo(Assets, DebugState->FontID);
+        DebugState->AtY = 0.5f*Height - DebugState->FontScale*GetStartingBaselineY(Info);
+    }
 }
 
 inline bool32
@@ -59,14 +97,15 @@ GetHex(char Char)
 internal void
 DEBUGTextLineAt(v2 P, char *String)
 {
-    if(DEBUGRenderGroup)
+    debug_state *DebugState = DEBUGGetState();
+    if(DebugState)
     {
-        render_group *RenderGroup = DEBUGRenderGroup;
+        render_group *RenderGroup = DebugState->RenderGroup;
 
-        loaded_font *Font = PushFont(RenderGroup, FontID);
+        loaded_font *Font = PushFont(RenderGroup, DebugState->FontID);
         if(Font)
         {
-            hha_font *Info = GetFontInfo(RenderGroup->Assets, FontID);
+            hha_font *Info = GetFontInfo(RenderGroup->Assets, DebugState->FontID);
             uint32 PrevCodePoint = 0;
             real32 AtX = P.x;
             real32 AtY = P.y;
@@ -76,20 +115,20 @@ DEBUGTextLineAt(v2 P, char *String)
             {
                 uint32 CodePoint = *At;
                 if((At[0] == '\\') &&
-                   (IsHex(At[1])) && 
-                   (IsHex(At[2])) &&
-                   (IsHex(At[3])) &&
-                   (IsHex(At[4])))
+                (IsHex(At[1])) && 
+                (IsHex(At[2])) &&
+                (IsHex(At[3])) &&
+                (IsHex(At[4])))
                 {
                     CodePoint = ((GetHex(At[1]) << 12) |
-                                 (GetHex(At[2]) << 8) |
-                                 (GetHex(At[3]) << 4) |
-                                 (GetHex(At[4]) << 0));
+                                (GetHex(At[2]) << 8) |
+                                (GetHex(At[3]) << 4) |
+                                (GetHex(At[4]) << 0));
                                 
                     At += 4;
                 }
 
-                real32 AdvanceX = FontScale*GetHorizontalAdvanceForPair(Info, Font, PrevCodePoint, CodePoint);
+                real32 AdvanceX = DebugState->FontScale*GetHorizontalAdvanceForPair(Info, Font, PrevCodePoint, CodePoint);
                 AtX += AdvanceX;
 
                 if(*At != ' ')
@@ -97,13 +136,11 @@ DEBUGTextLineAt(v2 P, char *String)
                     bitmap_id BitmapID = GetBitmapForGlyph(RenderGroup->Assets, Info, Font, CodePoint);
                     hha_bitmap *Info = GetBitmapInfo(RenderGroup->Assets, BitmapID);
 
-                    PushBitmap(RenderGroup, BitmapID, FontScale*Info->Dim[1], V3(AtX, AtY, 0), V4(1, 1, 1, 1));
+                    PushBitmap(RenderGroup, BitmapID, DebugState->FontScale*Info->Dim[1], V3(AtX, AtY, 0), V4(1, 1, 1, 1));
                 }
 
                 PrevCodePoint = CodePoint;
             }
-
-            AtY -= GetLineAdvanceFor(Info)*FontScale;    
         }
     }
 }
@@ -111,18 +148,19 @@ DEBUGTextLineAt(v2 P, char *String)
 internal void
 DEBUGTextLine(char *String)
 {
-    if(DEBUGRenderGroup)
+    debug_state *DebugState = DEBUGGetState();
+    if(DebugState)
     {
-        render_group *RenderGroup = DEBUGRenderGroup;
+        render_group *RenderGroup = DebugState->RenderGroup;
 
-        loaded_font *Font = PushFont(RenderGroup, FontID);
+        loaded_font *Font = PushFont(RenderGroup, DebugState->FontID);
         if(Font)
         {
-            hha_font *Info = GetFontInfo(RenderGroup->Assets, FontID);
-           
-            DEBUGTextLineAt(V2(LeftEdge, AtY), String);
+            hha_font *Info = GetFontInfo(RenderGroup->Assets, DebugState->FontID);
+        
+            DEBUGTextLineAt(V2(DebugState->LeftEdge, DebugState->AtY), String);
 
-            AtY -= GetLineAdvanceFor(Info)*FontScale;    
+            DebugState->AtY -= GetLineAdvanceFor(Info)*DebugState->FontScale;    
         }
     }
 }
@@ -175,12 +213,14 @@ EndDebugStatistic(debug_statistic *Stat)
 }
 
 internal void
-DEBUGOverlay(game_memory *Memory, game_input *Input)
+DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
 {
-    debug_state *DebugState = (debug_state *)Memory->DebugStorage;
-    if(DebugState && DEBUGRenderGroup)
+    TIMED_FUNCTION();
+
+    debug_state *DebugState = DEBUGGetState();
+    if(DebugState)
     {
-        render_group *RenderGroup = DEBUGRenderGroup;
+        render_group *RenderGroup = DebugState->RenderGroup;
 
         debug_record *HotRecord = 0;
 
@@ -191,10 +231,10 @@ DEBUGOverlay(game_memory *Memory, game_input *Input)
         }
 
         // TODO(georgy): Layout / cached font info / etc. for real debug display
-        loaded_font *Font = PushFont(RenderGroup, FontID);
+        loaded_font *Font = PushFont(RenderGroup, DebugState->FontID);
         if(Font)
         {
-            hha_font *Info = GetFontInfo(RenderGroup->Assets, FontID);
+            hha_font *Info = GetFontInfo(RenderGroup->Assets, DebugState->FontID);
 
 #if 0
             for(uint32 CounterIndex = 0;
@@ -271,14 +311,32 @@ DEBUGOverlay(game_memory *Memory, game_input *Input)
                 DEBUGTextLine(TextBuffer);
             }
 
-            real32 LaneHeight = 15.0f;
+            Orthographic(DebugState->RenderGroup, (int32)DebugState->GlobalWidth, (int32)DebugState->GlobalHeight, 1.0f);
+
+            DebugState->ProfileRect = RectMinMax(V2(50.0f, 50.0f), V2(200.0f, 200.0f));
+            PushRect(DebugState->RenderGroup, DebugState->ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
+
+            real32 BarSpacing = 8.0f;
+            real32 LaneHeight = 0.0f;
             uint32 LaneCount = DebugState->FrameBarLaneCount;
+
+            uint32 MaxFrame = DebugState->FrameCount;
+            if(MaxFrame > 10)
+            {
+                MaxFrame = 10;
+            }
+
+            if((MaxFrame > 0) && (LaneCount > 0))
+            {
+                LaneHeight = ((GetDim(DebugState->ProfileRect).y / (real32)MaxFrame) - BarSpacing) / (real32)LaneCount;
+            }
+
             real32 BarHeight = LaneHeight*LaneCount;
-            real32 BarSpacing = BarHeight + 15.0f;
-            real32 ChartLeft = LeftEdge + 10.0f;
-            real32 ChartHeight = BarSpacing*(real32)DebugState->FrameCount;
-            real32 ChartWidth = 600.0f;
-            real32 ChartTop = 0.5f*GlobalHeight - 10.0f;
+            real32 BarsPlusSpacing = BarHeight + BarSpacing;
+            real32 ChartLeft = DebugState->ProfileRect.Min.x;
+            real32 ChartHeight = BarsPlusSpacing*(real32)MaxFrame;
+            real32 ChartWidth = GetDim(DebugState->ProfileRect).x;
+            real32 ChartTop = DebugState->ProfileRect.Max.y;
             real32 Scale = ChartWidth*DebugState->FrameBarScale;
 
             v3 Colors[] = 
@@ -298,12 +356,12 @@ DEBUGOverlay(game_memory *Memory, game_input *Input)
             };
 #if 1
             for(uint32 FrameIndex = 0;
-                FrameIndex < DebugState->FrameCount;
+                FrameIndex < MaxFrame;
                 FrameIndex++)
             {
-                debug_frame *Frame = DebugState->Frames + (DebugState->FrameCount - FrameIndex);
+                debug_frame *Frame = DebugState->Frames + DebugState->FrameCount - (FrameIndex + 1);
                 real32 StackX = ChartLeft;
-                real32 StackY = ChartTop - BarSpacing*(real32)FrameIndex;
+                real32 StackY = ChartTop - BarsPlusSpacing*(real32)FrameIndex;
                 for(uint32 RegionIndex = 0;
                     RegionIndex < Frame->RegionCount;
                     RegionIndex++)
@@ -353,6 +411,9 @@ DEBUGOverlay(game_memory *Memory, game_input *Input)
             }
             RefreshCollation(DebugState);
         }
+
+        TiledRenderGroupToOutput(DebugState->HighPriorityQueue, DebugState->RenderGroup, DrawBuffer);
+        EndRender(DebugState->RenderGroup);
     }
 }
 
@@ -586,22 +647,9 @@ extern "C" DEBUG_GAME_FRAME_END(DEBUGFrameEnd)
     uint32 EventCount = ArrayIndex_EventIndex & 0xFFFFFFFF;
     GlobalDebugTable->EventCount[EventArrayIndex] = EventCount;
 
-    debug_state *DebugState = (debug_state *)Memory->DebugStorage;
+    debug_state *DebugState = DEBUGGetState(Memory);
     if(DebugState)
     {
-        if(!DebugState->Initialized)
-        {
-            InitializeArena(&DebugState->CollateArena, Memory->DebugStorageSize - sizeof(debug_state), DebugState + 1);
-            DebugState->CollateTemp = BeginTemporaryMemory(&DebugState->CollateArena);
-
-            DebugState->Paused = false;
-            DebugState->ScopeToRecord = 0;
-
-            DebugState->Initialized = true;
-
-            RestartCollation(DebugState, GlobalDebugTable->CurrentEventArrayIndex);
-        }
-
         if(!DebugState->Paused)
         {
             if(DebugState->FrameCount >= 4*MAX_DEBUG_EVENT_ARRAY_COUNT)

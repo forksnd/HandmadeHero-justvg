@@ -1,6 +1,10 @@
 #if !defined(HANDMADE_DEBUG_H)
 #define HANDMADE_DEBUG_H
 
+struct render_group;
+struct game_assets;
+struct loaded_bitmap;
+
 struct debug_counter_snapshot
 {
 	uint32 HitCount;
@@ -57,7 +61,18 @@ struct debug_thread
 struct debug_state
 {
 	bool32 Initialized;
-	bool32 Paused;
+
+	platform_work_queue *HighPriorityQueue;
+
+	memory_arena DebugArena;
+	render_group *RenderGroup;
+
+	real32 LeftEdge;
+	real32 AtY;
+	real32 FontScale;
+	font_id FontID;
+	real32 GlobalWidth;
+	real32 GlobalHeight;
 
 	debug_record *ScopeToRecord;
 
@@ -70,19 +85,17 @@ struct debug_state
 	uint32 FrameBarLaneCount;
 	uint32 FrameCount;
 	real32 FrameBarScale;
+	bool32 Paused;
+
+	rectangle2 ProfileRect;
 
 	debug_frame *Frames;
     debug_thread *FirstThread;
 	open_debug_block *FirstFreeBlock;
 };
 
-// TODO(georgy): Fix this for looped live code editing
-struct render_group;
-struct game_assets;
-global_variable render_group *DEBUGRenderGroup;
-
-internal void DEBUGReset(game_assets *Assets, uint32 Width, uint32 Height);
-internal void DEBUGOverlay(game_memory *Memory, game_input *Input);
+internal void DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height);
+internal void DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer);
 internal void RefreshCollation(debug_state *DebugState);
 
 #endif
