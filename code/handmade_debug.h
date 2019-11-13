@@ -4,6 +4,14 @@
 struct render_group;
 struct game_assets;
 struct loaded_bitmap;
+struct loaded_font;
+struct hha_font;
+
+enum debug_text_op
+{
+	DEBUGTextOp_DrawText,
+	DEBUGTextOp_SizeText
+};
 
 struct debug_counter_snapshot
 {
@@ -66,6 +74,12 @@ struct debug_state
 
 	memory_arena DebugArena;
 	render_group *RenderGroup;
+	loaded_font *DebugFont;
+	hha_font *DebugFontInfo;
+
+	v2 MenuP;
+	bool32 MenuActive;
+	uint32 HotMenuIndex;
 
 	real32 LeftEdge;
 	real32 AtY;
@@ -87,6 +101,7 @@ struct debug_state
 	real32 FrameBarScale;
 	bool32 Paused;
 
+	bool32 ProfileOn;
 	rectangle2 ProfileRect;
 
 	debug_frame *Frames;

@@ -137,4 +137,19 @@ struct render_group
     bool32 InsideRender;
 };
 
+struct entity_basis_p_result
+{
+    v2 P;
+    real32 Scale;
+    bool32 Valid;
+};
+
+struct used_bitmap_dim
+{
+    entity_basis_p_result Basis;
+    v2 Size;
+    v2 Align;
+    v3 P;
+};
+
 #endif

@@ -398,7 +398,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
     // that the normals appear to have.
     real32 NzScale = 0.5f * (XAxisLength + YAxisLength);
 
-    rectangle2i FillRect = InvertedInfinityRectangle();
+    rectangle2i FillRect = InvertedInfinityRectangle2i();
     
     v2 P[4] = {Origin, Origin + XAxis, Origin + XAxis + YAxis, Origin + YAxis};
     for(uint32 PIndex = 0;
@@ -1183,12 +1183,6 @@ Orthographic(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, r
     RenderGroup->Transform.Orthographic = true;
 }
 
-struct entity_basis_p_result
-{
-    v2 P;
-    real32 Scale;
-    bool32 Valid;
-};
 internal entity_basis_p_result
 GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
 {
@@ -1257,23 +1251,32 @@ PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Typ
     return(Result);
 }
 
+inline used_bitmap_dim 
+GetBitmapDim(render_group *Group, loaded_bitmap *Bitmap, real32 Height, v3 Offset)
+{
+    used_bitmap_dim Dim;
+
+    Dim.Size = V2(Height*Bitmap->WidthOverHeight, Height);
+    Dim.Align = Hadamard(Bitmap->AlignPercentage, Dim.Size);
+    Dim.P = Offset - V3(Dim.Align, 0.0f);
+    Dim.Basis = GetRenderEntityBasisP(&Group->Transform, Dim.P);
+
+    return(Dim);
+}
+
 inline void
 PushBitmap(render_group *Group, loaded_bitmap *Bitmap, real32 Height, v3 Offset, v4 Color = V4(1, 1, 1, 1))
 {
-    v2 Size = V2(Height*Bitmap->WidthOverHeight, Height);
-    v2 Align = Hadamard(Bitmap->AlignPercentage, Size);
-    v3 P = Offset - V3(Align, 0.0f);
-
-    entity_basis_p_result Basis = GetRenderEntityBasisP(&Group->Transform, P);
-    if(Basis.Valid)
+    used_bitmap_dim Dim = GetBitmapDim(Group, Bitmap, Height, Offset);
+    if(Dim.Basis.Valid)
     {
         render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap);
         if(Entry)
         {
             Entry->Bitmap = Bitmap;
-            Entry->P = Basis.P;
+            Entry->P = Dim.Basis.P;
             Entry->Color = Group->GlobalAlpha*Color;    
-            Entry->Size = Basis.Scale*Size;
+            Entry->Size = Dim.Basis.Scale*Dim.Size;
         }
     }
 }
