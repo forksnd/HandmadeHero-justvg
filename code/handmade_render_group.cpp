@@ -1201,7 +1201,7 @@ GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
         real32 OffsetZ = 0.0f;
 
         real32 DistanceAboveTarget = Transform->DistanceAboveTarget;
-#if 0
+#if DEBUGUI_UseDebugCamera
         // TODO(georgy): How do we want to control the debug camera?
         if(1)
         {

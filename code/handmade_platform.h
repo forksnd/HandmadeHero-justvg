@@ -1,6 +1,8 @@
 #if !defined(HANDMADE_PLATFORM_H)
 #define HANDMADE_PLATFORM_H
 
+#include "handmade_config.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -136,6 +138,18 @@ struct debug_read_file_result
     void *Contents;
 };
 
+struct debug_executing_process
+{
+    uint64 OSHandle;
+};
+
+struct debug_process_state
+{
+    bool32 StartedSuccessfully;
+    bool32 IsRunning;
+    int32 ReturnCode;
+};
+
 #define DEBUG_PLATFROM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *Filename)
 typedef DEBUG_PLATFROM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
@@ -144,6 +158,12 @@ typedef DEBUG_PLATFROM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 
 #define DEBUG_PLATFROM_WRITE_ENTIRE_FILE(name) bool32 name(char *Filename, uint32 MemorySize, void *Memory)
 typedef DEBUG_PLATFROM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
+#define DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(name) debug_executing_process name(char *Path, char *Command, char *CommandLine)
+typedef DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(debug_platform_execute_system_command);
+
+#define DEBUG_PLATFROM_GET_PROCESS_STATE(name) debug_process_state name(debug_executing_process Process)
+typedef DEBUG_PLATFROM_GET_PROCESS_STATE(debug_platform_get_process_state);
 
 extern struct game_memory *DebugGlobalMemory;
 
@@ -221,7 +241,6 @@ struct game_input
     game_button_state MouseButtons[PlatformMouseButton_Count];
     real32 MouseX, MouseY, MouseZ;
 
-    bool32 ExecutableReloaded;
     real32 dtForFrame;
 
     game_controller_input Controllers[5];
@@ -301,6 +320,8 @@ struct platform_api
     debug_platform_read_entire_file *DEBUGReadEntireFile;
     debug_platform_free_file_memory *DEBUGFreeFileMemory;
     debug_platform_write_entire_file *DEBUGWriteEntireFile;
+    debug_platform_execute_system_command *DEBUGExecuteSystemCommand;
+    debug_platform_get_process_state *DEBUGGetProcessState;
 };
 struct game_memory 
 {
@@ -316,6 +337,7 @@ struct game_memory
     platform_work_queue *HighPriorityQueue;
     platform_work_queue *LowPriorityQueue;
 
+    bool32 ExecutableReloaded;
     platform_api PlatformAPI;
 };
 

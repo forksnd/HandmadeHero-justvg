@@ -76,7 +76,10 @@ struct debug_state
 	render_group *RenderGroup;
 	loaded_font *DebugFont;
 	hha_font *DebugFontInfo;
-
+	
+	bool32 Compiling;
+	debug_executing_process Compiler;
+	
 	v2 MenuP;
 	bool32 MenuActive;
 	uint32 HotMenuIndex;

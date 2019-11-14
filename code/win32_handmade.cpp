@@ -234,6 +234,54 @@ DEBUG_PLATFROM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
     return(Result);
 }
 
+DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(DEBUGExecuteSystemCommand)
+{
+    debug_executing_process Result = {};
+
+    STARTUPINFO StartupInfo = {};
+    StartupInfo.cb = sizeof(StartupInfo);
+    StartupInfo.dwFlags = STARTF_USESHOWWINDOW;
+    StartupInfo.wShowWindow = SW_HIDE;
+
+    PROCESS_INFORMATION ProcessInfo = {};
+    if(CreateProcess(Command, CommandLine, 0, 0, FALSE, 0, 0, Path, &StartupInfo, &ProcessInfo))
+    {
+        Assert(sizeof(Result.OSHandle) >= sizeof(ProcessInfo.hProcess));
+        *(HANDLE *)&Result.OSHandle = ProcessInfo.hProcess;
+    }
+	else
+	{
+		DWORD ErrorCode = GetLastError();
+        *(HANDLE *)&Result.OSHandle = INVALID_HANDLE_VALUE;
+	}
+
+    return(Result);
+}
+
+DEBUG_PLATFROM_GET_PROCESS_STATE(DEBUGGetProcessState)
+{
+    debug_process_state Result = {};
+    HANDLE hProcess = *(HANDLE *)&Process.OSHandle;
+    if(hProcess != INVALID_HANDLE_VALUE)
+    {   
+        Result.StartedSuccessfully = true;
+
+        if(WaitForSingleObject(hProcess, 0) == WAIT_OBJECT_0)
+        {
+            DWORD ReturnCode = 0;
+            GetExitCodeProcess(hProcess, &ReturnCode);
+            Result.ReturnCode = ReturnCode;
+            CloseHandle(hProcess);
+        }
+        else
+        {
+            Result.IsRunning = true;
+        }
+    }
+
+    return(Result);
+}
+
 DEBUG_PLATFROM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
     bool32 Result = false;
@@ -1427,6 +1475,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
             GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
             GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            GameMemory.PlatformAPI.DEBUGExecuteSystemCommand = DEBUGExecuteSystemCommand;
+            GameMemory.PlatformAPI.DEBUGGetProcessState = DEBUGGetProcessState;
 
             // TODO(george): TransientStorage needs to be broken up
             // into game transient and cache transient, and only
@@ -1516,7 +1566,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     BEGIN_BLOCK(ExecutableRefresh);
                     NewInput->dtForFrame = TargetSecondsPerFrame;
 
-                    NewInput->ExecutableReloaded = false;
+                    GameMemory.ExecutableReloaded = false;
                     FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
                     if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
                     {
@@ -1526,7 +1576,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         GlobalDebugTable = &GlobalDebugTable_;
                         Win32UnloadGameCode(&Game);
                         Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
-                        NewInput->ExecutableReloaded = true;
+                        GameMemory.ExecutableReloaded = true;
                     }
                     END_BLOCK(ExecutableRefresh);
 

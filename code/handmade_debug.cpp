@@ -250,6 +250,21 @@ EndDebugStatistic(debug_statistic *Stat)
 }
 
 internal void
+WriteHandmadeConfig(debug_state *DebugState, bool32 UseDebugCamera)
+{
+    char Temp[4096];
+    int TempSize = _snprintf_s(Temp, sizeof(Temp), "#define DEBUGUI_UseDebugCamera %d // b32\n", 
+                               UseDebugCamera);
+    Platform.DEBUGWriteEntireFile("../code/handmade_config.h", TempSize, Temp);
+
+    if(!DebugState->Compiling)
+    {
+        DebugState->Compiling = true;
+        DebugState->Compiler = Platform.DEBUGExecuteSystemCommand("..\\code", "c:\\windows\\system32\\cmd.exe", "/C build.bat");
+    }
+}
+
+internal void
 DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 {
     char *MenuItems[] = 
@@ -330,6 +345,21 @@ DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
                 {
                     DebugState->Paused = !DebugState->Paused;
                 } break;
+            }
+
+            WriteHandmadeConfig(DebugState, !DEBUGUI_UseDebugCamera);
+        }
+
+        if(DebugState->Compiling)
+        {
+            debug_process_state State = Platform.DEBUGGetProcessState(DebugState->Compiler);
+            if(State.IsRunning)
+            {
+                DEBUGTextLine("COMPILING");
+            }
+            else
+            {
+                DebugState->Compiling = false;
             }
         }
 
@@ -747,6 +777,7 @@ extern "C" DEBUG_GAME_FRAME_END(DEBUGFrameEnd)
     uint64 ArrayIndex_EventIndex = AtomicExchangeUInt64(&GlobalDebugTable->EventArrayIndex_EventIndex, 
                                                         (uint64)GlobalDebugTable->CurrentEventArrayIndex << 32);
 
+
     uint32 EventArrayIndex = ArrayIndex_EventIndex >> 32;
     uint32 EventCount = ArrayIndex_EventIndex & 0xFFFFFFFF;
     GlobalDebugTable->EventCount[EventArrayIndex] = EventCount;
@@ -754,6 +785,11 @@ extern "C" DEBUG_GAME_FRAME_END(DEBUGFrameEnd)
     debug_state *DebugState = DEBUGGetState(Memory);
     if(DebugState)
     {
+        if(Memory->ExecutableReloaded)
+        {
+            RestartCollation(DebugState, GlobalDebugTable->CurrentEventArrayIndex);
+        }
+
         if(!DebugState->Paused)
         {
             if(DebugState->FrameCount >= 4*MAX_DEBUG_EVENT_ARRAY_COUNT)
