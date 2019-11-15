@@ -1326,7 +1326,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     win32_state Win32State = {};    
 
     platform_work_queue HighPriorityQueue;
-    Win32MakeQueue(&HighPriorityQueue, 3);
+    Win32MakeQueue(&HighPriorityQueue, 2);
 
     platform_work_queue LowPriorityQueue;
     Win32MakeQueue(&LowPriorityQueue, 2);
@@ -1723,7 +1723,17 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                         if(Win32State.InputPlayingIndex)
                         {
+                            game_input Temp = *NewInput;
                             Win32PlaybackInput(&Win32State, NewInput);
+                            for(uint32 MouseButtonIndex = 0;
+                                MouseButtonIndex < PlatformMouseButton_Count;
+                                MouseButtonIndex++)
+                            {
+                                NewInput->MouseButtons[MouseButtonIndex] = Temp.MouseButtons[MouseButtonIndex];
+                            }
+                            NewInput->MouseX = Temp.MouseX;
+                            NewInput->MouseY = Temp.MouseY;
+                            NewInput->MouseZ = Temp.MouseZ;
                         }
 
                         if (Game.UpdateAndRender)

@@ -1,6 +1,17 @@
 #if !defined(HANDMADE_DEBUG_H)
 #define HANDMADE_DEBUG_H
 
+enum debug_variable_type
+{
+    DebugVariableType_Boolean,
+};
+struct debug_variable
+{
+    debug_variable_type Type;
+    char *Name;
+    bool32 Value;
+};
+
 struct render_group;
 struct game_assets;
 struct loaded_bitmap;

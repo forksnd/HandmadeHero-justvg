@@ -381,7 +381,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
             int32 ChunkZ = Work->ChunkP.ChunkZ;
             random_series Series = RandomSeed(139*ChunkX + 593*ChunkY + 329*ChunkZ);
 
-#if 0
+#if DEBUGUI_GroundChunkCheckboards
             v4 Color = V4(1, 0, 0, 1);
             if((ChunkX % 2) == (ChunkY % 2))
             {
@@ -888,7 +888,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DEBUGStart(TranState->Assets, Buffer->Width, Buffer->Height);
 
 #if 0
-    if(Input->ExecutableReloaded)
+    if(Memory->ExecutableReloaded)
     {
         for(uint32 GroundBufferIndex = 0;
             GroundBufferIndex < TranState->GroundBufferCount;
@@ -1027,7 +1027,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 real32 GroundSideInMeters = World->ChunkDimInMeters.x;
                 PushBitmap(RenderGroup, Bitmap, GroundSideInMeters, Delta);
-#if 0
+#if DEBUGUI_GroundChunkOutlines
                 PushRectOutline(RenderGroup, Delta, V2(GroundSideInMeters, GroundSideInMeters), V4(1.0f, 1.0f, 0.0f, 1.0f));
 #endif
             }
@@ -1251,7 +1251,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     PushBitmap(RenderGroup, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, 0, 0));  
                     PushBitmap(RenderGroup, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
                     DrawHitpoints(Entity, RenderGroup);
-#if 0
+#if DEBUGUI_ParticleTest
                     for(uint32 ParticleSpawnIndex = 0;
                         ParticleSpawnIndex < 2;
                         ParticleSpawnIndex++)
@@ -1276,7 +1276,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         asset_vector WeightVector = {};
                         MatchVector.E[Tag_UnicodeCodepoint] = (real32)Nothings[RandomChoice(&GameState->EffectsEntropy, ArrayCount(Nothings) - 1)];
                         WeightVector.E[Tag_UnicodeCodepoint] = 1.0f;
-                        Particle->BitmapID = GetBestMatchBitmapFrom(TranState->Assets, Asset_Font, &MatchVector, &WeightVector);
+                        Particle->BitmapID = HeroBitmaps.Head; // GetBestMatchBitmapFrom(TranState->Assets, Asset_Font, &MatchVector, &WeightVector);
                         // Particle->BitmapID = GetRandomBitmapFrom(TranState->Assets, Asset_Font, &GameState->EffectsEntropy);
                     }
 
@@ -1425,7 +1425,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 case EntityType_Space:
                 {
-#if 0
+#if DEBUGUI_UseSpaceOutlines
                     for(uint32 VolumeIndex = 0;
                         VolumeIndex < Entity->Collision->VolumeCount;
                         VolumeIndex++)

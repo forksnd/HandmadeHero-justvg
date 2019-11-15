@@ -3,6 +3,8 @@
 // TODO(georgy): Stop using stdio!
 #include <stdio.h>
 
+#include "handmade_debug_variables.h"
+
 internal void RestartCollation(debug_state *DebugState, uint32 InvalidEventArrayIndex);
 
 inline debug_state *
@@ -250,12 +252,20 @@ EndDebugStatistic(debug_statistic *Stat)
 }
 
 internal void
-WriteHandmadeConfig(debug_state *DebugState, bool32 UseDebugCamera)
+WriteHandmadeConfig(debug_state *DebugState)
 {
     char Temp[4096];
-    int TempSize = _snprintf_s(Temp, sizeof(Temp), "#define DEBUGUI_UseDebugCamera %d // b32\n", 
-                               UseDebugCamera);
-    Platform.DEBUGWriteEntireFile("../code/handmade_config.h", TempSize, Temp);
+    char *At = Temp;
+    char *End = Temp + sizeof(Temp);
+    for(uint32 DebugVariableIndex = 0;
+        DebugVariableIndex < ArrayCount(DebugVariableList);
+        DebugVariableIndex++)
+    {
+        debug_variable *Var = DebugVariableList + DebugVariableIndex;
+        At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                          "#define %s %d\n", Var->Name, Var->Value);
+    }
+    Platform.DEBUGWriteEntireFile("../code/handmade_config.h", (uint32)(At - Temp), Temp);
 
     if(!DebugState->Compiling)
     {
@@ -267,27 +277,19 @@ WriteHandmadeConfig(debug_state *DebugState, bool32 UseDebugCamera)
 internal void
 DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 {
-    char *MenuItems[] = 
-    {
-        "Toggle Profile Graph",
-        "Toggle Debug Collation",
-        "Toggle Framerate Counter",
-        "Mark Loop Point",
-        "Toggle Entity Bounds",
-    };
-
-    uint32 NewHotMenuIndex = ArrayCount(MenuItems);
+    uint32 NewHotMenuIndex = ArrayCount(DebugVariableList);
     real32 BestDistanceSq = Real32Maximum;
 
     real32 MenuRadius = 150.0f;
-    real32 AngleStep = 2.0f*Pi32 / (real32)ArrayCount(MenuItems);
+    real32 AngleStep = 2.0f*Pi32 / (real32)ArrayCount(DebugVariableList);
     for(uint32 MenuItemIndex = 0;
-        MenuItemIndex < ArrayCount(MenuItems);
+        MenuItemIndex < ArrayCount(DebugVariableList);
         MenuItemIndex++)
     {
-        char *Text = MenuItems[MenuItemIndex];
+        debug_variable *Var = DebugVariableList + MenuItemIndex;
+        char *Text = Var->Name;
 
-        v4 ItemColor = V4(1, 1, 1, 1);
+        v4 ItemColor = Var->Value ? V4(1, 1, 1, 1) : V4(0.5f, 0.5f, 0.5f, 1);
         if(MenuItemIndex == DebugState->HotMenuIndex)
         {
             ItemColor = V4(1, 1, 0, 1);
@@ -306,7 +308,14 @@ DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
         DEBUGTextOutAt(TextP - 0.5f*GetDim(TextBounds), Text, ItemColor);
     }
 
-    DebugState->HotMenuIndex = NewHotMenuIndex;
+    if(LengthSq(MouseP - DebugState->MenuP) > Square(MenuRadius))
+    {
+        DebugState->HotMenuIndex = NewHotMenuIndex;
+    }
+    else
+    {
+        DebugState->HotMenuIndex = ArrayCount(DebugVariableList);
+    }
 }
 
 internal void
@@ -334,20 +343,12 @@ DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
         else if(Input->MouseButtons[PlatformMouseButton_Right].HalfTransitionCount)
         {
             DrawDebugMainMenu(DebugState, RenderGroup, MouseP);
-            switch(DebugState->HotMenuIndex)
+            if(DebugState->HotMenuIndex < ArrayCount(DebugVariableList))
             {
-                case 0:
-                {
-                    DebugState->ProfileOn = !DebugState->ProfileOn;
-                } break;
-
-                case 1:
-                {
-                    DebugState->Paused = !DebugState->Paused;
-                } break;
+                DebugVariableList[DebugState->HotMenuIndex].Value = !DebugVariableList[DebugState->HotMenuIndex].Value;
             }
 
-            WriteHandmadeConfig(DebugState, !DEBUGUI_UseDebugCamera);
+            WriteHandmadeConfig(DebugState);
         }
 
         if(DebugState->Compiling)
