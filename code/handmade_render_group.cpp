@@ -1205,7 +1205,7 @@ GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
         // TODO(georgy): How do we want to control the debug camera?
         if(1)
         {
-            DistanceAboveTarget += 30.0f;
+            DistanceAboveTarget += DEBUGUI_DebugCameraDistance;
         }
 #endif
 

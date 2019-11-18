@@ -560,19 +560,6 @@ CatStrings(int64 SourceACount, char *SourceA,
     *Dest = 0;
 }
 
-internal int
-StringLength(char *String)
-{
-    int Count = 0;
-
-    while(*String++)
-    {
-        Count++;
-    }
-
-    return(Count);
-}
-
 internal void
 Win32BuildEXEPathFilename(win32_state *Win32State, char *Filename, int DestCount, char *Dest)
 {

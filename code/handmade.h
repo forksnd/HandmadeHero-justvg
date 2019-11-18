@@ -96,6 +96,7 @@ GetArenaSizeRemaining(memory_arena *Arena, memory_index Alignment = 4)
 #define PushStruct(Arena, type, ...) (type *)PushSize_(Arena, sizeof(type), ## __VA_ARGS__)
 #define PushArray(Arena, Count, type, ...) (type *)PushSize_(Arena, (Count)*sizeof(type), ## __VA_ARGS__)
 #define PushSize(Arena, Size, ...) PushSize_(Arena, Size, ## __VA_ARGS__)
+#define PushCopy(Arena, Size, Source, ...) Copy(Size, Source, PushSize_(Arena, Size, ## __VA_ARGS__))
 inline void *
 PushSize_(memory_arena *Arena, memory_index Size, memory_index Alignment = 4)
 {
@@ -185,7 +186,7 @@ ZeroSize(memory_index Size, void* Ptr)
     }
 }
 
-inline void
+inline void *
 Copy(memory_index Size, void *SourceInit, void *DestInit)
 {
     uint8 *Source = (uint8 *)SourceInit;
@@ -195,6 +196,8 @@ Copy(memory_index Size, void *SourceInit, void *DestInit)
     {
         *Dest++ = *Source++;
     }
+
+    return(DestInit);
 }
 
 #include "handmade_world.h"

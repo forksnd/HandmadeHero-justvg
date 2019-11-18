@@ -522,6 +522,20 @@ struct timed_block
     #define END_BLOCK(Name) 
 #endif
 
+// 
+// NOTE(georgy): Shared utils
+// 
+inline uint32
+StringLength(char *String)
+{
+    uint32 Count = 0;
+    while(*String++)
+    {
+        Count++;
+    }
+    return(Count);
+}
+
 #ifdef __cplusplus
 }
 #endif

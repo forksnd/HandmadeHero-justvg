@@ -3,9 +3,26 @@
 
 enum debug_variable_type
 {
-    DebugVariableType_Boolean,
+    DebugVariableType_Bool32,
+    DebugVariableType_Int32,
+    DebugVariableType_UInt32,
+    DebugVariableType_Real32,
+    DebugVariableType_V2,
+    DebugVariableType_V3,
+    DebugVariableType_V4,
 
 	DebugVariableType_Group,
+};
+
+enum debug_variable_to_text_flag
+{
+	DEBUGVarToText_AddDebugUI = 0x01,
+	DEBUGVarToText_AddName = 0x02,
+	DEBUGVarToText_FloatSuffix = 0x04,
+	DEBUGVarToText_LineFeedEnd = 0x08,
+	DEBUGVarToText_NullTerminator = 0x10,
+	DEBUGVarToText_Colon = 0x20,
+	DEBUGVarToText_PrettyBools = 0x40,
 };
 
 struct debug_variable;
@@ -26,6 +43,12 @@ struct debug_variable
 	union
 	{
     	bool32 Bool32;
+		int32 Int32;
+		uint32 UInt32;
+		real32 Real32;
+		v2 Vector2;
+		v3 Vector3;
+		v4 Vector4;
 		debug_variable_group Group;
 	};
 };
@@ -114,7 +137,8 @@ struct debug_state
 	
 	v2 MenuP;
 	bool32 MenuActive;
-	uint32 HotMenuIndex;
+
+	debug_variable *HotVariable;
 
 	real32 LeftEdge;
 	real32 AtY;

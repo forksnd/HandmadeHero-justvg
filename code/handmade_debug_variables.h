@@ -14,7 +14,7 @@ DEBUGAddVariable(debug_variable_definition_context *Context, debug_variable_type
 {
     debug_variable *Var = PushStruct(Context->Arena, debug_variable);
     Var->Type = Type;
-    Var->Name = Name;
+    Var->Name = (char *)PushCopy(Context->Arena, StringLength(Name) + 1, Name);
     Var->Next = 0;
 
     debug_variable *Group = Context->Group;
@@ -49,8 +49,26 @@ DEBUGBeginVariableGroup(debug_variable_definition_context *Context, char *Name)
 internal debug_variable *
 DEBUGAddVariable(debug_variable_definition_context *Context, char *Name, bool32 Value)
 {
-    debug_variable *Var = DEBUGAddVariable(Context, DebugVariableType_Boolean, Name);
+    debug_variable *Var = DEBUGAddVariable(Context, DebugVariableType_Bool32, Name);
     Var->Bool32 = Value;
+
+    return(Var);
+}
+
+internal debug_variable *
+DEBUGAddVariable(debug_variable_definition_context *Context, char *Name, real32 Value)
+{
+    debug_variable *Var = DEBUGAddVariable(Context, DebugVariableType_Real32, Name);
+    Var->Real32 = Value;
+
+    return(Var);
+}
+
+internal debug_variable *
+DEBUGAddVariable(debug_variable_definition_context *Context, char *Name, v4 Value)
+{
+    debug_variable *Var = DEBUGAddVariable(Context, DebugVariableType_V4, Name);
+    Var->Vector4 = Value;
 
     return(Var);
 }
@@ -83,6 +101,7 @@ DEBUGCreateVariables(debug_state *State)
         DEBUGBeginVariableGroup(&Context, "Camera");
         {
             DEBUG_VARIABLE_LISTING(UseDebugCamera);
+            DEBUG_VARIABLE_LISTING(DebugCameraDistance);
             DEBUG_VARIABLE_LISTING(UseRoomBasedCamera);
         }
         DEBUGEndVariableGroup(&Context);
@@ -94,6 +113,7 @@ DEBUGCreateVariables(debug_state *State)
     DEBUGEndVariableGroup(&Context);
 
     DEBUG_VARIABLE_LISTING(UseSpaceOutlines);
+    DEBUG_VARIABLE_LISTING(FauxV4);
 
 #undef DEBUG_VARIABLE_LISTING
 

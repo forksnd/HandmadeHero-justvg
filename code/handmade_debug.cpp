@@ -71,8 +71,7 @@ DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
         Orthographic(DebugState->RenderGroup, Width, Height, 1.0f);
         DebugState->LeftEdge = -0.5f*Width;
 
-        hha_font *Info = GetFontInfo(Assets, DebugState->FontID);
-        DebugState->AtY = 0.5f*Height - DebugState->FontScale*GetStartingBaselineY(Info);
+        DebugState->AtY = 0.5f*Height - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo);
     }
 }
 
@@ -253,6 +252,99 @@ EndDebugStatistic(debug_statistic *Stat)
     }
 }
 
+internal memory_index 
+DEBUGVariableToText(char *Buffer, char *End, debug_variable *Var, uint32 Flags)
+{
+    char *At = Buffer;
+
+    if(Flags & DEBUGVarToText_AddDebugUI)
+    {
+        At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                          "#define DEBUGUI_");
+    }
+    
+    if(Flags & DEBUGVarToText_AddName)
+    {
+        At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                          "%s%s ", Var->Name, (Flags & DEBUGVarToText_Colon) ? ":" : "");
+    }
+
+    switch(Var->Type)
+    {
+        case DebugVariableType_Bool32:
+        {
+            if(Flags & DEBUGVarToText_PrettyBools)
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "%s", Var->Bool32 ? "true" : "false");
+            }
+            else
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "%d", Var->Bool32);
+            }
+        } break;
+
+        case DebugVariableType_Int32:
+        {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "%d", Var->Int32);
+        } break;
+
+        case DebugVariableType_UInt32:
+        {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "%u", Var->UInt32);
+        } break;
+
+        case DebugVariableType_Real32:
+        {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "%f", Var->Real32);
+                if(Flags & DEBUGVarToText_FloatSuffix)
+                {
+                    *At++ = 'f';
+                }
+        } break;
+
+        case DebugVariableType_V2:
+        {
+             At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "V2(%f, %f)", Var->Vector2.x, Var->Vector2.y);
+        } break;
+
+        case DebugVariableType_V3:
+        {
+             At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "V3(%f, %f, %f)", Var->Vector3.x, Var->Vector3.y, Var->Vector3.z);
+        } break;
+
+        case DebugVariableType_V4:
+        {
+             At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                  "V4(%f, %f, %f, %f)", Var->Vector4.x, Var->Vector4.y, Var->Vector4.z, Var->Vector4.w);
+        } break;
+
+        case DebugVariableType_Group:
+        {
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    if(Flags & DEBUGVarToText_LineFeedEnd)
+    {
+        *At++ = '\n';
+    }
+
+    if(Flags & DEBUGVarToText_NullTerminator)
+    {
+        *At++ = 0;
+    }
+
+    return(At - Buffer);
+}
+
 internal void
 WriteHandmadeConfig(debug_state *DebugState)
 {
@@ -273,20 +365,16 @@ WriteHandmadeConfig(debug_state *DebugState)
             *At++ = ' ';
             *At++ = ' ';
         }
-        switch(Var->Type)
-        {
-            case DebugVariableType_Boolean:
-            {
-                 At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                   "#define DEBUGUI_%s %d\n", Var->Name, Var->Bool32);
-            } break;
 
-            case DebugVariableType_Group:
-            {
-                 At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                   "// %s\n", Var->Name);
-            } break;
+        if(Var->Type == DebugVariableType_Group)
+        {
+            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                              "// ");
         }
+        At += DEBUGVariableToText(At, End, Var, DEBUGVarToText_AddDebugUI|
+                                                DEBUGVarToText_AddName|
+                                                DEBUGVarToText_FloatSuffix|
+                                                DEBUGVarToText_LineFeedEnd);
 
         if(Var->Type == DebugVariableType_Group)
         {
@@ -323,7 +411,60 @@ WriteHandmadeConfig(debug_state *DebugState)
 internal void
 DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 {
-    #if 0
+    real32 AtX = DebugState->LeftEdge;
+    real32 AtY = DebugState->AtY;
+    real32 LineAdvance = GetLineAdvanceFor(DebugState->DebugFontInfo)*DebugState->FontScale;
+
+    DebugState->HotVariable = 0;
+
+    int Depth = 0;
+    debug_variable *Var = DebugState->RootGroup->Group.FirstChild;
+    while(Var)
+    {
+        v4 ItemColor = V4(1, 1, 1, 1);
+        char Text[256];
+        DEBUGVariableToText(Text, Text + sizeof(Text), Var, DEBUGVarToText_AddName|
+                                                            DEBUGVarToText_NullTerminator|
+                                                            DEBUGVarToText_Colon|
+                                                            DEBUGVarToText_PrettyBools);
+
+        v2 TextP = V2(AtX + Depth*2.0f*LineAdvance, AtY);
+        rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
+        if(IsInRectangle(Offset(TextBounds, TextP), MouseP))
+        {
+            ItemColor = V4(1, 1, 0, 1);
+            DebugState->HotVariable = Var;
+        }
+
+        DEBUGTextOutAt(TextP, Text, ItemColor);
+        AtY -= LineAdvance;
+
+        if((Var->Type == DebugVariableType_Group) && Var->Group.Expanded)
+        {
+            Var = Var->Group.FirstChild;
+            Depth++;
+        }
+        else
+        {
+            while(Var)
+            {
+                if(Var->Next)
+                {
+                    Var = Var->Next;
+                    break;
+                }
+                else
+                {
+                    Var = Var->Parent;
+                    Depth--;
+                }
+            }
+        }
+    }
+
+    DebugState->AtY = AtY;
+
+#if 0
     uint32 NewHotMenuIndex = ArrayCount(DebugVariableList);
     real32 BestDistanceSq = Real32Maximum;
 
@@ -363,7 +504,7 @@ DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
     {
         DebugState->HotMenuIndex = ArrayCount(DebugVariableList);
     }
-    #endif
+#endif
 }
 
 internal void
@@ -380,6 +521,8 @@ DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
 
         v2 MouseP = V2((real32)Input->MouseX, (real32)Input->MouseY);
 
+        DrawDebugMainMenu(DebugState, RenderGroup, MouseP);
+
 #if 0
         if(Input->MouseButtons[PlatformMouseButton_Right].EndedDown)
         {
@@ -390,16 +533,30 @@ DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
             DrawDebugMainMenu(DebugState, RenderGroup, MouseP);
         }
         else if(Input->MouseButtons[PlatformMouseButton_Right].HalfTransitionCount)
-        {
-            DrawDebugMainMenu(DebugState, RenderGroup, MouseP);
-            if(DebugState->HotMenuIndex < ArrayCount(DebugVariableList))
-            {
-                DebugVariableList[DebugState->HotMenuIndex].Value = !DebugVariableList[DebugState->HotMenuIndex].Value;
-            }
-
-            WriteHandmadeConfig(DebugState);
-        }
+#else
+        if(WasPressed(Input->MouseButtons[PlatformMouseButton_Left]))
 #endif
+        {
+            if(DebugState->HotVariable)
+            {
+                debug_variable *Var = DebugState->HotVariable;
+                switch(Var->Type)
+                {
+                    case DebugVariableType_Bool32:
+                    {
+                        Var->Bool32 = !Var->Bool32;
+                        WriteHandmadeConfig(DebugState);
+                    } break;
+
+                    case DebugVariableType_Group:
+                    {
+                        Var->Group.Expanded = !Var->Group.Expanded;
+                    } break;
+
+                    InvalidDefaultCase;
+                }
+            }
+        }
 
         if(DebugState->Compiling)
         {
