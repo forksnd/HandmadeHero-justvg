@@ -3,8 +3,8 @@
     #define DEBUGUI_GroundChunkCheckboards 0
 // #define DEBUGUI_Renderer 
     // #define DEBUGUI_Camera 
-        #define DEBUGUI_UseDebugCamera 0
-        #define DEBUGUI_DebugCameraDistance 30.000000f
+        #define DEBUGUI_UseDebugCamera 1
+        #define DEBUGUI_DebugCameraDistance 55.899986f
         #define DEBUGUI_UseRoomBasedCamera 0
 // #define DEBUGUI_Particles 
     #define DEBUGUI_ParticleTest 0
