@@ -82,42 +82,35 @@ DEBUGEndVariableGroup(debug_variable_definition_context *Context)
 }
 
 internal void
-DEBUGCreateVariables(debug_state *State)
+DEBUGCreateVariables(debug_variable_definition_context *Context)
 {
-    debug_variable_definition_context Context = {};
-    Context.State = State;
-    Context.Arena = &State->DebugArena;
-    Context.Group = DEBUGBeginVariableGroup(&Context, "Root");
+#define DEBUG_VARIABLE_LISTING(Name) DEBUGAddVariable(Context, #Name, DEBUGUI_##Name);
 
-#define DEBUG_VARIABLE_LISTING(Name) DEBUGAddVariable(&Context, #Name, DEBUGUI_##Name);
-
-    DEBUGBeginVariableGroup(&Context, "Group chunks");
+    DEBUGBeginVariableGroup(Context, "Group chunks");
     DEBUG_VARIABLE_LISTING(GroundChunkOutlines);
     DEBUG_VARIABLE_LISTING(GroundChunkCheckboards);
-    DEBUGEndVariableGroup(&Context);
+    DEBUGEndVariableGroup(Context);
 
-    DEBUGBeginVariableGroup(&Context, "Renderer");
+    DEBUGBeginVariableGroup(Context, "Renderer");
     {
-        DEBUGBeginVariableGroup(&Context, "Camera");
+        DEBUGBeginVariableGroup(Context, "Camera");
         {
             DEBUG_VARIABLE_LISTING(UseDebugCamera);
             DEBUG_VARIABLE_LISTING(DebugCameraDistance);
             DEBUG_VARIABLE_LISTING(UseRoomBasedCamera);
         }
-        DEBUGEndVariableGroup(&Context);
+        DEBUGEndVariableGroup(Context);
     }
-    DEBUGEndVariableGroup(&Context);
+    DEBUGEndVariableGroup(Context);
 
-    DEBUGBeginVariableGroup(&Context, "Particles");
+    DEBUGBeginVariableGroup(Context, "Particles");
     DEBUG_VARIABLE_LISTING(ParticleTest);
-    DEBUGEndVariableGroup(&Context);
+    DEBUGEndVariableGroup(Context);
 
     DEBUG_VARIABLE_LISTING(UseSpaceOutlines);
     DEBUG_VARIABLE_LISTING(FauxV4);
 
 #undef DEBUG_VARIABLE_LISTING
-
-    State->RootGroup = Context.Group;
 }
 
 #endif
