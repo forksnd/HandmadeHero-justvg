@@ -24,6 +24,22 @@ DEBUGGetState(void)
     return(DebugState);
 }
 
+internal debug_variable_hierarchy *
+AddHierarchy(debug_state *DebugState, debug_variable_reference *Group, v2 AtP)
+{   
+    debug_variable_hierarchy *Hierarchy = PushStruct(&DebugState->DebugArena, debug_variable_hierarchy);
+
+    Hierarchy->UIP = AtP;
+    Hierarchy->Group = Group;
+    Hierarchy->Next = DebugState->HierarchySentinel.Next;
+    Hierarchy->Prev = &DebugState->HierarchySentinel;
+
+    Hierarchy->Next->Prev = Hierarchy;
+    Hierarchy->Prev->Next = Hierarchy;
+
+    return(Hierarchy);
+}
+
 internal void 
 DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
 {
@@ -35,6 +51,9 @@ DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
         if(!DebugState->Initialized)
         {
             DebugState->HighPriorityQueue = DebugGlobalMemory->HighPriorityQueue;
+            DebugState->HierarchySentinel.Next = &DebugState->HierarchySentinel;
+            DebugState->HierarchySentinel.Prev = &DebugState->HierarchySentinel;
+            DebugState->HierarchySentinel.Group = 0;
 
             InitializeArena(&DebugState->DebugArena, DebugGlobalMemory->DebugStorageSize - sizeof(debug_state), DebugState + 1);
 
@@ -48,14 +67,14 @@ DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
             DEBUGCreateVariables(&Context);
             DEBUGBeginVariableGroup(&Context, "Profile");
             DEBUGBeginVariableGroup(&Context, "By Thread");
-            debug_variable *ThreadList = 
+            debug_variable_reference *ThreadList = 
                 DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
-            ThreadList->Profile.Dimension = V2(512.0f, 100.0f);
+            ThreadList->Var->Profile.Dimension = V2(512.0f, 100.0f);
             DEBUGEndVariableGroup(&Context);
             DEBUGBeginVariableGroup(&Context, "By Function");
-            debug_variable *FunctionList = 
+            debug_variable_reference *FunctionList = 
                 DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
-            FunctionList->Profile.Dimension = V2(512.0f, 200.0f);
+            FunctionList->Var->Profile.Dimension = V2(512.0f, 200.0f);
             DEBUGEndVariableGroup(&Context);
             DEBUGEndVariableGroup(&Context);
             DEBUGEndVariableGroup(&Context);
@@ -74,6 +93,8 @@ DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
             DebugState->CollateTemp = BeginTemporaryMemory(&DebugState->CollateArena);
 
             RestartCollation(DebugState, 0);
+
+            AddHierarchy(DebugState, DebugState->RootGroup, V2(-0.5f*Width, 0.5f*Height));
         }
 
         BeginRender(DebugState->RenderGroup);
@@ -95,10 +116,7 @@ DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height)
         DebugState->LeftEdge = -0.5f*Width;
         DebugState->RightEdge = 0.5f*Width;
 
-        DebugState->AtY = 0.5f*Height;
-        
-        DebugState->Hierarchy.RootGroup = DebugState->RootGroup;
-        DebugState->Hierarchy.UIP = V2(DebugState->LeftEdge, DebugState->AtY);
+        DebugState->AtY = 0.5f*Height;        
     }
 }
 
@@ -381,9 +399,10 @@ WriteHandmadeConfig(debug_state *DebugState)
     char *End = Temp + sizeof(Temp);
 
     int Depth = 0;
-    debug_variable *Var = DebugState->RootGroup->Group.FirstChild;
-    while(Var)
+    debug_variable_reference *Ref = DebugState->RootGroup->Var->Group.FirstChild;
+    while(Ref)
     {
+        debug_variable *Var = Ref->Var;
         if (DEBUGShouldBeWritten(Var->Type))
         {
             for(int Index = 0;
@@ -409,21 +428,21 @@ WriteHandmadeConfig(debug_state *DebugState)
 
         if(Var->Type == DebugVariableType_Group)
         {
-            Var = Var->Group.FirstChild;
+            Ref = Var->Group.FirstChild;
             Depth++;
         }
         else
         {
-            while(Var)
+            while(Ref)
             {
-                if(Var->Next)
+                if(Ref->Next)
                 {
-                    Var = Var->Next;
+                    Ref = Ref->Next;
                     break;
                 }
                 else
                 {
-                    Var = Var->Parent;
+                    Ref = Ref->Parent;
                     Depth--;
                 }
             }
@@ -528,96 +547,120 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
 }
 
 internal void
-DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
+DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 {
-    real32 AtX = DebugState->Hierarchy.UIP.x;
-    real32 AtY = DebugState->Hierarchy.UIP.y;
-    real32 LineAdvance = GetLineAdvanceFor(DebugState->DebugFontInfo)*DebugState->FontScale;
-    real32 SpacingY = 4.0f;
-    int Depth = 0;
-    debug_variable *Var = DebugState->Hierarchy.RootGroup->Group.FirstChild;
-    while(Var)
+    for(debug_variable_hierarchy *Hierarchy = DebugState->HierarchySentinel.Next;
+        Hierarchy != &DebugState->HierarchySentinel;
+        Hierarchy = Hierarchy->Next)
     {
-        bool32 IsHot = (DebugState->Hot == Var);
-        v4 ItemColor = (IsHot && (DebugState->HotInteraction == 0)) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
+        real32 AtX = Hierarchy->UIP.x;
+        real32 AtY = Hierarchy->UIP.y;
+        real32 LineAdvance = GetLineAdvanceFor(DebugState->DebugFontInfo)*DebugState->FontScale;
 
-        rectangle2 Bounds = {};
-        switch(Var->Type)
+        real32 SpacingY = 4.0f;
+        int Depth = 0;
+        debug_variable_reference *Ref = Hierarchy->Group->Var->Group.FirstChild;
+        while(Ref)
         {
-            case DebugVariableType_CounterThreadList:
+            debug_variable *Var = Ref->Var;
+
+            bool32 IsHot = (DebugState->Hot == Var);
+            v4 ItemColor = (IsHot && (DebugState->HotInteraction == 0)) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
+
+            rectangle2 Bounds = {};
+            switch(Var->Type)
             {
-                v2 MinCorner = V2(AtX + Depth*2.0f*LineAdvance, AtY - Var->Profile.Dimension.y);
-                v2 MaxCorner = V2(MinCorner.x + Var->Profile.Dimension.x, AtY);
-                v2 SizeP = V2(MaxCorner.x, MinCorner.y);
-                Bounds = RectMinMax(MinCorner, MaxCorner);
-                DrawProfileIn(DebugState, Bounds, MouseP);
-
-                rectangle2 SizeBox = RectCenterHalfDim(SizeP, V2(4.0f, 4.0f));
-                PushRect(DebugState->RenderGroup, SizeBox, 0.0f, 
-                         (IsHot && (DebugState->HotInteraction == DebugInteraction_ResizeProfile)) ? 
-                         V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
-                
-                if(IsInRectangle(SizeBox, MouseP))
+                case DebugVariableType_CounterThreadList:
                 {
-                    DebugState->NextHotInteraction = DebugInteraction_ResizeProfile;
-                    DebugState->NextHot = Var;
-                }
-                else if(IsInRectangle(Bounds, MouseP))
-                {
-                    DebugState->NextHotInteraction = DebugInteraction_None;
-                    DebugState->NextHot = Var;
-                }   
-            } break;
+                    v2 MinCorner = V2(AtX + Depth*2.0f*LineAdvance, AtY - Var->Profile.Dimension.y);
+                    v2 MaxCorner = V2(MinCorner.x + Var->Profile.Dimension.x, AtY);
+                    v2 SizeP = V2(MaxCorner.x, MinCorner.y);
+                    Bounds = RectMinMax(MinCorner, MaxCorner);
+                    DrawProfileIn(DebugState, Bounds, MouseP);
 
-            default:
+                    rectangle2 SizeBox = RectCenterHalfDim(SizeP, V2(4.0f, 4.0f));
+                    PushRect(DebugState->RenderGroup, SizeBox, 0.0f, 
+                            (IsHot && (DebugState->HotInteraction == DebugInteraction_ResizeProfile)) ? 
+                            V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
+                    
+                    if(IsInRectangle(SizeBox, MouseP))
+                    {
+                        DebugState->NextHotInteraction = DebugInteraction_ResizeProfile;
+                        DebugState->NextHot = Var;
+                    }
+                    else if(IsInRectangle(Bounds, MouseP))
+                    {
+                        DebugState->NextHotInteraction = DebugInteraction_None;
+                        DebugState->NextHot = Var;
+                    }   
+
+                    Bounds.Min.y -= SpacingY;
+                } break;
+
+                default:
+                {
+                    char Text[256];
+                    DEBUGVariableToText(Text, Text + sizeof(Text), Var, DEBUGVarToText_AddName|
+                                                                        DEBUGVarToText_NullTerminator|
+                                                                        DEBUGVarToText_Colon|
+                                                                        DEBUGVarToText_PrettyBools);
+
+                    real32 LeftPx = AtX + Depth*2.0f*LineAdvance;
+                    real32 TopPy = AtY;
+                    rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
+
+                    Bounds = RectMinMax(V2(LeftPx + TextBounds.Min.x, TopPy - LineAdvance),
+                                        V2(LeftPx + TextBounds.Max.x, TopPy));
+                    DEBUGTextOutAt(V2(LeftPx, TopPy - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
+                                   Text, ItemColor);
+                                
+                    if(IsInRectangle(Bounds, MouseP))
+                    {
+                        DebugState->NextHotInteraction = DebugInteraction_None;
+                        DebugState->NextHot = Var;
+                    }                               
+                } break;
+            }
+            
+            AtY = GetMinCorner(Bounds).y;
+
+            if((Var->Type == DebugVariableType_Group) && Var->Group.Expanded)
             {
-                char Text[256];
-                DEBUGVariableToText(Text, Text + sizeof(Text), Var, DEBUGVarToText_AddName|
-                                                                    DEBUGVarToText_NullTerminator|
-                                                                    DEBUGVarToText_Colon|
-                                                                    DEBUGVarToText_PrettyBools);
-
-                real32 LeftPx = AtX + Depth*2.0f*LineAdvance;
-                real32 TopPy = AtY;
-                Bounds = DEBUGGetTextSize(DebugState, Text);
-                Bounds = Offset(Bounds, V2(LeftPx, TopPy - GetDim(Bounds).y));
-                DEBUGTextOutAt(V2(LeftPx, TopPy - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
-                               Text, ItemColor);
-                               
-                if(IsInRectangle(Bounds, MouseP))
-                {
-                    DebugState->NextHotInteraction = DebugInteraction_None;
-                    DebugState->NextHot = Var;
-                }                               
-            } break;
-        }
-        
-        AtY = GetMinCorner(Bounds).y - SpacingY;
-
-        if((Var->Type == DebugVariableType_Group) && Var->Group.Expanded)
-        {
-            Var = Var->Group.FirstChild;
-            Depth++;
-        }
-        else
-        {
-            while(Var)
+                Ref = Var->Group.FirstChild;
+                Depth++;
+            }
+            else
             {
-                if(Var->Next)
+                while(Ref)
                 {
-                    Var = Var->Next;
-                    break;
-                }
-                else
-                {
-                    Var = Var->Parent;
-                    Depth--;
+                    if(Ref->Next)
+                    {
+                        Ref = Ref->Next;
+                        break;
+                    }
+                    else
+                    {
+                        Ref = Ref->Parent;
+                        Depth--;
+                    }
                 }
             }
         }
-    }
 
-    DebugState->AtY = AtY;
+        DebugState->AtY = AtY;
+
+        if(1)
+        {
+            rectangle2 MoveBox = RectCenterHalfDim(Hierarchy->UIP - V2(4.0f, 4.0f), V2(4.0f, 4.0f));
+            PushRect(DebugState->RenderGroup, MoveBox, 0.0f, V4(1, 1, 1, 1));
+            
+            if(IsInRectangle(MoveBox, MouseP))
+            {
+                DebugState->NextHotInteraction = DebugInteraction_MoveHierarchy;
+                DebugState->NextHotHierarchy = Hierarchy;
+            }
+        }
+    }
 
 #if 0
     uint32 NewHotMenuIndex = ArrayCount(DebugVariableList);
@@ -663,43 +706,50 @@ DrawDebugMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 }
 
 internal void
-DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
+DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP, bool32 AltUI)
 {
-    if(DebugState->Hot)
+    if(DebugState->HotInteraction)
     {
-        if(DebugState->HotInteraction)
-        {
-            DebugState->Interaction = DebugState->HotInteraction;
-        }
-        else
-        {
-            switch(DebugState->Hot->Type)
-            {
-                case DebugVariableType_Bool32:
-                {
-                    DebugState->Interaction = DebugInteraction_ToggleValue;
-                } break;
-
-                case DebugVariableType_Real32:
-                {
-                    DebugState->Interaction = DebugInteraction_DragValue;
-                } break;
-
-                case DebugVariableType_Group:
-                {
-                    DebugState->Interaction = DebugInteraction_ToggleValue;
-                } break;
-            }
-        }
-
-        if(DebugState->Interaction)
-        {
-            DebugState->InteractingWith = DebugState->Hot;
-        }
+        DebugState->Interaction = DebugState->HotInteraction;
     }
     else
     {
-        DebugState->Interaction = DebugInteraction_NOP;
+        if(DebugState->Hot)
+        {
+            if(AltUI)
+            {
+                DebugState->Interaction = DebugInteraction_TearValue;
+            }
+            else 
+            {
+                switch(DebugState->Hot->Type)
+                {
+                    case DebugVariableType_Bool32:
+                    {
+                        DebugState->Interaction = DebugInteraction_ToggleValue;
+                    } break;
+
+                    case DebugVariableType_Real32:
+                    {
+                        DebugState->Interaction = DebugInteraction_DragValue;
+                    } break;
+
+                    case DebugVariableType_Group:
+                    {
+                        DebugState->Interaction = DebugInteraction_ToggleValue;
+                    } break;
+                }
+            }
+
+            if(DebugState->Interaction)
+            {
+                DebugState->InteractingWith = DebugState->Hot;
+            }
+        }
+        else
+        {
+            DebugState->Interaction = DebugInteraction_NOP;
+        }
     }
 }
 
@@ -709,11 +759,11 @@ DEBUGEndInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
     if(DebugState->Interaction != DebugInteraction_NOP)
     {
         debug_variable *Var = DebugState->InteractingWith;
-        Assert(Var);
         switch(DebugState->Interaction)
         {
             case DebugInteraction_ToggleValue:
             {
+                Assert(Var);
                 switch(Var->Type)
                 {
                     case DebugVariableType_Bool32:
@@ -727,16 +777,13 @@ DEBUGEndInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
                     } break;
                 }
             } break;
-
-            case DebugInteraction_TearValue:
-            {
-            } break;
         }
 
         WriteHandmadeConfig(DebugState);
     }
     DebugState->Interaction = DebugInteraction_None;
     DebugState->InteractingWith = 0;
+    DebugState->DraggingHierarchy = 0;
 }
 
 internal void
@@ -779,7 +826,26 @@ DEBUGInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
                 Var->Profile.Dimension.x = Maximum(Var->Profile.Dimension.x, 10.0f);
                 Var->Profile.Dimension.y = Maximum(Var->Profile.Dimension.y, 10.0f);
             } break;
+
+            case DebugInteraction_MoveHierarchy:
+            {
+                DebugState->DraggingHierarchy->UIP += V2(dMouseP.x, dMouseP.y);
+            } break;
+
+            case DebugInteraction_TearValue:
+            {
+                if(!DebugState->DraggingHierarchy)
+                {
+                    debug_variable_reference *RootGroup = DEBUGAddRootGroup(DebugState, "NewUserGroup");
+                    DEBUGAddVariableReference(DebugState, RootGroup, DebugState->InteractingWith);
+                    DebugState->DraggingHierarchy = AddHierarchy(DebugState, RootGroup, V2(0, 0));
+                }
+
+                DebugState->DraggingHierarchy->UIP = MouseP; 
+            } break;
         }
+
+        bool32 AltUI = Input->MouseButtons[PlatformMouseButton_Right].EndedDown;
 
         // NOTE(georgy): Click interaction
         for(uint32 TransitionIndex = Input->MouseButtons[PlatformMouseButton_Left].HalfTransitionCount;
@@ -787,7 +853,7 @@ DEBUGInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
             TransitionIndex++)
         {
             DEBUGEndInteract(DebugState, Input, MouseP);
-            DEBUGBeginInteract(DebugState, Input, MouseP);
+            DEBUGBeginInteract(DebugState, Input, MouseP, AltUI);
         }
 
         if(!Input->MouseButtons[PlatformMouseButton_Left].EndedDown)
@@ -799,18 +865,20 @@ DEBUGInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
     {
         DebugState->Hot = DebugState->NextHot;
         DebugState->HotInteraction = DebugState->NextHotInteraction;
+        DebugState->DraggingHierarchy = DebugState->NextHotHierarchy;
 
+        bool32 AltUI = Input->MouseButtons[PlatformMouseButton_Right].EndedDown;
         for(uint32 TransitionIndex = Input->MouseButtons[PlatformMouseButton_Left].HalfTransitionCount;
             TransitionIndex > 1;
             TransitionIndex++)
         {
-            DEBUGBeginInteract(DebugState, Input, MouseP);
+            DEBUGBeginInteract(DebugState, Input, MouseP, AltUI);
             DEBUGEndInteract(DebugState, Input, MouseP);
         }
 
         if(Input->MouseButtons[PlatformMouseButton_Left].EndedDown)
         {
-            DEBUGBeginInteract(DebugState, Input, MouseP);
+            DEBUGBeginInteract(DebugState, Input, MouseP, AltUI);
         }
     }
 
@@ -828,12 +896,13 @@ DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer)
         render_group *RenderGroup = DebugState->RenderGroup;
 
         DebugState->NextHot = 0;
+        DebugState->NextHotHierarchy = 0;
         DebugState->NextHotInteraction = DebugInteraction_None;
         debug_record *HotRecord = 0;
 
         v2 MouseP = V2((real32)Input->MouseX, (real32)Input->MouseY);
 
-        DrawDebugMainMenu(DebugState, RenderGroup, MouseP);
+        DEBUGDrawMainMenu(DebugState, RenderGroup, MouseP);
         DEBUGInteract(DebugState, Input, MouseP);
 
         if(DebugState->Compiling)
