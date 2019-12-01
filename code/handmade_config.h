@@ -11,7 +11,6 @@
         #define DEBUGUI_ParticleTest 0
     #define DEBUGUI_UseSpaceOutlines 0
     #define DEBUGUI_FauxV4 V4(1.000000, 1.000000, 1.000000, 1.000000)
-    #define DEBUGUI_UseDebugCamera 1
     // #define DEBUGUI_Profile 
         // #define DEBUGUI_By Thread 
         // #define DEBUGUI_By Function 

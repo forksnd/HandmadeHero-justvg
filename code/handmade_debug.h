@@ -14,12 +14,15 @@ enum debug_variable_type
 	DebugVariableType_CounterThreadList,
 	// DebugVariableType_CounterFunctionList,
 
+	DebugVariableType_BitmapDisplay,
+
 	DebugVariableType_Group,
 };
 inline bool32 
 DEBUGShouldBeWritten(debug_variable_type Type)
 {
-	bool32 Result = (Type != DebugVariableType_CounterThreadList);
+	bool32 Result = (Type != DebugVariableType_CounterThreadList) &&
+					(Type != DebugVariableType_BitmapDisplay);
 
 	return(Result);
 }
@@ -65,6 +68,13 @@ struct debug_profile_settings
 	v2 Dimension;
 };
 
+struct debug_bitmap_display
+{
+	bitmap_id ID;
+	v2 Dim;
+	bool32 Alpha;
+};
+
 struct debug_variable
 {
     debug_variable_type Type;
@@ -81,6 +91,7 @@ struct debug_variable
 		v4 Vector4;
 		debug_variable_group Group;
 		debug_profile_settings Profile;
+		debug_bitmap_display BitmapDisplay;
 	};
 };
 
@@ -149,19 +160,32 @@ struct debug_thread
 	debug_thread *Next;
 };
 
-enum debug_interaction
+enum debug_interaction_type
 {
 	DebugInteraction_None,
 
 	DebugInteraction_NOP,
+	DebugInteraction_AutoModifyVariable,
 
 	DebugInteraction_ToggleValue,
 	DebugInteraction_DragValue,
 	DebugInteraction_TearValue,
 
-	DebugInteraction_ResizeProfile,
-	DebugInteraction_MoveHierarchy,
+	DebugInteraction_Resize,
+	DebugInteraction_Move,
 };
+struct debug_interaction
+{
+	debug_interaction_type Type;
+	union
+	{
+		void *Generic;
+		debug_variable *Var;
+		debug_variable_hierarchy *Hierarchy;
+		v2 *P;
+	};
+};
+
 struct debug_state
 {
 	bool32 Initialized;
@@ -183,15 +207,10 @@ struct debug_state
 	debug_variable_reference *RootGroup;
 	debug_variable_hierarchy HierarchySentinel;
 
-	debug_interaction Interaction;
 	v2 LastMouseP;
+	debug_interaction Interaction;
 	debug_interaction HotInteraction;
-	debug_variable *Hot;
-	debug_variable *InteractingWith;
 	debug_interaction NextHotInteraction;
-	debug_variable *NextHot;
-	debug_variable_hierarchy *NextHotHierarchy;
-	debug_variable_hierarchy *DraggingHierarchy;
 
 	real32 LeftEdge;
 	real32 RightEdge;
