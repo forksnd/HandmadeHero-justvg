@@ -5,7 +5,7 @@
     // #define DEBUGUI_Renderer 
         // #define DEBUGUI_Camera 
             #define DEBUGUI_UseDebugCamera 1
-            #define DEBUGUI_DebugCameraDistance 45.599998f
+            #define DEBUGUI_DebugCameraDistance 28.800005f
             #define DEBUGUI_UseRoomBasedCamera 0
     // #define DEBUGUI_Particles 
         #define DEBUGUI_ParticleTest 0
