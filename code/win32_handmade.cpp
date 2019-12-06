@@ -182,6 +182,7 @@ Win32ProcessXInputStickValue(SHORT Value, SHORT DeadzoneThreshold)
     return(Result);
 }          
 
+#if HANDMADE_INTERNAL
 DEBUG_PLATFROM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
     VirtualFree(Memory, 0, MEM_RELEASE);
@@ -309,7 +310,7 @@ DEBUG_PLATFROM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 
     return(Result);
 }
-
+#endif
 
 internal void 
 Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
@@ -1304,8 +1305,10 @@ PLATFORM_DEALLOCATE_MEMORY(Win32DeallocateMemory)
     }
 }
 
+#if HANDMADE_INTERNAL
 global_variable debug_table GlobalDebugTable_;
 debug_table *GlobalDebugTable = &GlobalDebugTable_;
+#endif
 
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
@@ -1459,11 +1462,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.PlatformAPI.AllocateMemory = Win32AllocateMemory;
             GameMemory.PlatformAPI.DeallocateMemory = Win32DeallocateMemory;
 
+#if HANDMADE_INTERNAL
             GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
             GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
             GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
             GameMemory.PlatformAPI.DEBUGExecuteSystemCommand = DEBUGExecuteSystemCommand;
             GameMemory.PlatformAPI.DEBUGGetProcessState = DEBUGGetProcessState;
+#endif
 
             // TODO(george): TransientStorage needs to be broken up
             // into game transient and cache transient, and only
@@ -1558,8 +1563,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     {
                         Win32CompleteAllWork(&HighPriorityQueue);
                         Win32CompleteAllWork(&LowPriorityQueue);
-
+#if HANDMADE_INTERNAL
                         GlobalDebugTable = &GlobalDebugTable_;
+#endif
                         Win32UnloadGameCode(&Game);
                         Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
                         GameMemory.ExecutableReloaded = true;
@@ -1868,6 +1874,21 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         // 
                         // 
 
+#if HANDMADE_INTERNAL
+                        BEGIN_BLOCK(CollationTime);
+
+                        if(Game.DEBUGFrameEnd)
+                        {
+                            GlobalDebugTable = Game.DEBUGFrameEnd(&GameMemory, NewInput, &Buffer);
+                        }
+                        GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
+                        END_BLOCK(CollationTime);
+#endif
+
+                        // 
+                        // 
+                        // 
+
                         BEGIN_BLOCK(FrameWait);
 
                         LARGE_INTEGER WorkCounter = Win32GetWallClock();
@@ -1935,27 +1956,19 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         OldInput = Temp;                        
 
                         END_BLOCK(FrameDisplay);
-#if HANDMADE_INTERNAL
-                        BEGIN_BLOCK(CollationTime);
-
-                        if(Game.DEBUGFrameEnd)
-                        {
-                            GlobalDebugTable = Game.DEBUGFrameEnd(&GameMemory);
-                        }
-                        GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
-#endif
-                        END_BLOCK(CollationTime);
 
                         LARGE_INTEGER EndCounter = Win32GetWallClock();  
                         FRAME_MARKER(Win32GetSecondsElapsed(LastCounter, EndCounter));
                         LastCounter = EndCounter;
 
+#if HANDMADE_INTERNAL
                         if(GlobalDebugTable)
                         {
                             // TODO(georgy): Move this to a global variable so that
                             // there can be timers below this one?
                             GlobalDebugTable->RecordCount[TRANSLATION_UNIT_INDEX] = __COUNTER__;
                         }
+#endif
                     }
                 }   
             }

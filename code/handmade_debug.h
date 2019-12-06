@@ -16,7 +16,7 @@ enum debug_variable_type
 
 	DebugVariableType_BitmapDisplay,
 
-	DebugVariableType_Group,
+	DebugVariableType_VarArray,
 };
 inline bool32 
 DEBUGShouldBeWritten(debug_variable_type Type)
@@ -38,41 +38,63 @@ enum debug_variable_to_text_flag
 	DEBUGVarToText_PrettyBools = 0x40,
 };
 
+struct debug_tree;
 struct debug_variable;
-struct debug_variable_reference
+
+struct debug_view_inline_block
 {
+	v2 Dim;
+};
+
+struct debug_view_collapsible
+{
+	bool32 ExpandedAlways;
+	bool32 ExpandedAltView;
+};
+
+enum debug_view_type
+{
+	DebugViewType_Basic,
+	DebugViewType_InlineBlock,
+	DebugViewType_Collapsible,
+};
+struct debug_view
+{
+	debug_tree *Tree;
 	debug_variable *Var;
-	debug_variable_reference *Next;
-	debug_variable_reference *Parent;
+	debug_view *NextInHash;
+
+    debug_view_type Type;
+	union
+	{
+		debug_view_inline_block InlineBlock;
+		debug_view_collapsible Collapsible;
+	};
 };
 
-struct debug_variable_group
+struct debug_tree
 {
 	v2 UIP;
-	bool32 Expanded;
-	debug_variable_reference *FirstChild;
-	debug_variable_reference *LastChild;
-};
+	debug_variable *Group;
 
-struct debug_variable_hierarchy
-{
-	v2 UIP;
-	debug_variable_reference *Group;
-
-	debug_variable_hierarchy *Next;
-	debug_variable_hierarchy *Prev;
+	debug_tree *Next;
+	debug_tree *Prev;
 };
 
 struct debug_profile_settings
 {
-	v2 Dimension;
+	int Placeholder;
 };
 
 struct debug_bitmap_display
 {
 	bitmap_id ID;
-	v2 Dim;
-	bool32 Alpha;
+};
+
+struct debug_variable_array
+{
+	uint32 Count;
+	debug_variable *Vars;
 };
 
 struct debug_variable
@@ -89,9 +111,9 @@ struct debug_variable
 		v2 Vector2;
 		v3 Vector3;
 		v4 Vector4;
-		debug_variable_group Group;
 		debug_profile_settings Profile;
 		debug_bitmap_display BitmapDisplay;
+		debug_variable_array VarArray;
 	};
 };
 
@@ -181,7 +203,7 @@ struct debug_interaction
 	{
 		void *Generic;
 		debug_variable *Var;
-		debug_variable_hierarchy *Hierarchy;
+		debug_tree *Tree;
 		v2 *P;
 	};
 };
@@ -204,8 +226,9 @@ struct debug_state
 	v2 MenuP;
 	bool32 MenuActive;
 
-	debug_variable_reference *RootGroup;
-	debug_variable_hierarchy HierarchySentinel;
+	debug_varible *RootGroup;
+	debug_view *ViewHash[4096];
+	debug_tree TreeSentinel;
 
 	v2 LastMouseP;
 	debug_interaction Interaction;
@@ -237,9 +260,5 @@ struct debug_state
     debug_thread *FirstThread;
 	open_debug_block *FirstFreeBlock;
 };
-
-internal void DEBUGStart(game_assets *Assets, uint32 Width, uint32 Height);
-internal void DEBUGEnd(game_input *Input, loaded_bitmap *DrawBuffer);
-internal void RefreshCollation(debug_state *DebugState);
 
 #endif
