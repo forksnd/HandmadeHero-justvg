@@ -16,7 +16,7 @@ enum debug_variable_type
 
 	DebugVariableType_BitmapDisplay,
 
-	DebugVariableType_VarArray,
+	DebugVariableType_VarGroup,
 };
 inline bool32 
 DEBUGShouldBeWritten(debug_variable_type Type)
@@ -91,6 +91,13 @@ struct debug_bitmap_display
 	bitmap_id ID;
 };
 
+struct debug_variable_link
+{
+	debug_variable_link *Next;
+	debug_variable_link *Prev;
+	debug_variable *Var;
+};
+
 struct debug_variable_array
 {
 	uint32 Count;
@@ -113,7 +120,7 @@ struct debug_variable
 		v4 Vector4;
 		debug_profile_settings Profile;
 		debug_bitmap_display BitmapDisplay;
-		debug_variable_array VarArray;
+		debug_variable_link VarGroup;
 	};
 };
 
@@ -226,7 +233,7 @@ struct debug_state
 	v2 MenuP;
 	bool32 MenuActive;
 
-	debug_varible *RootGroup;
+	debug_variable *RootGroup;
 	debug_view *ViewHash[4096];
 	debug_tree TreeSentinel;
 

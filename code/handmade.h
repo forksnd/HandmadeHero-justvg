@@ -18,6 +18,14 @@
 #include "handmade_math.h"
 #include "handmade_file_formats.h"
 
+#define DLIST_INSERT(Sentinel, Element) \
+(Element)->Next = (Sentinel)->Next; \
+(Element)->Prev = (Sentinel); \
+(Element)->Next->Prev = (Element); \
+(Element)->Prev->Next = (Element); 
+
+#define DLIST_INIT(Sentinel) (Sentinel)->Next = (Sentinel)->Prev = (Sentinel);
+
 struct memory_arena
 {
     memory_index Size;

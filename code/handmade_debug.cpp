@@ -26,17 +26,14 @@ DEBUGGetState(void)
 }
 
 internal debug_tree *
-AddTree(debug_state *DebugState, debug_tree_entry *Group, v2 AtP)
+AddTree(debug_state *DebugState, debug_variable *Group, v2 AtP)
 {   
     debug_tree *Tree = PushStruct(&DebugState->DebugArena, debug_tree);
 
     Tree->UIP = AtP;
     Tree->Group = Group;
-    Tree->Next = DebugState->TreeSentinel.Next;
-    Tree->Prev = &DebugState->TreeSentinel;
 
-    Tree->Next->Prev = Tree;
-    Tree->Prev->Next = Tree;
+    DLIST_INSERT(&DebugState->TreeSentinel, Tree);
 
     return(Tree);
 }
@@ -292,7 +289,9 @@ DEBUGVariableToText(char *Buffer, char *End, debug_variable *Var, uint32 Flags)
                                   "V4(%f, %f, %f, %f)", Var->Vector4.x, Var->Vector4.y, Var->Vector4.z, Var->Vector4.w);
         } break;
 
-        case DebugVariableType_Group:
+        case DebugVariableType_CounterThreadList:
+        case DebugVariableType_BitmapDisplay:
+        case DebugVariableType_VarGroup:
         {
         } break;
 
@@ -312,6 +311,12 @@ DEBUGVariableToText(char *Buffer, char *End, debug_variable *Var, uint32 Flags)
     return(At - Buffer);
 }
 
+struct debug_variable_iterator
+{
+    debug_variable_link *Link;
+    debug_variable_link *Sentinel;
+};
+
 internal void
 WriteHandmadeConfig(debug_state *DebugState)
 {
@@ -320,52 +325,52 @@ WriteHandmadeConfig(debug_state *DebugState)
     char *End = Temp + sizeof(Temp);
 
     int Depth = 0;
-    debug_tree_entry *Ref = DebugState->RootGroup->Var->Group.FirstChild;
-    while(Ref)
+    debug_variable_iterator Stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
+
+    Stack[Depth].Link = DebugState->RootGroup->VarGroup.Next;
+    Stack[Depth].Sentinel = &DebugState->RootGroup->VarGroup;
+    Depth++;
+    while(Depth > 0)
     {
-        debug_variable *Var = Ref->Var;
-        if (DEBUGShouldBeWritten(Var->Type))
+        debug_variable_iterator *Iter = Stack + (Depth - 1);
+        if(Iter->Link == Iter->Sentinel)
         {
-            for(int Index = 0;
-                Index < Depth;
-                Index++)
-            {
-                *At++ = ' ';
-                *At++ = ' ';
-                *At++ = ' ';
-                *At++ = ' ';
-            }
-
-            if(Var->Type == DebugVariableType_Group)
-            {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "// ");
-            }
-            At += DEBUGVariableToText(At, End, Var, DEBUGVarToText_AddDebugUI|
-                                                    DEBUGVarToText_AddName|
-                                                    DEBUGVarToText_FloatSuffix|
-                                                    DEBUGVarToText_LineFeedEnd);
-        }
-
-        if(Var->Type == DebugVariableType_Group)
-        {
-            Ref = Var->Group.FirstChild;
-            Depth++;
+            Depth--;
         }
         else
         {
-            while(Ref)
+            debug_variable *Var = Iter->Link->Var;
+            Iter->Link = Iter->Link->Next;
+
+            if (DEBUGShouldBeWritten(Var->Type))
             {
-                if(Ref->Next)
+                for(int Index = 0;
+                    Index < Depth;
+                    Index++)
                 {
-                    Ref = Ref->Next;
-                    break;
+                    *At++ = ' ';
+                    *At++ = ' ';
+                    *At++ = ' ';
+                    *At++ = ' ';
                 }
-                else
+
+                if(Var->Type == DebugVariableType_VarGroup)
                 {
-                    Ref = Ref->Parent;
-                    Depth--;
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "// ");
                 }
+                At += DEBUGVariableToText(At, End, Var, DEBUGVarToText_AddDebugUI|
+                                                        DEBUGVarToText_AddName|
+                                                        DEBUGVarToText_FloatSuffix|
+                                                        DEBUGVarToText_LineFeedEnd);
+            }
+
+            if(Var->Type == DebugVariableType_VarGroup)
+            {
+                Iter = Stack + Depth;
+                Iter->Link = Var->VarGroup.Next;
+                Iter->Sentinel = &Var->VarGroup;
+                Depth++;
             }
         }
     }
@@ -596,6 +601,17 @@ EndElement(layout_element *Element)
     Layout->At.y = GetMinCorner(TotalBounds).y - SpacingY;
 }
 
+
+internal debug_view *
+GetDebugViewFor(debug_state *DebugState, debug_variable *Var)
+{
+    debug_view *Result = 0;
+
+    // NotImplemented;
+
+    return(Result);
+}
+
 internal void
 DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
 {
@@ -611,94 +627,95 @@ DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
         Layout.LineAdvance = GetLineAdvanceFor(DebugState->DebugFontInfo)*DebugState->FontScale;
         Layout.SpacingY = 4.0f;
 
-        debug_tree_entry *Ref = Tree->Group->Var->Group.FirstChild;
-        while(Ref)
+        int Depth = 0;
+        debug_variable_iterator Stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
+
+        Stack[Depth].Link = DebugState->RootGroup->VarGroup.Next;
+        Stack[Depth].Sentinel = &DebugState->RootGroup->VarGroup;
+        Depth++;
+        while(Depth > 0)
         {
-            debug_variable *Var = Ref->Var;
-
-            debug_interaction ItemInteraction = {};
-            ItemInteraction.Type = DebugInteraction_AutoModifyVariable;
-			ItemInteraction.Var = Var;
-
-            bool32 IsHot = InteractionIsHot(DebugState, ItemInteraction);
-            v4 ItemColor = (IsHot) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
-
-            switch(Var->Type)
+            debug_variable_iterator *Iter = Stack + (Depth - 1);
+            if(Iter->Link == Iter->Sentinel)
             {
-                case DebugVariableType_CounterThreadList:
-                {
-                    layout_element Element = BeginElementRectangle(&Layout, &Var->Profile.Dimension);
-                    MakeElementSizeable(&Element);
-                    DefaultInteraction(&Element, ItemInteraction);
-                    EndElement(&Element);
-
-                    DrawProfileIn(DebugState, Element.Bounds, MouseP);
-                } break;
-
-                case DebugVariableType_BitmapDisplay:
-                {
-                    loaded_bitmap *Bitmap = GetBitmap(RenderGroup->Assets, Var->BitmapDisplay.ID, RenderGroup->GenerationID);
-                    real32 BitmapScale = Var->BitmapDisplay.Dim.y;
-                    if(Bitmap)
-                    {
-                        used_bitmap_dim Dim = GetBitmapDim(RenderGroup, Bitmap, BitmapScale, V3(0.0f, 0.0f, 0.0f), 1.0f);
-                        Var->BitmapDisplay.Dim.x = Dim.Size.x;
-                    }
-
-                    debug_interaction TearInteraction = {};
-                    TearInteraction.Type = DebugInteraction_TearValue;
-                    TearInteraction.Var = Var;
-                    
-                    layout_element Element = BeginElementRectangle(&Layout, &Var->BitmapDisplay.Dim);
-                    MakeElementSizeable(&Element);
-                    DefaultInteraction(&Element, TearInteraction);
-                    EndElement(&Element);
-
-                    PushRect(DebugState->RenderGroup, Element.Bounds, 0.0f, V4(0, 0, 0, 1));
-                    PushBitmap(DebugState->RenderGroup, Var->BitmapDisplay.ID, Var->BitmapDisplay.Dim.y, 
-                               V3(GetMinCorner(Element.Bounds), 0.0f), V4(1, 1, 1, 1), 0.0f);
-                } break;
-
-                default:
-                {
-                    char Text[256];
-                    DEBUGVariableToText(Text, Text + sizeof(Text), Var, DEBUGVarToText_AddName|
-                                                                        DEBUGVarToText_NullTerminator|
-                                                                        DEBUGVarToText_Colon|
-                                                                        DEBUGVarToText_PrettyBools);
-
-                    rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
-                    v2 Dim = {GetDim(TextBounds).x, Layout.LineAdvance};
-
-                    layout_element Element = BeginElementRectangle(&Layout, &Dim);
-                    DefaultInteraction(&Element, ItemInteraction);
-                    EndElement(&Element);
-
-                    DEBUGTextOutAt(V2(GetMinCorner(Element.Bounds).x, 
-                                      GetMaxCorner(Element.Bounds).y - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
-                                      Text, ItemColor);
-                } break;
-            }
-            
-            if((Var->Type == DebugVariableType_Group) && Var->Group.Expanded)
-            {
-                Ref = Var->Group.FirstChild;
-                Layout.Depth++;
+                Depth--;
             }
             else
             {
-                while(Ref)
+                debug_variable *Var = Iter->Link->Var;
+                Iter->Link = Iter->Link->Next;
+
+                debug_interaction ItemInteraction = {};
+                ItemInteraction.Type = DebugInteraction_AutoModifyVariable;
+                ItemInteraction.Var = Var;
+
+                bool32 IsHot = InteractionIsHot(DebugState, ItemInteraction);
+                v4 ItemColor = (IsHot) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
+
+                debug_view *View = GetDebugViewFor(DebugState, Var);
+                switch(Var->Type)
                 {
-                    if(Ref->Next)
+                    case DebugVariableType_CounterThreadList:
                     {
-                        Ref = Ref->Next;
-                        break;
-                    }
-                    else
+                        layout_element Element = BeginElementRectangle(&Layout, &View->InlineBlock.Dim);
+                        MakeElementSizeable(&Element);
+                        DefaultInteraction(&Element, ItemInteraction);
+                        EndElement(&Element);
+
+                        DrawProfileIn(DebugState, Element.Bounds, MouseP);
+                    } break;
+
+                    case DebugVariableType_BitmapDisplay:
                     {
-                        Ref = Ref->Parent;
-                        Layout.Depth--;
-                    }
+                        loaded_bitmap *Bitmap = GetBitmap(RenderGroup->Assets, Var->BitmapDisplay.ID, RenderGroup->GenerationID);
+                        real32 BitmapScale = View->InlineBlock.Dim.y;
+                        if(Bitmap)
+                        {
+                            used_bitmap_dim Dim = GetBitmapDim(RenderGroup, Bitmap, BitmapScale, V3(0.0f, 0.0f, 0.0f), 1.0f);
+                            View->InlineBlock.Dim.x = Dim.Size.x;
+                        }
+
+                        debug_interaction TearInteraction = {};
+                        TearInteraction.Type = DebugInteraction_TearValue;
+                        TearInteraction.Var = Var;
+                        
+                        layout_element Element = BeginElementRectangle(&Layout, &View->InlineBlock.Dim);
+                        MakeElementSizeable(&Element);
+                        DefaultInteraction(&Element, TearInteraction);
+                        EndElement(&Element);
+
+                        PushRect(DebugState->RenderGroup, Element.Bounds, 0.0f, V4(0, 0, 0, 1));
+                        PushBitmap(DebugState->RenderGroup, Var->BitmapDisplay.ID, View->InlineBlock.Dim.y, 
+                                V3(GetMinCorner(Element.Bounds), 0.0f), V4(1, 1, 1, 1), 0.0f);
+                    } break;
+
+                    default:
+                    {
+                        char Text[256];
+                        DEBUGVariableToText(Text, Text + sizeof(Text), Var, DEBUGVarToText_AddName|
+                                                                            DEBUGVarToText_NullTerminator|
+                                                                            DEBUGVarToText_Colon|
+                                                                            DEBUGVarToText_PrettyBools);
+
+                        rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
+                        v2 Dim = {GetDim(TextBounds).x, Layout.LineAdvance};
+
+                        layout_element Element = BeginElementRectangle(&Layout, &Dim);
+                        DefaultInteraction(&Element, ItemInteraction);
+                        EndElement(&Element);
+
+                        DEBUGTextOutAt(V2(GetMinCorner(Element.Bounds).x, 
+                                        GetMaxCorner(Element.Bounds).y - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
+                                        Text, ItemColor);
+                    } break;
+                }
+
+                if(Var->Type == DebugVariableType_VarGroup)
+                {
+                    Iter = Stack + Depth;
+                    Iter->Link = Var->VarGroup.Next;
+                    Iter->Sentinel = &Var->VarGroup;
+                    Depth++;
                 }
             }
         }
@@ -785,7 +802,7 @@ DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP, bool32
                     DebugState->HotInteraction.Type = DebugInteraction_DragValue;
                 } break;
 
-                case DebugVariableType_Group:
+                case DebugVariableType_VarGroup:
                 {
                     DebugState->HotInteraction.Type = DebugInteraction_ToggleValue;
                 } break;
@@ -801,12 +818,15 @@ DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP, bool32
         {
             case DebugInteraction_TearValue:
             {
+                // TODO(georgy): Reimplement with new system
+#if 0
                 debug_tree_entry *RootGroup = DEBUGAddRootGroup(DebugState, "NewUserGroup");
                 DEBUGAddVariableReference(DebugState, RootGroup, DebugState->HotInteraction.Var);
                 debug_tree *Tree = AddTree(DebugState, RootGroup, V2(0, 0));
                 Tree->UIP = MouseP;
                 DebugState->HotInteraction.Type = DebugInteraction_Move;
                 DebugState->HotInteraction.P = &Tree->UIP;
+#endif
             } break;
         }
 
@@ -834,9 +854,10 @@ DEBUGEndInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
                     Var->Bool32 = !Var->Bool32;
                 } break;
 
-                case DebugVariableType_Group:
+                case DebugVariableType_VarGroup:
                 {
-                    Var->Group.Expanded = !Var->Group.Expanded;
+                    debug_view *View = GetDebugViewFor(DebugState, Var);
+                    View->Collapsible.ExpandedAlways = !View->Collapsible.ExpandedAlways;
                 } break;
             }
         } break;
@@ -1168,21 +1189,18 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
             debug_variable_definition_context Context = {};
             Context.State = DebugState;
             Context.Arena = &DebugState->DebugArena;
-            Context.Group = DEBUGBeginVariableGroup(&Context, "Root");
+            Context.GroupStack[0] = 0;
 
+            DebugState->RootGroup = DEBUGBeginVariableGroup(&Context, "Root");
             DEBUGBeginVariableGroup(&Context, "Debugging");
 
             DEBUGCreateVariables(&Context);
             DEBUGBeginVariableGroup(&Context, "Profile");
             DEBUGBeginVariableGroup(&Context, "By Thread");
-            debug_tree_entry *ThreadList = 
-                DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
-            ThreadList->Var->Profile.Dimension = V2(512.0f, 100.0f);
+            DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
             DEBUGEndVariableGroup(&Context);
             DEBUGBeginVariableGroup(&Context, "By Function");
-            debug_tree_entry *FunctionList = 
-                DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
-            FunctionList->Var->Profile.Dimension = V2(512.0f, 200.0f);
+            DEBUGAddVariable(&Context, DebugVariableType_CounterThreadList, "");
             DEBUGEndVariableGroup(&Context);
             DEBUGEndVariableGroup(&Context);
 
@@ -1194,9 +1212,9 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
             DEBUGAddVariable(&Context, "Test Bitmap", ID);
 
             DEBUGEndVariableGroup(&Context);
+            DEBUGEndVariableGroup(&Context);
+            Assert(Context.GroupDepth == 0);
             
-            DebugState->RootGroup = Context.Group;
-
             DebugState->RenderGroup = AllocateRenderGroup(Assets, &DebugState->DebugArena, 
                                                           Megabytes(16), false);
 
