@@ -26,26 +26,42 @@ DEBUGAddVariableToGroup(debug_state *State, debug_variable *Group, debug_variabl
 {
     debug_variable_link *Link = PushStruct(&State->DebugArena, debug_variable_link);
     DLIST_INSERT(&Group->VarGroup, Link);
+    Link->Var = Add;
+}
+
+internal void
+DEBUGAddVariableToDefaultGroup(debug_variable_definition_context *Context, debug_variable *Var)
+{
+    debug_variable *Parent = Context->GroupStack[Context->GroupDepth];
+    if(Parent)
+    {
+        DEBUGAddVariableToGroup(Context->State, Parent, Var);
+    }
 }
 
 internal debug_variable *
 DEBUGAddVariable(debug_variable_definition_context *Context, debug_variable_type Type, char *Name)
 {
     debug_variable *Var = DEBUGAddVariable(Context->State, Type, Name);
-    debug_variable *Parent = Context->GroupStack[Context->GroupDepth];
-    if(Parent)
-    {
-        DEBUGAddVariableToGroup(Context->State, Parent, Var);
-    }
+    DEBUGAddVariableToDefaultGroup(Context, Var);
 
     return(Var);
 }
 
 internal debug_variable *
+DEBUGAddRootGroup(debug_state *DebugState, char *Name)
+{
+    debug_variable *Group = DEBUGAddVariable(DebugState, DebugVariableType_VarGroup, Name);
+    DLIST_INIT(&Group->VarGroup);
+
+    return(Group);
+}
+
+internal debug_variable *
 DEBUGBeginVariableGroup(debug_variable_definition_context *Context, char *Name)
 {
-    debug_variable *Group = DEBUGAddVariable(Context->State, DebugVariableType_VarGroup, Name);
-    DLIST_INIT(&Group->VarGroup);
+    debug_variable *Group = DEBUGAddRootGroup(Context->State, Name);
+    DEBUGAddVariableToDefaultGroup(Context, Group);
 
     Assert(Context->GroupDepth < (ArrayCount(Context->GroupStack) - 1));
     Context->GroupStack[++Context->GroupDepth] = Group;
