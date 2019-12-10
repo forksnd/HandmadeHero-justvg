@@ -1003,15 +1003,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     DrawBuffer->Height = 719;
 #endif
 
+    v2 MouseP = {Input->MouseX, Input->MouseY};
+
     render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4), false);
     BeginRender(RenderGroup);
     real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
     real32 MetersToPixels = (real32)DrawBuffer->Width/WidthOfMonitor;
+
+    Clear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
+
     real32 FocalLength = 0.6f;
     real32 DistanceAboveGround = 24.0f;
     Perspective(RenderGroup, DrawBuffer->Width, DrawBuffer->Height, MetersToPixels, FocalLength, DistanceAboveGround);
-
-    Clear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
 
     v2 ScreenCenter = {0.5f*(real32)DrawBuffer->Width,
                        0.5f*(real32)DrawBuffer->Height};
@@ -1453,6 +1456,44 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     InvalidCodePath;
                 }
             }
+
+#if DEBUGUI_DrawEntityOutlines
+
+            RenderGroup->Transform.OffsetP = V3(0, 0, 0);
+            RenderGroup->Transform.Scale = 1.0f;
+            v2 MeterMouseP = MouseP*(1.0f / RenderGroup->Transform.MetersToPixels);
+            real32 LocalZ = 10.0f;
+            v2 WorldMouseP = Unproject(RenderGroup, MeterMouseP, LocalZ);
+            RenderGroup->Transform.OffsetP = V3(WorldMouseP, RenderGroup->Transform.DistanceAboveTarget - LocalZ);
+            PushRect(RenderGroup, V3(0, 0, 0), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
+
+#if 0
+            if(EntityIndex == 10)
+            {
+                v2 MeterMouseP = MouseP*(1.0f / RenderGroup->Transform.MetersToPixels);
+                for(uint32 VolumeIndex = 0;
+                    VolumeIndex < Entity->Collision->VolumeCount;
+                    VolumeIndex++)
+                {
+                    sim_entity_collision_volume *Volume = Entity->Collision->Volumes + VolumeIndex;
+
+                    real32 LocalZ = RenderGroup->Transform.OffsetP.z + Volume->OffsetP.z;
+                    v4 OutlineColor = V4(1, 0, 1, 1);
+                    v2 LocalMouseP = Unproject(RenderGroup, MeterMouseP, LocalZ) - 
+                                    (RenderGroup->Transform.OffsetP.xy + Volume->OffsetP.xy);
+                    PushRect(RenderGroup, V3(LocalMouseP, Volume->OffsetP.z), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
+
+                    if((LocalMouseP.x > -0.5f*Volume->Dim.x) && (LocalMouseP.x < 0.5f*Volume->Dim.x) && 
+                       (LocalMouseP.y > -0.5f*Volume->Dim.y) && (LocalMouseP.y < 0.5f*Volume->Dim.y))
+                    {
+                        OutlineColor = V4(1, 1, 0, 1);
+                    }
+
+                    PushRectOutline(RenderGroup, Volume->OffsetP - V3(0, 0, 0.5f*Volume->Dim.z), Volume->Dim.xy, OutlineColor, 0.05f);
+                }
+            }
+#endif
+#endif
         }
     }
 
@@ -1539,6 +1580,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
     Saturation(RenderGroup, 0.0f);
 #endif
+
+    Orthographic(RenderGroup, DrawBuffer->Width, DrawBuffer->Height, 1.0f);
+
+    PushRectOutline(RenderGroup, V3(MouseP, 0.0f), V2(2.0f, 2.0f));
 
     TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
     EndRender(RenderGroup);    

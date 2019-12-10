@@ -8,9 +8,11 @@
             #define DEBUGUI_ParticleTest 0
         // #define DEBUGUI_Renderer 
             // #define DEBUGUI_Camera 
-                #define DEBUGUI_UseRoomBasedCamera 1
+                #define DEBUGUI_UseRoomBasedCamera 0
                 #define DEBUGUI_DebugCameraDistance 6.400010f
-                #define DEBUGUI_UseDebugCamera 1
+                #define DEBUGUI_UseDebugCamera 0
         // #define DEBUGUI_Group chunks 
             #define DEBUGUI_GroundChunkCheckboards 0
             #define DEBUGUI_GroundChunkOutlines 1
+        // #define DEBUGUI_Entities 
+            #define DEBUGUI_DrawEntityOutlines 1

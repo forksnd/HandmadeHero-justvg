@@ -117,6 +117,10 @@ DEBUGCreateVariables(debug_variable_definition_context *Context)
 {
 #define DEBUG_VARIABLE_LISTING(Name) DEBUGAddVariable(Context, #Name, DEBUGUI_##Name);
 
+    DEBUGBeginVariableGroup(Context, "Entities");
+    DEBUG_VARIABLE_LISTING(DrawEntityOutlines);
+    DEBUGEndVariableGroup(Context);
+
     DEBUGBeginVariableGroup(Context, "Group chunks");
     DEBUG_VARIABLE_LISTING(GroundChunkOutlines);
     DEBUG_VARIABLE_LISTING(GroundChunkCheckboards);
