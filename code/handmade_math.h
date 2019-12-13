@@ -354,6 +354,14 @@ operator-(v2 A, v2 B)
 	return(Result);
 }
 
+inline v2 &
+operator-=(v2 &A, v2 B)
+{
+	A = A - B;
+
+	return(A); 
+}
+
 inline v2
 Hadamard(v2 A, v2 B)
 {
@@ -478,6 +486,14 @@ operator-(v3 A, v3 B)
 	Result.z = A.z - B.z;
 
 	return(Result);
+}
+
+inline v3 &
+operator-=(v3 &A, v3 B)
+{
+	A = A - B;
+
+	return(A); 
 }
 
 inline v3
@@ -618,6 +634,14 @@ operator-(v4 A, v4 B)
 	Result.w = A.w - B.w;
 
 	return(Result);
+}
+
+inline v4 &
+operator-=(v4 &A, v4 B)
+{
+	A = A - B;
+
+	return(A); 
 }
 
 inline v4

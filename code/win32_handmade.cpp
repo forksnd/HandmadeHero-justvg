@@ -1595,8 +1595,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         POINT MouseP;
                         GetCursorPos(&MouseP);
                         ScreenToClient(Window, &MouseP); 
-                        NewInput->MouseX = (real32)MouseP.x + (-0.5f*(real32)GlobalBackbuffer.Width + 0.5f);
-                        NewInput->MouseY = (0.5f*(real32)GlobalBackbuffer.Height - 0.5f) - (real32)MouseP.y;
+                        NewInput->MouseX = (real32)MouseP.x;
+                        NewInput->MouseY = (real32)((GlobalBackbuffer.Height - 1) - (real32)MouseP.y);
                         NewInput->MouseZ = 0; // TODO(george): Support mousewheel?
 
                         DWORD WinButtonID[PlatformMouseButton_Count] = 

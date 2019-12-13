@@ -1220,7 +1220,7 @@ GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
 
         if(DistanceToPZ > NearClipPlane)
         {
-            v3 ProjectedXY = (1.0f / DistanceToPZ) * Transform->FocalLength*RawXY;
+            v3 ProjectedXY = (1.0f / DistanceToPZ) * Transform->FocalLength * RawXY;
             Result.Scale = Transform->MetersToPixels*ProjectedXY.z;
             Result.P = Transform->ScreenCenter + Transform->MetersToPixels*ProjectedXY.xy + V2(0.0f, Result.Scale*OffsetZ);  
             Result.Valid = true;
@@ -1400,26 +1400,30 @@ CoordinateSystem(render_group *Group, v2 Origin, v2 XAxis, v2 YAxis, v4 Color,
 #endif
 }
 
-#if 0
-inline v2
-CompleteUnproject()
+inline v3
+Unproject(render_group *Group, v2 PixelsXY)
 {
+    render_transform *Transform = &Group->Transform;
+
+    v2 UnprojectedXY;
     if(Transform->Orthographic)
     {
-        Result.P = Transform->ScreenCenter + Transform->MetersToPixels*P.xy; 
+        UnprojectedXY = (1.0f / Transform->MetersToPixels) * (PixelsXY - Transform->ScreenCenter);
     }
     else
     {
-        v2 A = (FinalP - Transform->ScreenCenter) / Transform->MetersToPixels;
-        v2 Result = A * ((Transform->DistanceAboveTarget - P.z) / Transform->FocalLength);
+        v2 A = (PixelsXY - Transform->ScreenCenter) * (1.0f / Transform->MetersToPixels);
+        UnprojectedXY = A * ((Transform->DistanceAboveTarget - Transform->OffsetP.z) / Transform->FocalLength);
     }
  
+    v3 Result = V3(UnprojectedXY, Transform->OffsetP.z);
     Result -= Transform->OffsetP;
+
+    return(Result);
 }
-#endif
 
 inline v2
-Unproject(render_group *Group, v2 ProjectedXY, real32 AtDistanceFromCamera)
+UnprojectOld(render_group *Group, v2 ProjectedXY, real32 AtDistanceFromCamera)
 {
     v2 WorldXY = (AtDistanceFromCamera / Group->Transform.FocalLength)*ProjectedXY;
     return(WorldXY);
@@ -1428,7 +1432,7 @@ Unproject(render_group *Group, v2 ProjectedXY, real32 AtDistanceFromCamera)
 inline rectangle2
 GetCameraRectangleAtDistance(render_group *Group, real32 DistanceFromCamera)
 {
-    v2 RawXY = Unproject(Group, Group->MonitorHalfDimInMeters, DistanceFromCamera);
+    v2 RawXY = UnprojectOld(Group, Group->MonitorHalfDimInMeters, DistanceFromCamera);
 
     rectangle2 Result = RectCenterHalfDim(V2(0, 0), RawXY);
 

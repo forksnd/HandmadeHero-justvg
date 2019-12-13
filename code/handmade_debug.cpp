@@ -1314,7 +1314,7 @@ DEBUGEnd(debug_state *DebugState, game_input *Input, loaded_bitmap *DrawBuffer)
         ZeroStruct(DebugState->NextHotInteraction);
         debug_record *HotRecord = 0;
 
-        v2 MouseP = V2((real32)Input->MouseX, (real32)Input->MouseY);
+        v2 MouseP = Unproject(DebugState->RenderGroup, V2((real32)Input->MouseX, (real32)Input->MouseY)).xy;
 
         DEBUGDrawMainMenu(DebugState, RenderGroup, MouseP);
         DEBUGInteract(DebugState, Input, MouseP);

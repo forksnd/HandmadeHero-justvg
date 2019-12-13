@@ -1459,40 +1459,61 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if DEBUGUI_DrawEntityOutlines
 
-            RenderGroup->Transform.OffsetP = V3(0, 0, 0);
-            RenderGroup->Transform.Scale = 1.0f;
-            v2 MeterMouseP = MouseP*(1.0f / RenderGroup->Transform.MetersToPixels);
-            real32 LocalZ = 10.0f;
-            v2 WorldMouseP = Unproject(RenderGroup, MeterMouseP, LocalZ);
-            RenderGroup->Transform.OffsetP = V3(WorldMouseP, RenderGroup->Transform.DistanceAboveTarget - LocalZ);
-            PushRect(RenderGroup, V3(0, 0, 0), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
+#if 1
 
 #if 0
-            if(EntityIndex == 10)
+            RenderGroup->Transform.OffsetP = V3(0, 0, 0);
+            RenderGroup->Transform.Scale = 1.0f;
+            real32 LocalZ = 3.0f;
+            v3 WorldMouseP = Unproject(RenderGroup, MouseP, LocalZ);
+            RenderGroup->Transform.OffsetP = WorldMouseP;
+            PushRect(RenderGroup, V3(0, 0, 0), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
+#endif            
+
+            for(uint32 VolumeIndex = 0;
+                VolumeIndex < Entity->Collision->VolumeCount;
+                VolumeIndex++)
             {
-                v2 MeterMouseP = MouseP*(1.0f / RenderGroup->Transform.MetersToPixels);
-                for(uint32 VolumeIndex = 0;
-                    VolumeIndex < Entity->Collision->VolumeCount;
-                    VolumeIndex++)
-                {
-                    sim_entity_collision_volume *Volume = Entity->Collision->Volumes + VolumeIndex;
+                sim_entity_collision_volume *Volume = Entity->Collision->Volumes + VolumeIndex;
 
-                    real32 LocalZ = RenderGroup->Transform.OffsetP.z + Volume->OffsetP.z;
-                    v4 OutlineColor = V4(1, 0, 1, 1);
-                    v2 LocalMouseP = Unproject(RenderGroup, MeterMouseP, LocalZ) - 
-                                    (RenderGroup->Transform.OffsetP.xy + Volume->OffsetP.xy);
-                    PushRect(RenderGroup, V3(LocalMouseP, Volume->OffsetP.z), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
-
-                    if((LocalMouseP.x > -0.5f*Volume->Dim.x) && (LocalMouseP.x < 0.5f*Volume->Dim.x) && 
-                       (LocalMouseP.y > -0.5f*Volume->Dim.y) && (LocalMouseP.y < 0.5f*Volume->Dim.y))
-                    {
-                        OutlineColor = V4(1, 1, 0, 1);
-                    }
-
-                    PushRectOutline(RenderGroup, Volume->OffsetP - V3(0, 0, 0.5f*Volume->Dim.z), Volume->Dim.xy, OutlineColor, 0.05f);
-                }
-            }
+                v3 LocalMouseP = Unproject(RenderGroup, MouseP);
+#if 0
+                PushRect(RenderGroup, V3(LocalMouseP.xy, 0.0f), V2(1.0f, 1.0f), V4(0.0f, 1.0f, 1.0f, 1.0f));
 #endif
+                if((LocalMouseP.x > -0.5f*Volume->Dim.x) && (LocalMouseP.x < 0.5f*Volume->Dim.x) && 
+                   (LocalMouseP.y > -0.5f*Volume->Dim.y) && (LocalMouseP.y < 0.5f*Volume->Dim.y))
+                {
+                    v4 OutlineColor = V4(1, 1, 0, 1);
+                    PushRectOutline(RenderGroup, Volume->OffsetP - V3(0, 0, 0.5f*Volume->Dim.z), Volume->Dim.xy, OutlineColor, 0.05f);
+                    
+                    DEBUG_BEGIN_HOT_ELEMENT(Entity);
+                    DEBUG_VALUE(Entity->StorageIndex);               
+                    DEBUG_VALUE(Entity->Updatable);               
+                    DEBUG_VALUE(Entity->Type);               
+                    DEBUG_VALUE(Entity->P);
+                    DEBUG_VALUE(Entity->dP);
+                    DEBUG_VALUE(Entity->DistanceLimit);
+                    DEBUG_VALUE(Entity->FacingDirection);
+                    DEBUG_VALUE(Entity->tBob);
+                    DEBUG_VALUE(Entity->dAbsTileZ);
+                    DEBUG_VALUE(Entity->HitPointMax);
+                    DEBUG_BEGIN_ARRAY(Entity->HitPoint);
+                    for(uint32 HitPointIndex = 0;
+                        HitPointIndex < Entity->HitPointMax;
+                        HitPointIndex++)
+                    {
+                        DEBUG_VALUE(Entity->HitPoint[HitPointIndex]);
+                    }
+                    DEBUG_END_ARRAY();
+                    DEBUG_VALUE(Entity->Sword);
+                    DEBUG_VALUE(Entity->WalkableDim);
+                    DEBUG_VALUE(Entity->WalkableHeight);
+                    DEBUG_END_HOT_ELEMENT();
+                }               
+            }
+
+#endif
+
 #endif
         }
     }
