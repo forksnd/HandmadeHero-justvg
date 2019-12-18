@@ -67,7 +67,7 @@ struct sim_entity_collision_volume_group
     sim_entity_collision_volume *Volumes;
 };
 
-struct sim_entity
+introspect(category:"regular butter") struct sim_entity
 {
     // NOTE(george): These are only for the sim region
     world_chunk *OldChunk;

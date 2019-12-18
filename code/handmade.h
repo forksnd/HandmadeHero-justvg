@@ -13,6 +13,8 @@
         1 - Slow code welcome
 */
 
+#define introspect(params)
+
 #include "handmade_platform.h"
 #include "handmade_intrinsics.h"
 #include "handmade_math.h"
