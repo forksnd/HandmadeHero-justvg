@@ -1,7 +1,7 @@
 #if !defined(HANDMADE_WORLD_H)
 #define HANDMADE_WORLD_H
 
-struct world_position
+introspect(category:"world") struct world_position
 {   
 	// TODO(george): It seems like we have to store ChunkX/Y/Z with each
     // entity because even though the sim region gather doesn't need it

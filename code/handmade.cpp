@@ -5,6 +5,7 @@
 #include "handmade_entity.cpp"
 #include "handmade_asset.cpp"
 #include "handmade_audio.cpp"
+#include "handmade_meta.cpp"
 
 struct add_low_entity_result
 {   

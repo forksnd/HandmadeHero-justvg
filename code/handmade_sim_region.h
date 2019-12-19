@@ -49,13 +49,13 @@ enum sim_entity_flags
     EntityFlag_Simming = (1 << 30), 
 };
 
-struct sim_entity_collision_volume
+introspect(category:"sim_region") struct sim_entity_collision_volume
 {
     v3 OffsetP;
     v3 Dim;
 };
 
-struct sim_entity_collision_volume_group
+introspect(category:"sim_region") struct sim_entity_collision_volume_group
 {
     sim_entity_collision_volume TotalVolume;
 
@@ -108,7 +108,7 @@ struct sim_entity_hash
     uint32 Index;
 };
 
-struct sim_region
+introspect(category:"regular butter") struct sim_region
 {
 	// TODO(george): Need a hash table here to map stored entity indices
 	// to sim entities
