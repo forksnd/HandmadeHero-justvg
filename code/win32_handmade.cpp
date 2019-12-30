@@ -1882,6 +1882,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             GlobalDebugTable = Game.DEBUGFrameEnd(&GameMemory, NewInput, &Buffer);
                         }
                         GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
+                        
                         END_BLOCK(CollationTime);
 #endif
 

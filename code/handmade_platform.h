@@ -433,14 +433,13 @@ struct threadid_coreindex
 struct debug_event
 {
 	uint64 Clock;
+    threadid_coreindex TC;
     uint16 DebugRecordIndex;
     uint8 TranslationUnit;
 	uint8 Type;
     union
     {
-        threadid_coreindex TC;
         real32 SecondsElapsed;
-        
         void *VecPtr[3];
         int32 VecS32[6];
         uint32 VecU32[6];
@@ -466,7 +465,7 @@ struct debug_table
 
 extern debug_table *GlobalDebugTable;
 
-#define RecordDebugEventCommon(RecordIndex, EventType) \
+#define RecordDebugEvent(RecordIndex, EventType) \
     uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, 1); \
 	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									\
 	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												\
@@ -474,19 +473,14 @@ extern debug_table *GlobalDebugTable;
     Event->Clock = __rdtsc();										 \
 	Event->DebugRecordIndex = (uint16)RecordIndex;					\
     Event->TranslationUnit = TRANSLATION_UNIT_INDEX;            \
-	Event->Type = (uint8)EventType;								
-
-#define RecordDebugEvent(RecordIndex, EventType)		\
-    {   \
-        RecordDebugEventCommon(RecordIndex, EventType)  \
-	    Event->TC.CoreIndex = 0;											 \
-        Event->TC.ThreadID = (uint16)GetThreadID();											 \
-    }
+	Event->Type = (uint8)EventType;								\
+    Event->TC.CoreIndex = 0;											 \
+    Event->TC.ThreadID = (uint16)GetThreadID();
 
 #define FRAME_MARKER(SecondsElapsedInit)  \
     { \
         int Counter = __COUNTER__; \
-        RecordDebugEventCommon(Counter, DebugEvent_FrameMarker); \
+        RecordDebugEvent(Counter, DebugEvent_FrameMarker); \
         Event->SecondsElapsed = SecondsElapsedInit; \
         debug_record *Record = GlobalDebugTable->Records[TRANSLATION_UNIT_INDEX] + Counter;  \
         Record->FileName=  __FILE__;                                                        \
@@ -506,7 +500,9 @@ extern debug_table *GlobalDebugTable;
     Record->LineNumber = LineNumberInit;                                                    \
     RecordDebugEvent(Counter, DebugEvent_BeginBlock);}
 #define END_BLOCK_(Counter) \
-    RecordDebugEvent(Counter, DebugEvent_EndBlock);
+    { \
+    RecordDebugEvent(Counter, DebugEvent_EndBlock); \
+    }
 
 #define BEGIN_BLOCK(Name) \
     int Counter_##Name = __COUNTER__; \
@@ -587,7 +583,7 @@ DEBUGValueSetEventData(debug_event *Event, int32 Value)
 #define DEBUG_BEGIN_DATA_BLOCK(Name, Ptr0, Ptr1) \
     { \
         int Counter = __COUNTER__; \
-        RecordDebugEventCommon(Counter, DebugEvent_OpenDataBlock); \
+        RecordDebugEvent(Counter, DebugEvent_OpenDataBlock); \
         Event->VecPtr[0] = Ptr0; \
         Event->VecPtr[1] = Ptr1; \
         debug_record *Record = GlobalDebugTable->Records[TRANSLATION_UNIT_INDEX] + Counter;  \
@@ -599,7 +595,7 @@ DEBUGValueSetEventData(debug_event *Event, int32 Value)
 #define DEBUG_END_DATA_BLOCK() \
     { \
         int Counter = __COUNTER__; \
-        RecordDebugEventCommon(Counter, DebugEvent_CloseDataBlock); \
+        RecordDebugEvent(Counter, DebugEvent_CloseDataBlock); \
         debug_record *Record = GlobalDebugTable->Records[TRANSLATION_UNIT_INDEX] + Counter;  \
         Record->FileName=  __FILE__;                                                        \
         Record->LineNumber = __LINE__;                                                    \
@@ -609,7 +605,7 @@ DEBUGValueSetEventData(debug_event *Event, int32 Value)
 #define DEBUG_VALUE(Value) \
     { \
         int Counter = __COUNTER__; \
-        RecordDebugEventCommon(Counter, DebugEvent_R32); \
+        RecordDebugEvent(Counter, DebugEvent_R32); \
         DEBUGValueSetEventData(Event, Value); \
         debug_record *Record = GlobalDebugTable->Records[TRANSLATION_UNIT_INDEX] + Counter;  \
         Record->FileName=  __FILE__;                                                        \
