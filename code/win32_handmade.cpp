@@ -1961,15 +1961,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         LARGE_INTEGER EndCounter = Win32GetWallClock();  
                         FRAME_MARKER(Win32GetSecondsElapsed(LastCounter, EndCounter));
                         LastCounter = EndCounter;
-
-#if HANDMADE_INTERNAL
-                        if(GlobalDebugTable)
-                        {
-                            // TODO(georgy): Move this to a global variable so that
-                            // there can be timers below this one?
-                            GlobalDebugTable->RecordCount[TRANSLATION_UNIT_INDEX] = __COUNTER__;
-                        }
-#endif
                     }
                 }   
             }

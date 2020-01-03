@@ -12,9 +12,6 @@ enum debug_variable_to_text_flag
 	DEBUGVarToText_PrettyBools = 0x40,
 };
 
-struct debug_tree;
-struct debug_variable;
-
 struct debug_view_inline_block
 {
 	v2 Dim;
@@ -58,7 +55,7 @@ struct debug_variable_link
 	debug_variable_link *Next;
 	debug_variable_link *Prev;
 	debug_variable_group *Children;
-	debug_variable *Var;
+	debug_event *Event;
 };
 
 struct debug_variable_group
@@ -78,14 +75,7 @@ struct debug_tree
 struct debug_variable_array
 {
 	uint32 Count;
-	debug_variable *Vars;
-};
-
-struct debug_variable
-{
-    debug_type Type;
-	char *Name;
-	debug_event Event;
+	debug_event *Vars;
 };
 
 struct render_group;
@@ -116,7 +106,7 @@ struct debug_counter_state
 
 struct debug_frame_region
 {
-	debug_record *Record;
+	debug_event *Event;
 	uint64 CycleCount;
 	uint16 LaneIndex;
 	uint16 ColorIndex;
@@ -140,7 +130,6 @@ struct debug_frame
 struct open_debug_block
 {
 	uint32 StartingFrameIndex;
-	debug_record *Source;
 	debug_event *OpeningEvent;
 	open_debug_block *Parent;
 
@@ -181,7 +170,7 @@ struct debug_interaction
 	union
 	{
 		void *Generic;
-		debug_variable *Var;
+		debug_event *Event;
 		debug_tree *Tree;
 		v2 *P;
 	};
@@ -222,7 +211,7 @@ struct debug_state
 	real32 GlobalWidth;
 	real32 GlobalHeight;
 
-	debug_record *ScopeToRecord;
+	char *ScopeToRecord;
 
 	// NOTE(georgy): Collation
 	memory_arena CollateArena;
