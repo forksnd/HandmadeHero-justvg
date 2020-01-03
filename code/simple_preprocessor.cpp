@@ -370,6 +370,7 @@ main(int ArgCount, char **Args)
     char *FileNames[] =
     {
         "handmade_sim_region.h",
+        "handmade_platform.h",
         "handmade_math.h",
         "handmade_world.h"
     };

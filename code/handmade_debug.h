@@ -1,32 +1,6 @@
 #if !defined(HANDMADE_DEBUG_H)
 #define HANDMADE_DEBUG_H
 
-enum debug_variable_type
-{
-    DebugVariableType_Bool32,
-    DebugVariableType_Int32,
-    DebugVariableType_UInt32,
-    DebugVariableType_Real32,
-    DebugVariableType_V2,
-    DebugVariableType_V3,
-    DebugVariableType_V4,
-
-	DebugVariableType_CounterThreadList,
-	// DebugVariableType_CounterFunctionList,
-
-	DebugVariableType_BitmapDisplay,
-
-	DebugVariableType_VarGroup,
-};
-inline bool32 
-DEBUGShouldBeWritten(debug_variable_type Type)
-{
-	bool32 Result = (Type != DebugVariableType_CounterThreadList) &&
-					(Type != DebugVariableType_BitmapDisplay);
-
-	return(Result);
-}
-
 enum debug_variable_to_text_flag
 {
 	DEBUGVarToText_AddDebugUI = 0x01,
@@ -78,30 +52,27 @@ struct debug_view
 	};
 };
 
-struct debug_tree
-{
-	v2 UIP;
-	debug_variable *Group;
-
-	debug_tree *Next;
-	debug_tree *Prev;
-};
-
-struct debug_profile_settings
-{
-	int Placeholder;
-};
-
-struct debug_bitmap_display
-{
-	bitmap_id ID;
-};
-
+struct debug_variable_group;
 struct debug_variable_link
 {
 	debug_variable_link *Next;
 	debug_variable_link *Prev;
+	debug_variable_group *Children;
 	debug_variable *Var;
+};
+
+struct debug_variable_group
+{
+	debug_variable_link Sentinel;
+};
+
+struct debug_tree
+{
+	v2 UIP;
+	debug_variable_group *Group;
+
+	debug_tree *Next;
+	debug_tree *Prev;
 };
 
 struct debug_variable_array
@@ -112,22 +83,9 @@ struct debug_variable_array
 
 struct debug_variable
 {
-    debug_variable_type Type;
-    char *Name;
-
-	union
-	{
-    	bool32 Bool32;
-		int32 Int32;
-		uint32 UInt32;
-		real32 Real32;
-		v2 Vector2;
-		v3 Vector3;
-		v4 Vector4;
-		debug_profile_settings Profile;
-		debug_bitmap_display BitmapDisplay;
-		debug_variable_link VarGroup;
-	};
+    debug_type Type;
+	char *Name;
+	debug_event Event;
 };
 
 struct render_group;
@@ -173,7 +131,7 @@ struct debug_frame
 	uint64 EndClock;
 	real32 WallSecondsElapsed;
 
-	debug_variable *RootGroup;
+	debug_variable_group *RootGroup;
 	
 	uint32 RegionCount;
 	debug_frame_region *Regions;
@@ -187,7 +145,7 @@ struct open_debug_block
 	open_debug_block *Parent;
 
 	// NOTE(georgy): Only for data blocks?
-	debug_variable *Group;
+	debug_variable_group *Group;
 
 	open_debug_block *NextFree;
 };
@@ -247,7 +205,7 @@ struct debug_state
 	v2 MenuP;
 	bool32 MenuActive;
 
-	debug_variable *RootGroup;
+	debug_variable_group *RootGroup;
 	debug_view *ViewHash[4096];
 	debug_tree TreeSentinel;
 
