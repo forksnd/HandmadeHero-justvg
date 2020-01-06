@@ -197,6 +197,8 @@ struct debug_state
 	uint32 SelectedIDCount;
 	debug_id SelectedID[64];
 
+	debug_variable_group *ValuesGroup;
+
 	debug_variable_group *RootGroup;
 	debug_view *ViewHash[4096];
 	debug_tree TreeSentinel;
