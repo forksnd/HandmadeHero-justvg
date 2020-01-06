@@ -1,18 +1,6 @@
-    // #define DEBUGUI_Debugging 
-        // #define DEBUGUI_Profile 
-            // #define DEBUGUI_By Function 
-            // #define DEBUGUI_By Thread 
-        #define DEBUGUI_FauxV4 V4(1.000000, 1.000000, 1.000000, 1.000000)
-        #define DEBUGUI_UseSpaceOutlines 1
-        // #define DEBUGUI_Particles 
-            #define DEBUGUI_ParticleTest 0
-        // #define DEBUGUI_Renderer 
-            // #define DEBUGUI_Camera 
-                #define DEBUGUI_UseRoomBasedCamera 0
-                #define DEBUGUI_DebugCameraDistance 6.400010f
-                #define DEBUGUI_UseDebugCamera 0
-        // #define DEBUGUI_Group chunks 
-            #define DEBUGUI_GroundChunkCheckboards 0
-            #define DEBUGUI_GroundChunkOutlines 1
-        // #define DEBUGUI_Entities 
-            #define DEBUGUI_DrawEntityOutlines 1
+#define GlobalConstants_Renderer_Camera_UseDebug 0
+#define GlobalConstants_Renderer_DebugCameraDistance 10.0f
+#define GlobalConstants_Renderer_Camera_UseRoomBasedCamera 0
+#define GlobalConstants_GroundChunks_Checkboards 0
+#define GlobalConstants_GroundChunks_Outlines 0
+#define GlobalConstants_Particles_Test 0

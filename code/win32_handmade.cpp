@@ -1445,9 +1445,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
 
             game_memory GameMemory = {};
-            GameMemory.PermanentStorageSize = Megabytes(256);
-            GameMemory.TransientStorageSize = Gigabytes(1);
-            GameMemory.DebugStorageSize = Megabytes(64);
             GameMemory.HighPriorityQueue = &HighPriorityQueue;
             GameMemory.LowPriorityQueue = &LowPriorityQueue;
             GameMemory.PlatformAPI.AddEntry = Win32AddEntry;
@@ -1470,6 +1467,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
             GameMemory.PlatformAPI.DEBUGGetProcessState = DEBUGGetProcessState;
 #endif
 
+            GameMemory.PermanentStorageSize = Megabytes(256);
+            GameMemory.TransientStorageSize = Gigabytes(1);
+            GameMemory.DebugStorageSize = Megabytes(64);
             // TODO(george): TransientStorage needs to be broken up
             // into game transient and cache transient, and only
             // the former need to be saved for state playback.
@@ -1492,7 +1492,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 // we can speed up / defer some of that processing.
 
                 Win32GetInputFileLocation(&Win32State, false, ReplayIndex, 
-                                            sizeof(ReplayBuffer->Filename), ReplayBuffer->Filename);
+                                          sizeof(ReplayBuffer->Filename), ReplayBuffer->Filename);
 
                 ReplayBuffer->FileHandle = 
                     CreateFileA(ReplayBuffer->Filename, GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);           
@@ -1598,6 +1598,10 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         NewInput->MouseX = (real32)MouseP.x;
                         NewInput->MouseY = (real32)((GlobalBackbuffer.Height - 1) - (real32)MouseP.y);
                         NewInput->MouseZ = 0; // TODO(george): Support mousewheel?
+
+                        NewInput->ShiftDown = (GetKeyState(VK_SHIFT) & (1 << 15));
+                        NewInput->AltDown = (GetKeyState(VK_MENU) & (1 << 15));
+                        NewInput->ControlDown = (GetKeyState(VK_CONTROL) & (1 << 15));
 
                         DWORD WinButtonID[PlatformMouseButton_Count] = 
                         {

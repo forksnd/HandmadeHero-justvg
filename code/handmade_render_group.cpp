@@ -1205,13 +1205,13 @@ GetRenderEntityBasisP(render_transform *Transform, v3 OriginalP)
         real32 OffsetZ = 0.0f;
 
         real32 DistanceAboveTarget = Transform->DistanceAboveTarget;
-#if DEBUGUI_UseDebugCamera
-        // TODO(georgy): How do we want to control the debug camera?
-        if(1)
+
+        DEBUG_IF(Renderer_Camera_UseDebug)        
         {
-            DistanceAboveTarget += DEBUGUI_DebugCameraDistance;
+            DEBUG_VARIABLE(r32, Renderer, DebugCameraDistance);
+
+            DistanceAboveTarget += DebugCameraDistance;
         }
-#endif
 
         real32 DistanceToPZ = DistanceAboveTarget - P.z;
         real32 NearClipPlane = 0.2f;
