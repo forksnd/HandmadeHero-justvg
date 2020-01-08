@@ -115,9 +115,19 @@ struct debug_frame_region
 #define MAX_REGIONS_PER_FRAME 5000
 struct debug_frame
 {
+	// IMPORTANT(georgy): This actually gets freed as a set in FreeFrame! 
+
+	union
+	{
+		debug_frame *Next;
+		debug_frame *NextFree;
+	};
+
 	uint64 BeginClock;
 	uint64 EndClock;
 	real32 WallSecondsElapsed;
+
+	real32 FrameBarScale;
 
 	debug_variable_group *RootGroup;
 	
@@ -127,23 +137,31 @@ struct debug_frame
 
 struct open_debug_block
 {
+	union
+	{
+		open_debug_block *Parent;
+		open_debug_block *NextFree;
+	};
+
 	uint32 StartingFrameIndex;
 	debug_event *OpeningEvent;
-	open_debug_block *Parent;
 
 	// NOTE(georgy): Only for data blocks?
 	debug_variable_group *Group;
-
-	open_debug_block *NextFree;
 };
 
 struct debug_thread
 {
+	union
+	{
+		debug_thread *Next;
+		debug_thread *NextFree;
+	};
+
 	uint32 ID;
 	uint32 LaneIndex;
 	open_debug_block *FirstOpenCodeBlock;
 	open_debug_block *FirstOpenDataBlock;
-	debug_thread *Next;
 };
 
 enum debug_interaction_type
@@ -207,6 +225,7 @@ struct debug_state
 	debug_interaction Interaction;
 	debug_interaction HotInteraction;
 	debug_interaction NextHotInteraction;
+	bool32 Paused;
 
 	real32 LeftEdge;
 	real32 RightEdge;
@@ -218,19 +237,17 @@ struct debug_state
 
 	char *ScopeToRecord;
 
-	// NOTE(georgy): Collation
-	memory_arena CollateArena;
-	temporary_memory CollateTemp;
-
-	uint32 CollationArrayIndex;
-    debug_frame *CollationFrame;
-	uint32 FrameBarLaneCount;
 	uint32 FrameCount;
-	real32 FrameBarScale;
-	bool32 Paused;
 
-	debug_frame *Frames;
+	debug_frame *OldestFrame;
+	debug_frame *MostRecentFrame;
+	debug_frame *FirstFreeFrame;
+
+    debug_frame *CollationFrame;
+
+	uint32 FrameBarLaneCount;
     debug_thread *FirstThread;
+	debug_thread *FirstFreeThread;
 	open_debug_block *FirstFreeBlock;
 };
 

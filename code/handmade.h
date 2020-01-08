@@ -27,6 +27,13 @@
 
 #define DLIST_INIT(Sentinel) (Sentinel)->Next = (Sentinel)->Prev = (Sentinel);
 
+#define FREELIST_ALLOCATE(type, Result, FreeListPointer, Arena) \
+    (Result) = (FreeListPointer); \
+    if(Result) {(FreeListPointer) = (FreeListPointer)->NextFree;} \
+    else { (Result) = PushStruct(Arena, type); }
+#define FREELIST_DEALLOCATE(Pointer, FreeListPointer) \
+    if(Pointer) {(Pointer)->NextFree = (FreeListPointer); (FreeListPointer) = (Pointer);} 
+
 struct memory_arena
 {
     memory_index Size;

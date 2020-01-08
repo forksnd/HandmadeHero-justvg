@@ -69,15 +69,13 @@ struct debug_event
     };
 };
 
-#define MAX_DEBUG_THREAD_COUNT 256
-#define MAX_DEBUG_EVENT_ARRAY_COUNT 8
-#define MAX_DEBUG_EVENT_COUNT 65536
 struct debug_table
 {
 	uint32 CurrentEventArrayIndex;
+    // TODO(georgy): This could actually be a u32 atomic now, since we
+    // only need 1 bit to store which array we're using...
 	uint64 volatile EventArrayIndex_EventIndex;
-    uint32 EventCount[MAX_DEBUG_EVENT_ARRAY_COUNT];
-	debug_event Events[MAX_DEBUG_EVENT_ARRAY_COUNT][MAX_DEBUG_EVENT_COUNT];
+	debug_event Events[2][65536];
 };
 
 extern debug_table *GlobalDebugTable;
@@ -85,7 +83,7 @@ extern debug_table *GlobalDebugTable;
 #define RecordDebugEvent(EventType, Block) \
     uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, 1); \
 	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									\
-	Assert(EventIndex < MAX_DEBUG_EVENT_COUNT);												\
+	Assert(EventIndex < ArrayCount(GlobalDebugTable->Events[0]));												\
 	debug_event *Event = GlobalDebugTable->Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	\
     Event->Clock = __rdtsc();										 \
 	Event->Type = (uint8)EventType;								\
