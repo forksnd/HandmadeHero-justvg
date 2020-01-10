@@ -5,7 +5,31 @@
 
 #include "handmade_debug.h"
 
-internal void RestartCollation(debug_state *DebugState, uint32 InvalidEventArrayIndex);
+internal void FreeFrame(debug_state *DebugState, debug_frame *Frame);
+
+#define DebugPushStruct(DebugState, type, ...) (type *)PushSizeWithDeallocation(DebugState, sizeof(type), ## __VA_ARGS__)
+#define DebugPushArray(DebugState, Count, type, ...) (type *)PushSizeWithDeallocation(DebugState, (Count)*sizeof(type), ## __VA_ARGS__)
+#define DebugPushCopy(DebugState, Size, Source, ...) Copy(Size, Source, PushSizeWithDeallocation(DebugState, Size, ## __VA_ARGS__))
+
+// TODO(georgy): Move this into the arenas proper so that all the macros
+// and utilities don't have to be duplicated
+inline void *
+PushSizeWithDeallocation(debug_state *DebugState, memory_index Size, memory_index Alignment = DEFAULT_MEMORY_ALIGNMENT)
+{
+    while(!ArenaHasRoomFor(&DebugState->DebugArena, Size, Alignment) && DebugState->OldestFrame)
+    {  
+        debug_frame *FrameToFree = DebugState->OldestFrame;
+        DebugState->OldestFrame = DebugState->OldestFrame->Next;
+        if(DebugState->MostRecentFrame == FrameToFree)
+        {
+            DebugState->MostRecentFrame = DebugState->MostRecentFrame->Next;
+        }
+        FreeFrame(DebugState, FrameToFree);
+    }
+
+    void *Result = PushSize_(&DebugState->DebugArena, Size, Alignment);
+    return(Result);
+}
 
 inline debug_id
 DebugIDFromLink(debug_tree *Tree, debug_variable_link *Link)
@@ -45,7 +69,7 @@ DEBUGGetState(void)
 internal debug_tree *
 AddTree(debug_state *DebugState, debug_variable_group *Group, v2 AtP)
 {   
-    debug_tree *Tree = PushStruct(&DebugState->DebugArena, debug_tree);
+    debug_tree *Tree = DebugPushStruct(DebugState, debug_tree);
 
     Tree->UIP = AtP;
     Tree->Group = Group;
@@ -680,7 +704,7 @@ GetOrCreateDebugViewFor(debug_state *DebugState, debug_id ID)
 
     if(!Result)
     {
-        Result = PushStruct(&DebugState->DebugArena, debug_view);
+        Result = DebugPushStruct(DebugState, debug_view);
         Result->ID = ID;
         Result->Type = DebugViewType_Unknown;
         Result->NextInHash = *HashSlot;
@@ -1191,7 +1215,7 @@ GetDebugThread(debug_state *DebugState, uint32 ThreadID)
 
     if(!Result)
     {
-        FREELIST_ALLOCATE(debug_thread, Result, DebugState->FirstFreeThread, &DebugState->DebugArena);
+        FREELIST_ALLOCATE(Result, DebugState->FirstFreeThread, DebugPushStruct(DebugState, debug_thread));
 
         Result->ID = ThreadID;
         Result->LaneIndex = DebugState->FrameBarLaneCount++;
@@ -1218,7 +1242,7 @@ AllocateOpenDebugBlock(debug_state *DebugState, uint32 FrameIndex,
                        debug_event *Event, open_debug_block **FirstOpenBlock)
 {
     open_debug_block *Result;
-    FREELIST_ALLOCATE(open_debug_block, Result, DebugState->FirstFreeBlock, &DebugState->DebugArena);
+    FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, DebugPushStruct(DebugState, open_debug_block));
     
     Result->StartingFrameIndex = FrameIndex;
     Result->OpeningEvent = Event;
@@ -1252,10 +1276,10 @@ EventsMatch(debug_event *A, debug_event *B)
 internal debug_event *
 CreateVariable(debug_state *State, debug_type Type, char *Name)
 {
-    debug_event *Var = PushStruct(&State->DebugArena, debug_event);
+    debug_event *Var = DebugPushStruct(State, debug_event);
     ZeroStruct(*Var);
     Var->Type = (uint8)Type;
-    Var->BlockName = (char *)PushCopy(&State->DebugArena, StringLength(Name) + 1, Name);
+    Var->BlockName = (char *)DebugPushCopy(State, StringLength(Name) + 1, Name);
 
     return(Var);
 }
@@ -1263,7 +1287,7 @@ CreateVariable(debug_state *State, debug_type Type, char *Name)
 internal debug_variable_link *
 AddVariableToGroup(debug_state *DebugState, debug_variable_group *Group, debug_event *Add)
 {
-    debug_variable_link *Link = PushStruct(&DebugState->DebugArena, debug_variable_link);
+    debug_variable_link *Link = DebugPushStruct(DebugState, debug_variable_link);
     DLIST_INSERT(&Group->Sentinel, Link);
     Link->Children = 0;
     Link->Event = Add;
@@ -1274,7 +1298,7 @@ AddVariableToGroup(debug_state *DebugState, debug_variable_group *Group, debug_e
 internal debug_variable_group *
 CreateVariableGroup(debug_state *DebugState)
 {
-    debug_variable_group *Group = PushStruct(&DebugState->DebugArena, debug_variable_group);
+    debug_variable_group *Group = DebugPushStruct(DebugState, debug_variable_group);
     DLIST_INIT(&Group->Sentinel);
 
     return(Group);
@@ -1308,9 +1332,9 @@ NewFrame(debug_state *DebugState, u64 BeginClock)
     }
     else 
     { 
-        Result = PushStruct(&DebugState->DebugArena, debug_frame); 
+        Result = DebugPushStruct(DebugState, debug_frame); 
         ZeroStruct(*Result);
-        Result->Regions = PushArray(&DebugState->DebugArena, MAX_REGIONS_PER_FRAME, debug_frame_region);
+        Result->Regions = DebugPushArray(DebugState, MAX_REGIONS_PER_FRAME, debug_frame_region);
     }
 
     Result->FrameBarScale = 1.0f;

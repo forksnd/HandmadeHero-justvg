@@ -17,6 +17,7 @@ UnscaleAndBiasNormal(v4 Normal)
     return(Result);
 }
 
+#if 0
 internal void
 DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect, bool32 Even)
 {
@@ -43,11 +44,14 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
                       RoundReal32ToUInt32(B * 255.0f);
 
     uint8 *Row = (uint8 *)Buffer->Memory + FillRect.MinX*BITMAP_BYTES_PER_PIXEL + FillRect.MinY*Buffer->Pitch;
-
-    for (int Y = FillRect.MinY; Y < FillRect.MaxY; Y+=2)
+    for(int Y = FillRect.MinY; 
+        Y < FillRect.MaxY; 
+        Y+=2)
     {
         uint32 *Pixel = (uint32 *)Row;
-        for (int X = FillRect.MinX; X < FillRect.MaxX; X++)
+        for(int X = FillRect.MinX; 
+            X < FillRect.MaxX;
+            X++)
         {
             *Pixel++ = Color32;
         }
@@ -55,6 +59,105 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
         Row += 2*Buffer->Pitch;
     }
 }
+
+#else
+// NOTE(georgy): This is homework that Casey gave.
+//               It is not faster than the first version even using SIMD.
+//               In the first version in the loop we just copy values, but here to do it properly
+//               we need to do additional operations for masking
+internal void
+DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect, bool32 Even)
+{
+    real32 R = Color.r;
+    real32 G = Color.g;
+    real32 B = Color.b;
+    real32 A = Color.a;
+
+    rectangle2i FillRect;
+    FillRect.MinX = RoundReal32ToInt32(vMin.x);
+    FillRect.MinY = RoundReal32ToInt32(vMin.y);
+    FillRect.MaxX = RoundReal32ToInt32(vMax.x);
+    FillRect.MaxY = RoundReal32ToInt32(vMax.y);
+
+    FillRect = Intersect(FillRect, ClipRect);
+    if(Even == (FillRect.MinY & 1))
+    {
+        FillRect.MinY++;
+    }
+
+    if(HasArea(FillRect))
+    {
+        __m128i StartClipMask = _mm_set1_epi8(-1);
+        __m128i StartClipMasks[] = 
+        {
+            _mm_slli_si128(StartClipMask, 0*4),
+            _mm_slli_si128(StartClipMask, 1*4),
+            _mm_slli_si128(StartClipMask, 2*4),
+            _mm_slli_si128(StartClipMask, 3*4)
+        };
+
+        __m128i EndClipMask = _mm_set1_epi8(-1);
+        __m128i EndClipMasks[] = 
+        {
+            _mm_srli_si128(EndClipMask, 0*4),
+            _mm_srli_si128(EndClipMask, 3*4),
+            _mm_srli_si128(EndClipMask, 2*4),
+            _mm_srli_si128(EndClipMask, 1*4)
+        };
+
+        if(FillRect.MinX & 3)
+        {
+            StartClipMask = StartClipMasks[FillRect.MinX & 3];
+            FillRect.MinX = FillRect.MinX & ~3;
+        }
+
+        if(FillRect.MaxX & 3)
+        {
+            EndClipMask = EndClipMasks[FillRect.MaxX & 3];
+            FillRect.MaxX = (FillRect.MaxX & ~3) + 4;
+        }
+
+        uint32 Color32 = (RoundReal32ToUInt32(A * 255.0f) << 24) |
+                         (RoundReal32ToUInt32(R * 255.0f) << 16) | 
+                         (RoundReal32ToUInt32(G * 255.0f) << 8) |
+                          RoundReal32ToUInt32(B * 255.0f);
+        __m128i Color_4x = _mm_set1_epi32(Color32);
+
+        uint8 *Row = (uint8 *)Buffer->Memory + FillRect.MinX*BITMAP_BYTES_PER_PIXEL + FillRect.MinY*Buffer->Pitch;
+
+        for(int Y = FillRect.MinY; 
+            Y < FillRect.MaxY; 
+            Y+=2)
+        {
+            uint32 *Pixel = (uint32 *)Row;
+            __m128i ClipMask = StartClipMask;
+            for(int X = FillRect.MinX; 
+                X < FillRect.MaxX; 
+                X+=4)
+            {
+                __m128i OriginalDest = _mm_load_si128((__m128i*)Pixel);
+                __m128i MaskedOut = _mm_or_si128(_mm_and_si128(ClipMask, Color_4x),
+                                                 _mm_andnot_si128(ClipMask, OriginalDest));
+
+                _mm_store_si128((__m128i *)Pixel, MaskedOut);
+                Pixel += 4;
+
+                if((X + 8) < FillRect.MaxX)
+                {
+                    ClipMask = _mm_set1_epi8(-1);
+                }
+                else
+                {
+                    ClipMask = EndClipMask;
+                }
+            }
+
+            Row += 2*Buffer->Pitch;
+        }
+    }
+}
+
+#endif
 
 inline v4
 Unpack4x8(uint32 Packed)

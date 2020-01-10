@@ -165,7 +165,7 @@ StringLength(char *String)
 #endif
 
 
-#if defined(__cplusplus) && defined(HANDMADE_INTERNAL)
+#if defined(__cplusplus) && HANDMADE_INTERNAL
 
 inline void
 DEBUGValueSetEventData(debug_event *Event, real32 Value)
