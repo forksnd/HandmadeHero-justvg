@@ -47,13 +47,32 @@ struct debug_view
 	};
 };
 
+struct debug_stored_event
+{
+	union
+	{
+		debug_stored_event *Next;
+		debug_stored_event *NextFree;
+	};
+
+	u32 FrameIndex;
+	debug_event Event;
+};
+
+struct debug_element
+{
+	debug_stored_event *NextInHash;
+	debug_stored_event *OldestEvent;
+	debug_stored_event *MostRecentEvent;
+};
+
 struct debug_variable_group;
 struct debug_variable_link
 {
 	debug_variable_link *Next;
 	debug_variable_link *Prev;
 	debug_variable_group *Children;
-	debug_event *Event;
+	debug_element *Element;
 };
 
 struct debug_variable_group
@@ -129,10 +148,7 @@ struct debug_frame
 
 	real32 FrameBarScale;
 
-	debug_variable_group *RootGroup;
-	
-	uint32 RegionCount;
-	debug_frame_region *Regions;
+	u32 FrameIndex;
 };
 
 struct open_debug_block
@@ -196,7 +212,7 @@ struct debug_interaction
 
 struct debug_state
 {
-	bool32 Initialized;
+	b32 Initialized;
 
 	platform_work_queue *HighPriorityQueue;
 
@@ -210,42 +226,43 @@ struct debug_state
 	debug_executing_process Compiler;
 	
 	v2 MenuP;
-	bool32 MenuActive;
+	b32 MenuActive;
 
-	uint32 SelectedIDCount;
+	u32 SelectedIDCount;
 	debug_id SelectedID[64];
 
-	debug_variable_group *ValuesGroup;
-
-	debug_variable_group *RootGroup;
+	debug_element *ElementHash[1024];
 	debug_view *ViewHash[4096];
+	debug_tree *RootTree;
 	debug_tree TreeSentinel;
 
 	v2 LastMouseP;
 	debug_interaction Interaction;
 	debug_interaction HotInteraction;
 	debug_interaction NextHotInteraction;
-	bool32 Paused;
+	b32 Paused;
 
-	real32 LeftEdge;
-	real32 RightEdge;
-	real32 AtY;
-	real32 FontScale;
+	r32 LeftEdge;
+	r32 RightEdge;
+	r32 AtY;
+	r32 FontScale;
 	font_id FontID;
-	real32 GlobalWidth;
-	real32 GlobalHeight;
+	r32 GlobalWidth;
+	r32 GlobalHeight;
 
 	char *ScopeToRecord;
 
-	uint32 FrameCount;
-
+	u32 TotalFrameCount;
+	u32 FrameCount;
 	debug_frame *OldestFrame;
 	debug_frame *MostRecentFrame;
 	debug_frame *FirstFreeFrame;
 
     debug_frame *CollationFrame;
 
-	uint32 FrameBarLaneCount;
+	debug_stored_event *FirstFreeStoredEvent;
+
+	u32 FrameBarLaneCount;
     debug_thread *FirstThread;
 	debug_thread *FirstFreeThread;
 	open_debug_block *FirstFreeBlock;
