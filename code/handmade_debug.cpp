@@ -5,32 +5,6 @@
 
 #include "handmade_debug.h"
 
-internal void FreeFrame(debug_state *DebugState, debug_frame *Frame);
-
-#define DebugPushStruct(DebugState, type, ...) (type *)PushSizeWithDeallocation(DebugState, sizeof(type), ## __VA_ARGS__)
-#define DebugPushArray(DebugState, Count, type, ...) (type *)PushSizeWithDeallocation(DebugState, (Count)*sizeof(type), ## __VA_ARGS__)
-#define DebugPushCopy(DebugState, Size, Source, ...) Copy(Size, Source, PushSizeWithDeallocation(DebugState, Size, ## __VA_ARGS__))
-
-// TODO(georgy): Move this into the arenas proper so that all the macros
-// and utilities don't have to be duplicated
-inline void *
-PushSizeWithDeallocation(debug_state *DebugState, memory_index Size, memory_index Alignment = DEFAULT_MEMORY_ALIGNMENT)
-{
-    while(!ArenaHasRoomFor(&DebugState->DebugArena, Size, Alignment) && DebugState->OldestFrame)
-    {  
-        debug_frame *FrameToFree = DebugState->OldestFrame;
-        DebugState->OldestFrame = DebugState->OldestFrame->Next;
-        if(DebugState->MostRecentFrame == FrameToFree)
-        {
-            DebugState->MostRecentFrame = DebugState->MostRecentFrame->Next;
-        }
-        FreeFrame(DebugState, FrameToFree);
-    }
-
-    void *Result = PushSize_(&DebugState->DebugArena, Size, Alignment);
-    return(Result);
-}
-
 inline debug_id
 DebugIDFromLink(debug_tree *Tree, debug_variable_link *Link)
 {
@@ -69,7 +43,7 @@ DEBUGGetState(void)
 internal debug_tree *
 AddTree(debug_state *DebugState, debug_variable_group *Group, v2 AtP)
 {   
-    debug_tree *Tree = DebugPushStruct(DebugState, debug_tree);
+    debug_tree *Tree = PushStruct(&DebugState->DebugArena, debug_tree);
 
     Tree->UIP = AtP;
     Tree->Group = Group;
@@ -706,7 +680,7 @@ GetOrCreateDebugViewFor(debug_state *DebugState, debug_id ID)
 
     if(!Result)
     {
-        Result = DebugPushStruct(DebugState, debug_view);
+        Result = PushStruct(&DebugState->DebugArena, debug_view);
         Result->ID = ID;
         Result->Type = DebugViewType_Unknown;
         Result->NextInHash = *HashSlot;
@@ -1222,7 +1196,7 @@ GetDebugThread(debug_state *DebugState, uint32 ThreadID)
 
     if(!Result)
     {
-        FREELIST_ALLOCATE(Result, DebugState->FirstFreeThread, DebugPushStruct(DebugState, debug_thread));
+        FREELIST_ALLOCATE(Result, DebugState->FirstFreeThread, PushStruct(&DebugState->DebugArena, debug_thread));
 
         Result->ID = ThreadID;
         Result->LaneIndex = DebugState->FrameBarLaneCount++;
@@ -1251,7 +1225,7 @@ AllocateOpenDebugBlock(debug_state *DebugState, uint32 FrameIndex,
                        debug_event *Event, open_debug_block **FirstOpenBlock)
 {
     open_debug_block *Result;
-    FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, DebugPushStruct(DebugState, open_debug_block));
+    FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, PushStruct(&DebugState->DebugArena, open_debug_block));
     
     Result->StartingFrameIndex = FrameIndex;
     Result->OpeningEvent = Event;
@@ -1282,10 +1256,11 @@ EventsMatch(debug_event *A, debug_event *B)
     return(Result);
 }
 
+#if 0
 internal debug_event *
 CreateVariable(debug_state *State, debug_type Type, char *Name)
 {
-    debug_event *Var = DebugPushStruct(State, debug_event);
+    debug_event *Var = PushStruct(&DebugState->DebugArena, debug_event);
     ZeroStruct(*Var);
     Var->Type = (uint8)Type;
     Var->BlockName = (char *)DebugPushCopy(State, StringLength(Name) + 1, Name);
@@ -1296,7 +1271,7 @@ CreateVariable(debug_state *State, debug_type Type, char *Name)
 internal debug_variable_link *
 AddVariableToGroup(debug_state *DebugState, debug_variable_group *Group, debug_event *Add)
 {
-    debug_variable_link *Link = DebugPushStruct(DebugState, debug_variable_link);
+    debug_variable_link *Link = PushStruct(&DebugState->DebugArena, debug_variable_link);
     DLIST_INSERT(&Group->Sentinel, Link);
     Link->Children = 0;
     Link->Event = Add;
@@ -1307,7 +1282,7 @@ AddVariableToGroup(debug_state *DebugState, debug_variable_group *Group, debug_e
 internal debug_variable_group *
 CreateVariableGroup(debug_state *DebugState)
 {
-    debug_variable_group *Group = DebugPushStruct(DebugState, debug_variable_group);
+    debug_variable_group *Group = PushStruct(&DebugState->DebugArena, debug_variable_group);
     DLIST_INIT(&Group->Sentinel);
 
     return(Group);
@@ -1326,34 +1301,7 @@ GetGroupForHierarchicalName(debug_state *DebugState, char *Name)
     debug_variable_group *Result = DebugState->ValuesGroup;
     return(Result);
 }
-
-internal debug_frame *
-NewFrame(debug_state *DebugState, u64 BeginClock)
-{
-    // TODO(georgy): Simplify this once regions are more reasonable!
-    debug_frame *Result = DebugState->FirstFreeFrame;
-    if(Result) 
-    {
-        DebugState->FirstFreeFrame = DebugState->FirstFreeFrame->NextFree;
-        debug_frame_region *Regions = Result->Regions;
-        ZeroStruct(*Result);  
-        Result->Regions = Regions;
-    }
-    else 
-    { 
-        Result = DebugPushStruct(DebugState, debug_frame); 
-        ZeroStruct(*Result);
-        Result->Regions = DebugPushArray(DebugState, MAX_REGIONS_PER_FRAME, debug_frame_region);
-    }
-
-    Result->FrameIndex = DebugState->TotalFrameCount++;
-    Result->FrameBarScale = 1.0f;
-    Result->RootGroup = CreateVariableGroup(DebugState);
-    
-    Result->BeginClock = BeginClock;
-
-    return(Result);
-}
+#endif
 
 internal void
 FreeFrame(debug_state *DebugState, debug_frame *Frame)
@@ -1385,6 +1333,134 @@ FreeFrame(debug_state *DebugState, debug_frame *Frame)
 }
 
 internal void
+FreeOldestFrame(debug_state *DebugState)
+{
+    if(DebugState->OldestFrame)
+    {
+        debug_frame *Frame = DebugState->OldestFrame;
+        DebugState->OldestFrame = DebugState->OldestFrame->Next;
+        if(DebugState->MostRecentFrame == Frame)
+        {
+            Assert(Frame->Next == 0);
+            DebugState->MostRecentFrame = 0;
+        }
+
+        FreeFrame(DebugState, Frame);
+    }
+}
+
+internal debug_frame *
+NewFrame(debug_state *DebugState, u64 BeginClock)
+{
+    debug_frame *Result = 0;
+    while(!Result)
+    {
+        Result = DebugState->FirstFreeFrame;
+        if(Result)
+        {
+            DebugState->FirstFreeFrame = Result->NextFree;
+        }
+        else
+        {
+            if(ArenaHasRoomFor(&DebugState->PerFrameArena, sizeof(debug_frame)))
+            {
+                Result = PushStruct(&DebugState->PerFrameArena, debug_frame);
+            }
+            else
+            {
+                Assert(DebugState->OldestFrame);
+                FreeOldestFrame(DebugState);
+            }
+        }
+    } 
+
+    ZeroStruct(*Result);
+    Result->FrameIndex = DebugState->TotalFrameCount++;
+    Result->FrameBarScale = 1.0f;
+    
+    Result->BeginClock = BeginClock;
+
+    return(Result);
+}
+
+internal debug_stored_event *
+StoreEvent(debug_state *DebugState, debug_element *Element, debug_event *Event)
+{
+    debug_stored_event *Result = 0;
+    while(!Result)
+    {
+        Result = DebugState->FirstFreeStoredEvent;
+        if(Result)
+        {
+            DebugState->FirstFreeStoredEvent = Result->NextFree;
+        }
+        else
+        {
+            if(ArenaHasRoomFor(&DebugState->PerFrameArena, sizeof(debug_stored_event)))
+            {
+                Result = PushStruct(&DebugState->PerFrameArena, debug_stored_event);
+            }
+            else
+            {
+                Assert(DebugState->OldestFrame);
+                FreeOldestFrame(DebugState);
+            }
+        }
+    } 
+
+    Result->Next = 0;
+    Result->FrameIndex = DebugState->CollationFrame->FrameIndex;
+    Result->Event = *Event;
+
+    if(Element->MostRecentEvent)
+    {
+        Element->MostRecentEvent = Element->MostRecentEvent->Next = Result;
+    }
+    else
+    {
+        Element->OldestEvent = Element->MostRecentEvent = Result;
+    }
+
+    return(Result);
+}
+
+internal debug_element *
+GetElementFromEvent(debug_state *DebugState, debug_event *Event)
+{
+    Assert(Event->GUID);
+
+    u32 HashValue = (u32)((memory_index)Event->GUID >> 2);
+    // TODO(georgy): Verify this turns into an and (not a mod)
+    u32 Index = (HashValue % ArrayCount(DebugState->ElementHash));
+
+    debug_element *Result = 0;
+
+    for(debug_element *Chain = DebugState->ElementHash[Index];
+        Chain;
+        Chain = Chain->NextInHash)
+    {
+        if(Chain->GUID == Event->GUID)
+        {
+            Result = Chain;
+            break;
+        }
+    }
+
+    if(!Result)
+    {
+        Result = PushStruct(&DebugState->DebugArena, debug_element);
+
+        Result->GUID = Event->GUID;
+        Result->NextInHash = DebugState->ElementHash[Index];
+        DebugState->ElementHash[Index] = Result;
+
+        Result->OldestEvent = Result->MostRecentEvent = 0;
+    }
+
+    return(Result);
+}
+
+internal void
 CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventArray)
 {
     for(uint32 EventIndex = 0;
@@ -1392,6 +1468,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
         EventIndex++)
     {
         debug_event *Event = EventArray + EventIndex;
+        debug_element *Element = GetElementFromEvent(DebugState, Event);
 
         if(!DebugState->CollationFrame)
         {
@@ -1400,9 +1477,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
 
         if(Event->Type == DebugType_MarkDebugValue)
         {
-            AddVariableToGroup(DebugState, 
-                                GetGroupForHierarchicalName(DebugState, Event->Value_debug_event->BlockName), 
-                                Event->Value_debug_event);
+            StoreEvent(DebugState, Element, Event);
         }
         else if(Event->Type == DebugType_FrameMarker)
         {
@@ -1431,7 +1506,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
             {
                 if(DebugState->MostRecentFrame)
                 {
-                    DebugState->MostRecentFrame->Next = DebugState->CollationFrame;
+                    DebugState->MostRecentFrame = DebugState->MostRecentFrame->Next = DebugState->CollationFrame;
                 }
                 else
                 {
@@ -1472,6 +1547,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                                     MatchingBlock->Parent ? MatchingBlock->Parent->OpeningEvent->BlockName : 0;
                                 if(MatchName == DebugState->ScopeToRecord)
                                 {
+#if 0
                                     real32 MinT = (real32)(OpeningEvent->Clock - DebugState->CollationFrame->BeginClock);
                                     real32 MaxT = (real32)(Event->Clock - DebugState->CollationFrame->BeginClock);
                                     real32 ThresholdT = 0.01f;
@@ -1485,6 +1561,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                                         Region->MaxT = MaxT;
                                         Region->ColorIndex = (uint16)OpeningEvent->BlockName;
                                     }
+#endif
                                 }   
                             }
                             else
@@ -1505,13 +1582,14 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                 {
                     open_debug_block *DebugBlock = AllocateOpenDebugBlock(DebugState, FrameIndex, Event,
                                                                             &Thread->FirstOpenDataBlock);
-
+#if 0
                     DebugBlock->Group = CreateVariableGroup(DebugState);
                     debug_variable_link *Link = 
                                         AddVariableToGroup(DebugState,
                                                                     DebugBlock->Parent ? DebugBlock->Parent->Group : DebugState->CollationFrame->RootGroup, 
                                                                     Event);
                     Link->Children = DebugBlock->Group;
+#endif
                 } break;                
 
                 case DebugType_CloseDataBlock:
@@ -1533,8 +1611,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
 
                 default:
                 {
-                    HashThisEvent;
-                    AddVariableToGroup(DebugState, Thread->FirstOpenDataBlock->Group, Event);
+                    StoreEvent(DebugState, Element, Event);
                 } break;
             }
         }
@@ -1563,7 +1640,15 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
             DebugState->TreeSentinel.Prev = &DebugState->TreeSentinel;
             DebugState->TreeSentinel.Group = 0;
 
-            InitializeArena(&DebugState->DebugArena, DebugGlobalMemory->DebugStorageSize - sizeof(debug_state), DebugState + 1);
+            memory_index TotalMemorySize = DebugGlobalMemory->DebugStorageSize - sizeof(debug_state);
+            InitializeArena(&DebugState->DebugArena, TotalMemorySize, DebugState + 1);
+#if 1
+            SubArena(&DebugState->PerFrameArena, &DebugState->DebugArena, (TotalMemorySize / 2));
+#else
+            // NOTE(georgy): This is the stress-testing case to make sure the memory
+            // recycling works.
+            SubArena(&DebugState->PerFrameArena, &DebugState->DebugArena, 128*1024);
+#endif
 
 #if 0
             debug_variable_definition_context Context = {};
@@ -1604,9 +1689,7 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
 
             DebugState->Initialized = true;
 
-            DebugState->ValuesGroup = CreateVariableGroup(DebugState);
-
-            AddTree(DebugState, DebugState->RootGroup, V2(-0.5f*Width, 0.5f*Height));
+            // AddTree(DebugState, DebugState->RootGroup, V2(-0.5f*Width, 0.5f*Height));
         }
 
         BeginRender(DebugState->RenderGroup);
@@ -1812,8 +1895,13 @@ DEBUGEnd(debug_state *DebugState, game_input *Input, loaded_bitmap *DrawBuffer)
             {
                 char TextBuffer[256];
                 _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                            "Last frame time: %.02fms\n", 
+                            "Last frame time: %.02fms", 
                             DebugState->MostRecentFrame->WallSecondsElapsed * 1000.0f);
+                DEBUGTextLine(TextBuffer);
+
+                _snprintf_s(TextBuffer, sizeof(TextBuffer), 
+                            "Per-frame arena space remaining: %ukb", 
+                            (u32)(GetArenaSizeRemaining(&DebugState->PerFrameArena, 1) / 1024));
                 DEBUGTextLine(TextBuffer);
             }
         }   
