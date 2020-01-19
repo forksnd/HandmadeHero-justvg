@@ -2,7 +2,7 @@
 #define HANDMADE_PLATFORM_H
 
 // TODO(georgy): Have the meta-parser ignore its own #define
-#define introspect(params)
+#define introspect(IGNORED)
 
 #include "handmade_config.h"
 

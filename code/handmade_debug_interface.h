@@ -248,7 +248,7 @@ DEBUGValueSetEventData(debug_event *Event, font_id Value)
 
 #define DEBUG_BEGIN_DATA_BLOCK(Name, ID) \
     { \
-        RecordDebugEvent(DebugType_OpenDataBlock, Name); \
+        RecordDebugEvent(DebugType_OpenDataBlock, #Name); \
         Event->DebugID = ID; \
     }
 
