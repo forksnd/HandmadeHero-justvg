@@ -373,6 +373,8 @@ struct game_state
     uint32 NextParticle;
     particle Particles[256];
     particle_cel ParticleCels[PARTICLE_CEL_DIM][PARTICLE_CEL_DIM];
+
+    r32 tCutScene;
 };
 
 struct task_with_memory 
