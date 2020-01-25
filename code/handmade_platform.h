@@ -487,6 +487,9 @@ struct game_memory
 
     bool32 ExecutableReloaded;
     platform_api PlatformAPI;
+
+    // NOTE(georgy): Signals back to the platform layer 
+    b32 QuitRequested;
 };
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)

@@ -38,6 +38,12 @@ AddLowEntity(game_state *GameState, entity_type Type, world_position P)
     return(Result);
 }
 
+internal void
+DeleteLowEntity(game_state *GameState, u32 Index)
+{
+    // TODO(georgy): Actually delete
+}
+
 internal add_low_entity_result
 AddGroundedEntity(game_state *GameState, entity_type Type, world_position P, 
                   sim_entity_collision_volume_group *Collision)
@@ -1454,7 +1460,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         GameState->CameraP = NewCameraP;
 
         AddMonstar(GameState, CameraTileX + 3, CameraTileY + 2, CameraTileZ);
-        AddFamiliar(GameState, CameraTileX - 2, CameraTileY + 2, CameraTileZ);   
+        AddFamiliar(GameState, CameraTileX - 2, CameraTileY + 2, CameraTileZ);
+
+        GameState->CurrentCutScene = MakeIntroCutScene();   
 
         GameState->IsInitialized = true; 
     }
@@ -1535,12 +1543,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     world *World = GameState->World;
 
-    for (int ControllerIndex = 0; ControllerIndex < ArrayCount(Input->Controllers); ControllerIndex++)
+    b32 HeroesExist = false;
+    b32 QuitRequested = false;
+    for(u32 ControllerIndex = 0; 
+        ControllerIndex < ArrayCount(Input->Controllers); 
+        ControllerIndex++)
     {
         game_controller_input *Controller = GetController(Input, ControllerIndex);
         controlled_hero *ConHero = GameState->ControlledHeroes + ControllerIndex;
         if(ConHero->EntityIndex == 0)
         {
+            if(WasPressed(Controller->Back))
+            {
+                QuitRequested = true;
+            }
             if(Controller->Start.EndedDown)
             {
                 *ConHero = {};
@@ -1549,6 +1565,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
         else
         {
+            HeroesExist = true;
+
             ConHero->ddP = {};
             ConHero->dZ = 0.0f;
 
@@ -1602,6 +1620,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 ConHero->dSword = V2(1.0f, 0.0f);
             }   
+
+            if(WasPressed(Controller->Back))
+            {
+                DeleteLowEntity(GameState, ConHero->EntityIndex);
+                ConHero->EntityIndex = 0;
+            }
         }
     }
 
@@ -1627,15 +1651,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4), false);
     BeginRender(RenderGroup);
 
-    RenderCutscene(TranState->Assets, RenderGroup, DrawBuffer, GameState->tCutScene);
-    GameState->tCutScene += Input->dtForFrame;
-    if(GameState->tCutScene > 5.0f)
+    if(HeroesExist)
     {
-        GameState->tCutScene = 0.0f;
+        UpdateAndRenderGame(GameState, TranState, Input, RenderGroup, DrawBuffer);
     }
-    // UpdateAndRenderGame(GameState, TranState, Input, RenderGroup, DrawBuffer);
+    else    
+    {
+        RenderCutScene(TranState->Assets, RenderGroup, DrawBuffer, &GameState->CurrentCutScene);
+        AdvanceCutScene(&GameState->CurrentCutScene, Input->dtForFrame);
+    }
 
-    TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
+    if(!HeroesExist && QuitRequested)
+    {
+        Memory->QuitRequested = true;
+    }
+
+    if(AllResourcesPresent(RenderGroup))
+    {
+        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
+    }
     EndRender(RenderGroup);  
     
     EndTemporaryMemory(RenderMemory);
