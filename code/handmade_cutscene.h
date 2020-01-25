@@ -28,6 +28,8 @@ struct layered_scene
     r32 Duration;
     v3 CameraStart;
     v3 CameraEnd;
+
+    r32 tFadeIn;
 };
 
 struct playing_cutscene
