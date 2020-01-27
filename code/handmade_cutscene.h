@@ -32,10 +32,15 @@ struct layered_scene
     r32 tFadeIn;
 };
 
-struct playing_cutscene
+struct game_mode_cutscene
 {
     u32 SceneCount;
     layered_scene *Scenes;
+    r32 t;
+};
+
+struct game_mode_title_screen
+{
     r32 t;
 };
 

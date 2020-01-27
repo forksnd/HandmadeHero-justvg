@@ -101,10 +101,11 @@ GetWorldChunk(world *World, int32 ChunkX, int32 ChunkY, int32 ChunkZ,
 }
 
 internal void
-InitializeWorld(world *World, v3 ChunkDimInMeters)
+InitializeWorld(world *World, v3 ChunkDimInMeters, memory_arena *ParentArena)
 {
     World->ChunkDimInMeters = ChunkDimInMeters;
     World->FirstFree = 0;
+    SubArena(&World->Arena, ParentArena, GetArenaSizeRemaining(ParentArena));
 
     for(uint32 ChunkIndex = 0; ChunkIndex < ArrayCount(World->ChunkHash); ChunkIndex++)
     {
