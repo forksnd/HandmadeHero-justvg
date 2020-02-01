@@ -1,11 +1,11 @@
 #include "handmade.h"
 #include "handmade_render_group.cpp"
 #include "handmade_asset.cpp"
+#include "handmade_audio.cpp"
 #include "handmade_world.cpp"
 #include "handmade_sim_region.cpp"
 #include "handmade_entity.cpp"
 #include "handmade_world_mode.cpp"
-#include "handmade_audio.cpp"
 #include "handmade_meta.cpp"
 #include "handmade_cutscene.cpp"
 
@@ -274,7 +274,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         
         InitializeAudioState(&GameState->AudioState, &GameState->AudioArena);
 
-        PlayIntroCutScene(GameState);
+        // PlayIntroCutScene(GameState);
+        PlayTitleScreen(GameState);
 
         GameState->IsInitialized = true; 
     }
@@ -353,94 +354,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 #endif
 
-#if 0
-    b32 HeroesExist = false;
-    b32 QuitRequested = false;
-    for(u32 ControllerIndex = 0; 
-        ControllerIndex < ArrayCount(Input->Controllers); 
-        ControllerIndex++)
-    {
-        game_controller_input *Controller = GetController(Input, ControllerIndex);
-        controlled_hero *ConHero = GameState->ControlledHeroes + ControllerIndex;
-        if(ConHero->EntityIndex == 0)
-        {
-            if(WasPressed(Controller->Back))
-            {
-                QuitRequested = true;
-            }
-            if(Controller->Start.EndedDown)
-            {
-                *ConHero = {};
-                ConHero->EntityIndex = AddPlayer(GameState).LowIndex;
-            }
-        }
-        else
-        {
-            HeroesExist = true;
-
-            ConHero->ddP = {};
-            ConHero->dZ = 0.0f;
-
-            if(Controller->IsAnalog)
-            {
-                // NOTE(george): Use analog movement tuning
-                ConHero->ddP = v2{Controller->StickAverageX, Controller->StickAverageY};
-            }
-            else
-            {
-                // NOTE(george): Use digital movement tuning
-                if(Controller->MoveUp.EndedDown)
-                {
-                    ConHero->ddP.y = 1.0f;
-                }
-                if(Controller->MoveDown.EndedDown)
-                {
-                    ConHero->ddP.y = -1.0f;
-                }
-                if(Controller->MoveLeft.EndedDown)
-                {
-                    ConHero->ddP.x = -1.0f;
-                }
-                if(Controller->MoveRight.EndedDown)
-                {
-                    ConHero->ddP.x = 1.0f;
-                }
-            }
-
-            if(Controller->Start.EndedDown)
-            {
-                ConHero->dZ = 3.0f;
-            }
-
-            ConHero->dSword = {};
-            if(Controller->ActionUp.EndedDown)
-            {
-                ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, V2(1.0f, 1.0f));
-                ConHero->dSword = V2(0.0f, 1.0f);
-            }  
-            if(Controller->ActionDown.EndedDown)
-            {
-                ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, V2(0.0f, 0.0f));
-                ConHero->dSword = V2(0.0f, -1.0f);
-            }   
-            if(Controller->ActionLeft.EndedDown)
-            {
-                ConHero->dSword = V2(-1.0f, 0.0f);
-            }    
-            if(Controller->ActionRight.EndedDown)
-            {
-                ConHero->dSword = V2(1.0f, 0.0f);
-            }   
-
-            if(WasPressed(Controller->Back))
-            {
-                DeleteLowEntity(GameState, ConHero->EntityIndex);
-                ConHero->EntityIndex = 0;
-            }
-        }
-    }
-#endif
-
     // 
     // NOTE(george): Render
     // 
@@ -463,42 +376,47 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_group *RenderGroup = AllocateRenderGroup(TranState->Assets, &TranState->TranArena, Megabytes(4), false);
     BeginRender(RenderGroup);
 
-    switch(GameState->GameMode)
+    b32 Rerun = false;
+    do 
     {
-        case GameMode_TitleScreen:
+        switch(GameState->GameMode)
         {
-            UpdateAndRenderTitleScreen(TranState->Assets, RenderGroup, DrawBuffer,
-                                       GameState->TitleScreen);
-        } break;
+            case GameMode_TitleScreen:
+            {
+                Rerun = UpdateAndRenderTitleScreen(GameState, TranState->Assets, RenderGroup, Input, DrawBuffer,
+                                                   GameState->TitleScreen);
+            } break;
 
-        case GameMode_CutScene:
-        {
-            UpdateAndRenderCutScene(TranState->Assets, RenderGroup, DrawBuffer,
-                                    Input, GameState->CutScene);
-        } break;
+            case GameMode_CutScene:
+            {
+                Rerun = UpdateAndRenderCutScene(GameState, TranState->Assets, RenderGroup, DrawBuffer,
+                                                Input, GameState->CutScene);
+            } break;
 
-        case GameMode_World:
-        {
-            UpdateAndRenderWorld(GameState->WorldMode, TranState, Input, RenderGroup, DrawBuffer);
-        } break;
+            case GameMode_World:
+            {
+                Rerun = UpdateAndRenderWorld(GameState, GameState->WorldMode, TranState, Input, RenderGroup, DrawBuffer);
+            } break;
 
-        InvalidDefaultCase;
+            InvalidDefaultCase;
+        }
+    } while(Rerun);
+    
+    if(AllResourcesPresent(RenderGroup))
+    {
+        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
     }
 
+    EndRender(RenderGroup);  
+    
+    EndTemporaryMemory(RenderMemory);
+    
 #if 0
     if(!HeroesExist && QuitRequested)
     {
         Memory->QuitRequested = true;
     }
 #endif
-
-    if(AllResourcesPresent(RenderGroup))
-    {
-        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
-    }
-    EndRender(RenderGroup);  
-    
-    EndTemporaryMemory(RenderMemory);
 
     CheckArena(&GameState->ModeArena);
     CheckArena(&TranState->TranArena);
