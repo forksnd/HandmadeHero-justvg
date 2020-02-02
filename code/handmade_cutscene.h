@@ -45,6 +45,7 @@ struct game_mode_title_screen
 };
 
 struct game_state;
-internal void PlayIntroCutScene(game_state *GameState);
-internal void PlayTitleScreen(game_state *GameState);
+struct transient_state;
+internal void PlayIntroCutScene(game_state *GameState, transient_state *TranState);
+internal void PlayTitleScreen(game_state *GameState, transient_state *TranState);
 #endif

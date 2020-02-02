@@ -10,7 +10,7 @@
 #include "handmade_cutscene.cpp"
 
 internal task_with_memory *
-BeginTaskWithMemory(transient_state *TranState)
+BeginTaskWithMemory(transient_state *TranState, b32 DependsOnGameMode)
 {
     task_with_memory *FoundTask = 0;
 
@@ -23,6 +23,7 @@ BeginTaskWithMemory(transient_state *TranState)
         {
             FoundTask = Task;
             Task->BeingUsed = true;
+            Task->DependsOnGameMode = DependsOnGameMode;
             Task->MemoryFlush = BeginTemporaryMemory(&Task->Arena);
             break;
         }
@@ -41,16 +42,6 @@ EndTaskWithMemory(task_with_memory *Task)
     Task->BeingUsed = false;    
 }
 
-internal void
-ClearBitmap(loaded_bitmap *Bitmap)
-{
-    if(Bitmap->Memory)
-    {
-        int32 TotalBitmapSize = Bitmap->Width*Bitmap->Height*BITMAP_BYTES_PER_PIXEL;
-        ZeroSize(TotalBitmapSize, Bitmap->Memory);
-    }
-}
-
 internal loaded_bitmap
 MakeEmptyBitmap(memory_arena *Arena, int32 Width, int32 Height, bool32 ClearToZero = true)
 {
@@ -63,11 +54,7 @@ MakeEmptyBitmap(memory_arena *Arena, int32 Width, int32 Height, bool32 ClearToZe
     Result.Height = Height;
     Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
     int32 TotalBitmapSize = Width*Height*BITMAP_BYTES_PER_PIXEL;
-    Result.Memory = PushSize(Arena, TotalBitmapSize, 16);
-    if(ClearToZero)
-    {
-        ClearBitmap(&Result);
-    }
+    Result.Memory = PushSize(Arena, TotalBitmapSize, Align(16, ClearToZero));
 
     return(Result);
 }
@@ -240,8 +227,19 @@ DEBUGGetGameAssets(game_memory *Memory)
 }
 
 internal void
-SetGameMode(game_state *GameState, game_mode GameMode)
+SetGameMode(game_state *GameState, transient_state *TranState, game_mode GameMode)
 {
+    b32 NeedToWait = false;
+    for(u32 TaskIndex = 0;
+        TaskIndex < ArrayCount(TranState->Tasks);
+        TaskIndex++)
+    {
+        NeedToWait = NeedToWait || TranState->Tasks[TaskIndex].DependsOnGameMode;
+    }
+    if(NeedToWait)
+    {
+        Platform.CompleteAllWork(TranState->LowPriorityQueue);
+    }
     Clear(&GameState->ModeArena);
     GameState->GameMode = GameMode;
 }
@@ -273,9 +271,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         SubArena(&GameState->ModeArena, &TotalArena, GetArenaSizeRemaining(&TotalArena));
         
         InitializeAudioState(&GameState->AudioState, &GameState->AudioArena);
-
-        // PlayIntroCutScene(GameState);
-        PlayTitleScreen(GameState);
 
         GameState->IsInitialized = true; 
     }
@@ -341,6 +336,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         TranState->IsInitialized = true;
     }
 
+    if(GameState->GameMode == GameMode_None)
+    {
+        PlayIntroCutScene(GameState, TranState);
+    }
+
+
 #if 0
     if(Memory->ExecutableReloaded)
     {
@@ -383,14 +384,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             case GameMode_TitleScreen:
             {
-                Rerun = UpdateAndRenderTitleScreen(GameState, TranState->Assets, RenderGroup, Input, DrawBuffer,
-                                                   GameState->TitleScreen);
+                    Rerun = UpdateAndRenderTitleScreen(GameState, TranState, RenderGroup, Input, DrawBuffer,
+                                                       GameState->TitleScreen);
             } break;
 
             case GameMode_CutScene:
             {
-                Rerun = UpdateAndRenderCutScene(GameState, TranState->Assets, RenderGroup, DrawBuffer,
-                                                Input, GameState->CutScene);
+                    Rerun = UpdateAndRenderCutScene(GameState, TranState, RenderGroup, DrawBuffer,
+                                                    Input, GameState->CutScene);
             } break;
 
             case GameMode_World:
@@ -404,7 +405,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     if(AllResourcesPresent(RenderGroup))
     {
-        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer);
+        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer, &TranState->TranArena);
     }
 
     EndRender(RenderGroup);  

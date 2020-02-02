@@ -93,8 +93,9 @@ OutputPlayingSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuff
     Assert((SoundBuffer->SampleCount & 3) == 0);
     uint32 ChunkCount = SoundBuffer->SampleCount / 4;
 
-    __m128 *RealChannel0 = PushArray(TempArena, ChunkCount, __m128, 16);
-    __m128 *RealChannel1 = PushArray(TempArena, ChunkCount, __m128, 16);
+    // TODO(georgy): Are we sure we don't want to let _this_ do the clear?
+    __m128 *RealChannel0 = PushArray(TempArena, ChunkCount, __m128, AlignNoClear(16));
+    __m128 *RealChannel1 = PushArray(TempArena, ChunkCount, __m128, AlignNoClear(16));
 
     real32 SecondsPerSample = 1.0f / SoundBuffer->SamplesPerSecond;
 #define AudioStateOutputChannelCount  2

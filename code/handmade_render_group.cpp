@@ -19,7 +19,7 @@ UnscaleAndBiasNormal(v4 Normal)
 
 #if 0
 internal void
-DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect, bool32 Even)
+DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect)
 {
     real32 R = Color.r;
     real32 G = Color.g;
@@ -33,10 +33,6 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
     FillRect.MaxY = RoundReal32ToInt32(vMax.y);
 
     FillRect = Intersect(FillRect, ClipRect);
-    if(Even == (FillRect.MinY & 1))
-    {
-        FillRect.MinY++;
-    }
 
     uint32 Color32 = (RoundReal32ToUInt32(A * 255.0f) << 24) |
                      (RoundReal32ToUInt32(R * 255.0f) << 16) | 
@@ -46,7 +42,7 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
     uint8 *Row = (uint8 *)Buffer->Memory + FillRect.MinX*BITMAP_BYTES_PER_PIXEL + FillRect.MinY*Buffer->Pitch;
     for(int Y = FillRect.MinY; 
         Y < FillRect.MaxY; 
-        Y+=2)
+        Y++)
     {
         uint32 *Pixel = (uint32 *)Row;
         for(int X = FillRect.MinX; 
@@ -56,7 +52,7 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
             *Pixel++ = Color32;
         }
 
-        Row += 2*Buffer->Pitch;
+        Row += Buffer->Pitch;
     }
 }
 
@@ -66,7 +62,7 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
 //               In the first version in the loop we just copy values, but here to do it properly
 //               we need to do additional operations for masking
 internal void
-DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect, bool32 Even)
+DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i ClipRect)
 {
     real32 R = Color.r;
     real32 G = Color.g;
@@ -80,10 +76,6 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
     FillRect.MaxY = RoundReal32ToInt32(vMax.y);
 
     FillRect = Intersect(FillRect, ClipRect);
-    if(Even == (FillRect.MinY & 1))
-    {
-        FillRect.MinY++;
-    }
 
     if(HasArea(FillRect))
     {
@@ -127,7 +119,7 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
 
         for(int Y = FillRect.MinY; 
             Y < FillRect.MaxY; 
-            Y+=2)
+            Y++)
         {
             uint32 *Pixel = (uint32 *)Row;
             __m128i ClipMask = StartClipMask;
@@ -152,7 +144,7 @@ DrawRectangle(loaded_bitmap *Buffer, v2 vMin, v2 vMax, v4 Color, rectangle2i Cli
                 }
             }
 
-            Row += 2*Buffer->Pitch;
+            Row += Buffer->Pitch;
         }
     }
 }
@@ -480,7 +472,7 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
 internal void
 DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Color, 
                      loaded_bitmap *Texture, real32 PixelsToMeters, 
-                     rectangle2i ClipRect, bool32 Even)
+                     rectangle2i ClipRect)
 {
     TIMED_FUNCTION();
 
@@ -521,11 +513,6 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
     }
 
     FillRect = Intersect(ClipRect, FillRect);
-
-    if(Even == (FillRect.MinY & 1))
-    {
-        FillRect.MinY++;
-    }
 
     if(HasArea(FillRect))
     {
@@ -592,7 +579,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
         __m128 HeightM2 = _mm_set1_ps((real32)Texture->Height - 2);
 
         uint8 *Row = (uint8 *)Buffer->Memory + FillRect.MinX*BITMAP_BYTES_PER_PIXEL + FillRect.MinY*Buffer->Pitch;
-        uint32 RowAdvance = Buffer->Pitch * 2;
+        uint32 RowAdvance = Buffer->Pitch;
 
         int32 TexturePitch = Texture->Pitch;
         void *TextureMemory = Texture->Memory;
@@ -602,7 +589,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
         int32 MinX = FillRect.MinX;
         int32 MaxX = FillRect.MaxX;
         TIMED_BLOCK(PixelFill, GetClampedRectArea(FillRect) / 2);
-        for (int Y = MinY; Y < MaxY; Y+=2)
+        for (int Y = MinY; Y < MaxY; Y++)
         {
             __m128 PixelPy = _mm_set1_ps((real32)Y - Origin.y);
 
@@ -1003,7 +990,7 @@ DrawMatte(loaded_bitmap *Buffer, loaded_bitmap *Bitmap,
 
 internal void
 RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
-                    rectangle2i ClipRect, bool32 Even)
+                    rectangle2i ClipRect)
 {
     TIMED_FUNCTION();
 
@@ -1022,7 +1009,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 				render_entry_clear *Entry = (render_entry_clear *)Data;
 
                 DrawRectangle(OutputTarget, V2(0, 0), V2((real32)OutputTarget->Width, (real32)OutputTarget->Height), Entry->Color,
-                              ClipRect, Even);
+                              ClipRect);
 
 				BaseAddress += sizeof(*Entry);
 			} break;
@@ -1049,7 +1036,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
                 DrawRectangleQuickly(OutputTarget, Entry->P, 
                                      Entry->Size.x * XAxis, 
                                      Entry->Size.y * YAxis, Entry->Color,
-                                     Entry->Bitmap, NullPixelsToMeters, ClipRect, Even);
+                                     Entry->Bitmap, NullPixelsToMeters, ClipRect);
 #endif
 				BaseAddress += sizeof(*Entry);
 			} break;
@@ -1058,7 +1045,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 			{
 				render_entry_rectangle *Entry = (render_entry_rectangle *)Data;
 
-                DrawRectangle(OutputTarget, Entry->P, Entry->P + Entry->Dim, Entry->Color, ClipRect, Even);
+                DrawRectangle(OutputTarget, Entry->P, Entry->P + Entry->Dim, Entry->Color, ClipRect);
 
 				BaseAddress += sizeof(*Entry);
 			} break;
@@ -1105,24 +1092,33 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 	}
 }
 
+struct tile_sort_entry
+{
+    r32 SortKey;
+    u32 PushBufferOffset;
+};
+
 struct tile_render_work
 {
     render_group *RenderGroup;
     loaded_bitmap *OutputTarget;
     rectangle2i ClipRect;
+
+    tile_sort_entry *SortSpace;
 };
 
 internal PLATFORM_WORK_QUEUE_CALLBACK(DoTileRenderWork)
 {
     tile_render_work *Work = (tile_render_work *)Data;
 
-    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect, true);
-    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect, false);
+    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect);
 }
 
 internal void
-RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
+RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget, memory_arena *TempMemory)
 {
+    temporary_memory Temp = BeginTemporaryMemory(TempMemory);
+
     Assert(RenderGroup->InsideRender);    
 
     Assert(((uintptr)OutputTarget->Memory & 15) == 0);
@@ -1137,16 +1133,22 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget)
     Work.RenderGroup = RenderGroup;
     Work.OutputTarget = OutputTarget;
     Work.ClipRect = ClipRect;
+    Work.SortSpace = PushArray(TempMemory, RenderGroup->PushBufferElementCount, tile_sort_entry);
 
     DoTileRenderWork(0, &Work);
+
+    EndTemporaryMemory(Temp);
 }
 
 internal void
 TiledRenderGroupToOutput(platform_work_queue *RenderQueue, 
-                         render_group *RenderGroup, loaded_bitmap *OutputTarget)
+                         render_group *RenderGroup, loaded_bitmap *OutputTarget, 
+                         memory_arena *TempMemory)
 {
     Assert(RenderGroup->InsideRender);
     
+    temporary_memory Temp = BeginTemporaryMemory(TempMemory);
+
     int32 const TileCountX = 2;
     int32 const TileCountY = 2;
     tile_render_work WorkArray[TileCountX * TileCountY];
@@ -1186,6 +1188,7 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
             Work->RenderGroup = RenderGroup;
             Work->OutputTarget = OutputTarget;
             Work->ClipRect = ClipRect;
+            Work->SortSpace = PushArray(TempMemory, RenderGroup->PushBufferElementCount, tile_sort_entry);
 
 #if 1            
             // NOTE(georgy): This is the multi-threaded path
@@ -1198,6 +1201,8 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
     }
 
     Platform.CompleteAllWork(RenderQueue);
+
+    EndTemporaryMemory(Temp);
 }
 
 internal render_group *
@@ -1215,10 +1220,11 @@ AllocateRenderGroup(game_assets *Assets, memory_arena *Arena, uint32 MaxPushBuff
         // TODO(georgy): Safe cast from memory_unit to uint32?
         MaxPushBufferSize = (uint32)GetArenaSizeRemaining(Arena);
     }
-	Result->PushBufferBase = (uint8 *)PushSize(Arena, MaxPushBufferSize);
+	Result->PushBufferBase = (uint8 *)PushSize(Arena, MaxPushBufferSize, NoClear());
 
     Result->MaxPushBufferSize = MaxPushBufferSize;
     Result->PushBufferSize = 0;
+    Result->PushBufferElementCount = 0;
 
     // NOTE(georgy): Default transform
     Result->Transform.OffsetP = V3(0.0f, 0.0f, 0.0f);
@@ -1253,6 +1259,7 @@ EndRender(render_group *Group)
         EndGeneration(Group->Assets, Group->GenerationID);
         Group->GenerationID = 0;
         Group->PushBufferSize = 0;
+        Group->PushBufferElementCount = 0;
     }
 }
 
@@ -1349,6 +1356,7 @@ PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Typ
         Header->Type = Type;
         Result = (uint8 *)Header + sizeof(*Header);
         Group->PushBufferSize += Size;
+        Group->PushBufferElementCount++;
     }
     else
     {

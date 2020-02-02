@@ -120,21 +120,22 @@ struct render_transform
 struct render_group
 {
     struct game_assets *Assets;
-    real32 GlobalAlpha;
+    r32 GlobalAlpha;
 
-    uint32 GenerationID;
+    u32 GenerationID;
 
     v2 MonitorHalfDimInMeters;
     render_transform Transform;
 
-    uint32 MaxPushBufferSize;
-    uint32 PushBufferSize;
-    uint8 *PushBufferBase;
+    u32 MaxPushBufferSize;
+    u32 PushBufferSize;
+    u8 *PushBufferBase;
+    u32 PushBufferElementCount;
 
-    uint32 MissingResourceCount;
-    bool32 RendersInBackground;
+    u32 MissingResourceCount;
+    b32 RendersInBackground;
 
-    bool32 InsideRender;
+    b32 InsideRender;
 };
 
 struct entity_basis_p_result

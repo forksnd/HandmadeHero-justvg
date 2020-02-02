@@ -90,6 +90,6 @@ GetLowEntity(game_mode_world *WorldMode, uint32 Index)
     return(Result);
 }
 
-internal void PlayWorld(game_state *GameState);
+internal void PlayWorld(game_state *GameState, transient_state *TranState);
 
 #endif

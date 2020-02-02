@@ -386,7 +386,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
 
     Assert(AllResourcesPresent(RenderGroup));
 
-    RenderGroupToOutput(RenderGroup, Buffer);
+    RenderGroupToOutput(RenderGroup, Buffer, &Work->Task->Arena);
     EndRender(RenderGroup);
     
     EndTaskWithMemory(Work->Task);
@@ -395,7 +395,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
 internal void
 FillGroundChunk(transient_state *TranState, game_mode_world *WorldMode, ground_buffer *GroundBuffer, world_position *ChunkP)
 {
-    task_with_memory *Task = BeginTaskWithMemory(TranState);
+    task_with_memory *Task = BeginTaskWithMemory(TranState, true);
     if(Task)
     {
         fill_ground_chunk_work *Work = PushStruct(&Task->Arena, fill_ground_chunk_work);
@@ -410,9 +410,9 @@ FillGroundChunk(transient_state *TranState, game_mode_world *WorldMode, ground_b
 }
 
 internal void
-PlayWorld(game_state *GameState)
+PlayWorld(game_state *GameState, transient_state *TranState)
 {
-    SetGameMode(GameState, GameMode_World);
+    SetGameMode(GameState, TranState, GameMode_World);
 
     game_mode_world *WorldMode = PushStruct(&GameState->ModeArena, game_mode_world);
 
@@ -1298,7 +1298,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
     if(!HeroesExist)
     {
-        PlayIntroCutScene(GameState);
+        PlayTitleScreen(GameState, TranState);
     }
 
     return(Result);
