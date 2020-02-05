@@ -209,6 +209,7 @@ introspect(category:"math") struct rectangle3
 };
 
 #define Real32Maximum FLT_MAX
+#define Real32Minimum -FLT_MAX
 
 #define internal static
 #define local_persist static

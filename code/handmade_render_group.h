@@ -130,7 +130,9 @@ struct render_group
     u32 MaxPushBufferSize;
     u32 PushBufferSize;
     u8 *PushBufferBase;
+
     u32 PushBufferElementCount;
+    u32 SortEntryAt;
 
     u32 MissingResourceCount;
     b32 RendersInBackground;
@@ -141,8 +143,9 @@ struct render_group
 struct entity_basis_p_result
 {
     v2 P;
-    real32 Scale;
-    bool32 Valid;
+    r32 Scale;
+    b32 Valid;
+    r32 SortKey;
 };
 
 struct used_bitmap_dim
@@ -152,5 +155,21 @@ struct used_bitmap_dim
     v2 Align;
     v3 P;
 };
+
+struct tile_sort_entry
+{
+    r32 SortKey;
+    u32 PushBufferOffset;
+};
+
+struct tile_render_work
+{
+    render_group *RenderGroup;
+    loaded_bitmap *OutputTarget;
+    rectangle2i ClipRect;
+
+    tile_sort_entry *SortSpace;
+};
+
 
 #endif

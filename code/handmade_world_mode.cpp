@@ -336,7 +336,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
     Assert(Width == Height);
     v2 HalfDim = 0.5f*V2(Width, Height);
 
-    render_group *RenderGroup = AllocateRenderGroup(Work->TranState->Assets, &Work->Task->Arena, 0, true);
+    render_group *RenderGroup = AllocateRenderGroup(Work->TranState->Assets, &Work->Task->Arena, Kilobytes(512), true);
     BeginRender(RenderGroup);
     Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
     Clear(RenderGroup, V4(1.0f, 0.0f, 1.0f, 1.0f));
@@ -625,6 +625,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
     PushRectOutline(RenderGroup, V3(0, 0, 0), GetDim(ScreenBounds), V4(1.0f, 1.0f, 0.0f, 1.0f));
 
     // NOTE(george): Ground chunk rendering
+    RenderGroup->Transform.OffsetP = V3(0, 0, -0.01f); // TODO(georgy): Figure out SortKey situation and get bias!
     for(uint32 GroundBufferIndex = 0;
         GroundBufferIndex < TranState->GroundBufferCount;
         GroundBufferIndex++)
@@ -634,6 +635,8 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
         {
             loaded_bitmap *Bitmap = &GroundBuffer->Bitmap;
             v3 Delta = Substract(WorldMode->World, &GroundBuffer->P, &WorldMode->CameraP);
+            r32 zBias = 0.01f;
+            Delta.z -= zBias;
 
             if((Delta.z >= -1) && (Delta.z <= 1))
             {
@@ -646,7 +649,8 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                 }
             }
         }
-    }            
+    }
+    RenderGroup->Transform.OffsetP = V3(0, 0, 0);
 
     // NOTE(george): Ground chunk updating
     {

@@ -123,7 +123,7 @@ RecanonicalizeCoord(real32 ChunkDim, int32 *Tile, real32 *TileRel)
 {
     // TODO(george): Need t something that doesn't use the div/mul method
     // for recanonicalizing because this can end up rounding back on to the tile
-    // you just came from.
+    // you just] came from.
 
     // NOTE(george): Wrapping IS NOT ALLOWED, so all coordinates are assumed to be
     // within the safe margin!
