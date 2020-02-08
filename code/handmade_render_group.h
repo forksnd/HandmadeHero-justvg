@@ -171,8 +171,6 @@ struct tile_render_work
     render_group *RenderGroup;
     loaded_bitmap *OutputTarget;
     rectangle2i ClipRect;
-
-    tile_sort_entry *SortSpace;
 };
 
 inline object_transform
