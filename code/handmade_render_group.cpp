@@ -1104,6 +1104,102 @@ Swap(tile_sort_entry *A, tile_sort_entry *B)
 }
 
 internal void
+BubbleSort(u32 Count, tile_sort_entry *First)
+{
+    for(u32 Outer = 0;
+        Outer < Count;
+        Outer++)
+    {
+        b32 ListIsSorted = true;
+        for(u32 Inner = 0;
+            Inner < (Count - 1);
+            Inner++)
+        {
+            tile_sort_entry *EntryA = First + Inner;
+            tile_sort_entry *EntryB = EntryA + 1;
+
+            if(EntryA->SortKey > EntryB->SortKey)
+            {
+                Swap(EntryA, EntryB);
+                ListIsSorted = false;
+            }
+        }
+
+        if(ListIsSorted)
+        {
+            break;
+        }
+    }
+}
+
+inline u32 
+SortKeyToU32(r32 SortKey)
+{
+    // NOTE(georgy): We need to turn our 32-bit floating point value
+    // into some strictly ascending 32-bit unsigned integer value
+    u32 Result = *(u32 *)&SortKey;
+    if(Result & 0x80000000)
+    {
+        Result = ~Result;
+    }
+    else
+    {
+        Result |= 0x80000000;
+    }
+
+    return(Result);
+}
+
+internal void
+RadixSort(u32 Count, tile_sort_entry *Entries, tile_sort_entry *Temp)
+{
+    tile_sort_entry *Source = Entries;
+    tile_sort_entry *Dest = Temp;
+
+    for(u32 ByteIndex = 0;
+        ByteIndex < 32;
+        ByteIndex += 8)
+    {
+        u32 SortKeyOffset[256] = {};
+
+        // NOTE(georgy): First pass - count how many of each key
+        for(u32 Index = 0;
+            Index < Count;
+            Index++)
+        {
+            u32 RadixValue = SortKeyToU32(Source[Index].SortKey);
+            u32 RadixPiece = (RadixValue >> ByteIndex) & 0xFF;
+            SortKeyOffset[RadixPiece]++;
+        }
+
+        // NOTE(georgy): Change counts to offsets
+        u32 Total = 0;
+        for(u32 SortKeyIndex = 0;
+            SortKeyIndex < ArrayCount(SortKeyOffset);
+            SortKeyIndex++)
+        {
+            u32 Count = SortKeyOffset[SortKeyIndex];
+            SortKeyOffset[SortKeyIndex] = Total;
+            Total += Count;
+        }
+
+        // NOTE(georgy): Second pass - place elements into the right location
+        for(u32 Index = 0;
+            Index < Count;
+            Index++)
+        {
+            u32 RadixValue = SortKeyToU32(Source[Index].SortKey);
+            u32 RadixPiece = (RadixValue >> ByteIndex) & 0xFF;
+            Dest[SortKeyOffset[RadixPiece]++] = Source[Index];
+        }
+
+        tile_sort_entry *SwapTemp = Dest;
+        Dest = Source;
+        Source = SwapTemp; 
+    }
+}
+
+internal void
 MergeSort(u32 Count, tile_sort_entry *First, tile_sort_entry *Temp)
 {
     if(Count == 1)
@@ -1170,28 +1266,6 @@ MergeSort(u32 Count, tile_sort_entry *First, tile_sort_entry *Temp)
         {
             First[Index] = Temp[Index];
         }
-
-#if 0
-        // NOTE(georgy): Step 1 - Find the first out-of-order pair
-        while((ReadHalf0 != ReadHalf1) &&
-              (ReadHalf0->SortKey < ReadHalf1->SortKey))
-        {
-            ReadHalf0++;
-        }
- 
-        // NOTE(georgy): Step 2 - Swap as many Half1 items in as necessary
-        if(ReadHalf0 != ReadHalf1)
-        {
-            tile_sort_entry CompareWith = *ReadHalf0;
-            while((ReadHalf1 != End) &&
-                  (ReadHalf1->SortKey < CompareWith.SortKey))
-            {
-                Swap(ReadHalf0++, ReadHalf1++);
-            }
-
-            ReadHalf1 = InHalf1;
-        }
-#endif
     }
 }
 
@@ -1204,41 +1278,9 @@ SortEntries(render_group *RenderGroup, memory_arena *TempArena)
     tile_sort_entry *Entries = (tile_sort_entry *)(RenderGroup->PushBufferBase + RenderGroup->SortEntryAt);
     tile_sort_entry *TempSpace = PushArray(TempArena, Count, tile_sort_entry);
 
-#if 0
-    // 
-    // NOTE(georgy): Bubble sort
-    // 
-    for(u32 Outer = 0;
-        Outer < Count;
-        Outer++)
-    {
-        b32 ListIsSorted = true;
-        for(u32 Inner = 0;
-            Inner < (Count - 1);
-            Inner++)
-        {
-            tile_sort_entry *EntryA = Entries + Inner;
-            tile_sort_entry *EntryB = EntryA + 1;
-
-            if(EntryA->SortKey > EntryB->SortKey)
-            {
-                Swap(EntryA, EntryB);
-                ListIsSorted = false;
-            }
-        }
-
-        if(ListIsSorted)
-        {
-            break;
-        }
-    }
-#else
-    
-    // 
-    // NOTE(georgy): Merge sort
-    // 
-    MergeSort(Count, Entries, TempSpace);
-#endif
+    // BubbleSort(Count, Entries);
+    // MergeSort(Count, Entries, TempSpace);
+    RadixSort(Count, Entries, TempSpace);
 
 #if HANDMADE_SLOW
     for(u32 Index = 0;
