@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <Xinput.h>
 #include <dsound.h>
+#include <gl/gl.h>
 
 #include "win32_handmade.h"
 
@@ -15,6 +16,8 @@ global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 global_variable int64 GlobalPerfCounterFrequency;
 global_variable bool32 DEBUGGlobalShowCursor;
 global_variable WINDOWPLACEMENT GlobalWindowPosition = { sizeof(GlobalWindowPosition) };
+global_variable GLuint GlobalBlitTextureHandle;
+
 
 internal void 
 ToggleFullscreen(HWND Window)
@@ -391,7 +394,41 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
     }
 }
 
-internal win32_window_dimension GetWindowDimenstion(HWND Window)
+internal void
+Win32InitOpenGL(HWND Window)
+{
+    HDC WindowDC = GetDC(Window);
+
+    PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
+    DesiredPixelFormat.nSize = sizeof(DesiredPixelFormat);
+    DesiredPixelFormat.nVersion = 1;
+    DesiredPixelFormat.iPixelType = PFD_TYPE_RGBA;
+    DesiredPixelFormat.dwFlags = PFD_SUPPORT_OPENGL|PFD_DRAW_TO_WINDOW|PFD_DOUBLEBUFFER;
+    DesiredPixelFormat.cColorBits = 32;
+    DesiredPixelFormat.cAlphaBits = 8;
+    DesiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
+
+    int SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
+    PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
+    DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, sizeof(SuggestedPixelFormat), &SuggestedPixelFormat);
+    SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
+
+    HGLRC OpenGLRC = wglCreateContext(WindowDC);
+    if(wglMakeCurrent(WindowDC, OpenGLRC))
+    {
+        // NOTE(georgy): Success!
+        glGenTextures(1, &GlobalBlitTextureHandle);   
+    }
+    else
+    {
+        InvalidCodePath;
+        // TODO(georgy): Diagnostic
+    }
+    ReleaseDC(Window, WindowDC);
+}
+
+internal win32_window_dimension 
+GetWindowDimenstion(HWND Window)
 {
     win32_window_dimension Result;
     
@@ -434,6 +471,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 internal void 
 Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, int WindowWidth, int WindowHeight)
 {
+#if 0
     // NOTE(george): Just a check to see that it works
     if((WindowWidth > 1200))
     {
@@ -464,8 +502,54 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, in
                       0, 0, Buffer->Width, Buffer->Height,
                       Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
     }
-}
+#endif
+    glViewport(0, 0, WindowWidth, WindowHeight);
 
+    glBindTexture(GL_TEXTURE_2D, GlobalBlitTextureHandle);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Buffer->Width, Buffer->Height, 0, 
+                 GL_BGRA_EXT, GL_UNSIGNED_BYTE, Buffer->Memory);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    glEnable(GL_TEXTURE_2D);
+
+    glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+    glBegin(GL_TRIANGLES);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2i(-1, -1);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2i(1, -1);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2i(1, 1);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2i(-1, -1);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2i(1, 1);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2i(-1, 1);
+
+    glEnd();
+
+    SwapBuffers(DeviceContext);
+}
 
 internal void
 Win32ClearBuffer(win32_sound_output *SoundOutput) 
@@ -1590,6 +1674,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
         if(Window)
         {
             ToggleFullscreen(Window);
+            Win32InitOpenGL(Window);
 
             // NOTE(george): DirestSound output test
             win32_sound_output SoundOutput = {};
