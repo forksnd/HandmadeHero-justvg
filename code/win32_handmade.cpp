@@ -1,4 +1,6 @@
 #include "handmade_platform.h"
+#include "handmade_intrinsics.h"
+#include "handmade_math.h"
 
 #include <Windows.h>
 #include <stdio.h>
@@ -502,7 +504,7 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, in
                       0, 0, Buffer->Width, Buffer->Height,
                       Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
     }
-#endif
+#else
     glViewport(0, 0, WindowWidth, WindowHeight);
 
     glBindTexture(GL_TEXTURE_2D, GlobalBlitTextureHandle);
@@ -528,27 +530,46 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, in
     glLoadIdentity();
 
     glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
+    r32 Proj[] = 
+    {
+        SafeRatio1(2.0f, (r32)Buffer->Width), 0, 0, 0,
+        0, SafeRatio1(2.0f, (r32)Buffer->Height), 0, 0,
+        0, 0, 1, 0,
+        -1.0f, -1.0f, 0, 1,
+    };
+    glLoadMatrixf(Proj);
 
+    v2 MinP = {0, 0};
+    v2 MaxP = {(r32)Buffer->Width, (r32)Buffer->Height};
+    v4 Color = {1, 1, 1, 1};
     glBegin(GL_TRIANGLES);
 
-    glTexCoord2f(0.0f, 0.0f);
-    glVertex2i(-1, -1);
-    glTexCoord2f(1.0f, 0.0f);
-    glVertex2i(1, -1);
-    glTexCoord2f(1.0f, 1.0f);
-    glVertex2i(1, 1);
+    glColor4f(Color.x, Color.y, Color.z, Color.a);
 
+    // NOTE(georgy): Lower triangle
     glTexCoord2f(0.0f, 0.0f);
-    glVertex2i(-1, -1);
+    glVertex2f(MinP.x, MinP.y);
+
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(MaxP.x, MinP.y);
+
     glTexCoord2f(1.0f, 1.0f);
-    glVertex2i(1, 1);
+    glVertex2f(MaxP.x, MaxP.y);
+
+    // NOTE(georgy): Upper triangle
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(MinP.x, MinP.y);
+
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(MaxP.x, MaxP.y);
+
     glTexCoord2f(0.0f, 1.0f);
-    glVertex2i(-1, 1);
+    glVertex2f(MinP.x, MaxP.y);
 
     glEnd();
 
     SwapBuffers(DeviceContext);
+#endif
 }
 
 internal void

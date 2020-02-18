@@ -471,8 +471,7 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
 
 internal void
 DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Color, 
-                     loaded_bitmap *Texture, real32 PixelsToMeters, 
-                     rectangle2i ClipRect)
+                     loaded_bitmap *Texture, rectangle2i ClipRect)
 {
     TIMED_FUNCTION();
 
@@ -996,7 +995,6 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
 
     u32 SortEntryCount = RenderGroup->PushBufferElementCount;
     tile_sort_entry *SortEntries = (tile_sort_entry *)(RenderGroup->PushBufferBase + RenderGroup->SortEntryAt);
-    real32 NullPixelsToMeters = 1.0f;
 
     tile_sort_entry *Entry = SortEntries;
     for(u32 SortEntryIndex = 0;
@@ -1036,7 +1034,7 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
                 DrawRectangleQuickly(OutputTarget, Entry->P, 
                                      Entry->Size.x * XAxis, 
                                      Entry->Size.y * YAxis, Entry->Color,
-                                     Entry->Bitmap, NullPixelsToMeters, ClipRect);
+                                     Entry->Bitmap, ClipRect);
 #endif
 			} break;
 
