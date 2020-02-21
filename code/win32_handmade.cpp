@@ -9,6 +9,7 @@
 #include <gl/gl.h>
 
 #include "win32_handmade.h"
+#include "handmade_opengl.cpp"
 
 // TODO(george): It is global for bow
 global_variable bool32 GlobalRunning;
@@ -505,6 +506,8 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, in
                       Buffer->Memory, &Buffer->Info, DIB_RGB_COLORS, SRCCOPY);
     }
 #else
+
+#if 0
     glViewport(0, 0, WindowWidth, WindowHeight);
 
     glBindTexture(GL_TEXTURE_2D, GlobalBlitTextureHandle);
@@ -567,6 +570,7 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext, in
     glVertex2f(MinP.x, MaxP.y);
 
     glEnd();
+#endif
 
     SwapBuffers(DeviceContext);
 #endif
@@ -1746,6 +1750,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             GameMemory.PlatformAPI.AllocateMemory = Win32AllocateMemory;
             GameMemory.PlatformAPI.DeallocateMemory = Win32DeallocateMemory;
+
+            GameMemory.PlatformAPI.RenderToOpenGL = OpenGLRenderGroupToOutput;
 
 #if HANDMADE_INTERNAL
             GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;

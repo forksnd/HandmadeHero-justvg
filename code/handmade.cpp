@@ -405,7 +405,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     
     if(AllResourcesPresent(RenderGroup))
     {
-        TiledRenderGroupToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer, &TranState->TranArena);
+        RenderToOutput(TranState->HighPriorityQueue, RenderGroup, DrawBuffer, &TranState->TranArena);
     }
 
     EndRender(RenderGroup);  

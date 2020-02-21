@@ -1,6 +1,3 @@
-#if !defined(HANDMADE_RENDER_GROP_CPP)
-#define HANDMADE_RENDER_GROP_CPP
-
 inline v4
 UnscaleAndBiasNormal(v4 Normal)
 {
@@ -1281,14 +1278,17 @@ SortEntries(render_group *RenderGroup, memory_arena *TempArena)
     RadixSort(Count, Entries, TempSpace);
 
 #if HANDMADE_SLOW
-    for(u32 Index = 0;
-        Index < (Count - 1);
-        Index++)
+    if(Count)
     {
-        tile_sort_entry *EntryA = Entries + Index;
-        tile_sort_entry *EntryB = EntryA + 1;
+        for(u32 Index = 0;
+            Index < (Count - 1);
+            Index++)
+        {
+            tile_sort_entry *EntryA = Entries + Index;
+            tile_sort_entry *EntryB = EntryA + 1;
 
-        Assert(EntryA->SortKey <= EntryB->SortKey);
+            Assert(EntryA->SortKey <= EntryB->SortKey);
+        }
     }
 #endif
 
@@ -1322,13 +1322,10 @@ RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget, memo
 internal void
 TiledRenderGroupToOutput(platform_work_queue *RenderQueue, 
                          render_group *RenderGroup, loaded_bitmap *OutputTarget, 
-                         memory_arena *TempMemory)
+                         memory_arena *TempArena)
 {
     Assert(RenderGroup->InsideRender);
     
-    // TODO(georgy): Don't do this twice?
-    SortEntries(RenderGroup, TempMemory);
-
     int32 const TileCountX = 2;
     int32 const TileCountY = 2;
     tile_render_work WorkArray[TileCountX * TileCountY];
@@ -1758,4 +1755,20 @@ AllResourcesPresent(render_group *Group)
     return(Result);
 } 
 
-#endif
+inline void
+RenderToOutput(platform_work_queue *RenderQueue, 
+               render_group *RenderGroup, loaded_bitmap *OutputTarget, 
+               memory_arena *TempArena)
+{
+    // TODO(georgy): Don't do this twice?
+    SortEntries(RenderGroup, TempArena);
+
+    if(1) // (RenderGroup->IsHardware)
+    {
+        Platform.RenderToOpenGL(RenderGroup, OutputTarget);
+    }
+    else
+    {
+        TiledRenderGroupToOutput(RenderQueue, RenderGroup, OutputTarget, TempArena);
+    }
+}
