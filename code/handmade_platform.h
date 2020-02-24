@@ -78,6 +78,8 @@ typedef double real64;
 typedef real32 r32;
 typedef real64 r64;
 
+typedef u64 umm;
+
 #pragma pack(push, 1)
 struct bitmap_id
 {
@@ -318,9 +320,9 @@ extern struct game_memory *DebugGlobalMemory;
 struct game_offscreen_buffer
 {
     void *Memory;
-    int Width;
-    int Height;
-    int Pitch;
+    u32 Width;
+    u32 Height;
+    u32 Pitch;
 };
 
 struct game_render_commands
@@ -336,8 +338,8 @@ struct game_render_commands
     u32 SortEntryAt;
 };
 
-#define RenderCommandStruct(MaxBufferBufferSize, PushBuffer, Width, Height) \
-    {Width, Height, MaxPushBufferSize, 0, (u8 *)PushBuffer, 0, MaxBufferBufferSize};
+#define RenderCommandStruct(MaxPushBufferSize, PushBuffer, Width, Height) \
+    {Width, Height, MaxPushBufferSize, 0, (u8 *)PushBuffer, 0, MaxPushBufferSize};
 
 struct game_sound_output_buffer
 {
@@ -485,9 +487,6 @@ struct platform_api
 
     platform_allocate_memory *AllocateMemory;
     platform_deallocate_memory *DeallocateMemory;
-
-    // TODO(georgy): Temporary?
-    platform_opengl_render *RenderToOpenGL;
 
 #if HANDMADE_INTERNAL
     debug_platform_read_entire_file *DEBUGReadEntireFile;

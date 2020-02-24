@@ -1,5 +1,6 @@
 #define GlobalConstants_Renderer_Camera_UseDebug 0
 #define GlobalConstants_Renderer_DebugCameraDistance 10.0f
+#define GlobalConstants_Renderer_UseSoftware false
 #define GlobalConstants_Renderer_Camera_UseRoomBasedCamera 0
 #define GlobalConstants_GroundChunks_Checkboards 0
 #define GlobalConstants_GroundChunks_Outlines 0

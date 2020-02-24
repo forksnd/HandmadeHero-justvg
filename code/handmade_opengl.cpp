@@ -75,7 +75,7 @@ OpenGLDisplayBitmap(s32 Width, s32 Height, void *Memory, s32 Pitch,
     glMatrixMode(GL_TEXTURE);
     glLoadIdentity();
 
-    OpenGLSetScreenSpace(Width, Height)
+    OpenGLSetScreenSpace(Width, Height);
 
     v2 MinP = {0, 0};
     v2 MaxP = {(r32)Width, (r32)Height};
@@ -86,7 +86,7 @@ OpenGLDisplayBitmap(s32 Width, s32 Height, void *Memory, s32 Pitch,
 // TODO(georgy): Get rid of this
 global_variable u32 TextureBoundCount = 0;
 internal void
-OpenGLRenderGroupToOutput(game_render_commands *Commands, s32 WindowWidth, s32 WindowHeight)
+OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 WindowHeight)
 {
     glViewport(0, 0, Commands->Width, Commands->Height);
     
@@ -142,8 +142,8 @@ OpenGLRenderGroupToOutput(game_render_commands *Commands, s32 WindowWidth, s32 W
                     Entry->Bitmap->Handle = TextureBoundCount++;
                     glBindTexture(GL_TEXTURE_2D, Entry->Bitmap->Handle);
 
-                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, Entry->Bitmap->Width, Entry->Bitmap->Height, 0, 
-                                 GL_BGRA_EXT, GL_UNSIGNED_BYTE, Entry->Bitmap->Memory);
+                    glTexImage2D(GL_TEXTURE_2D, 0, OpenGLDefaultInternalTextureFormat, Entry->Bitmap->Width, Entry->Bitmap->Height, 
+                                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, Entry->Bitmap->Memory);
 
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);

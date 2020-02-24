@@ -159,13 +159,6 @@ struct tile_sort_entry
     u32 PushBufferOffset;
 };
 
-struct tile_render_work
-{
-    render_group *RenderGroup;
-    loaded_bitmap *OutputTarget;
-    rectangle2i ClipRect;
-};
-
 inline object_transform
 DefaultUprightTransform(void)
 {

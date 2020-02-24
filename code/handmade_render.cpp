@@ -1,3 +1,11 @@
+
+struct tile_render_work
+{
+    game_render_commands *Commands;
+    loaded_bitmap *OutputTarget;
+    rectangle2i ClipRect;
+};
+
 inline v4
 UnscaleAndBiasNormal(v4 Normal)
 {
@@ -459,7 +467,7 @@ DrawRectangleSlowly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Col
     }
 }
 
-#if 1
+#if 0
 #include "iacaMarks.h"
 #else
 #define IACA_VC64_START
@@ -1159,17 +1167,14 @@ MergeSort(u32 Count, tile_sort_entry *First, tile_sort_entry *Temp)
 }
 
 internal void
-SortEntries(render_group *RenderGroup, memory_arena *TempArena)
+SortEntries(game_render_commands *Commands, void *SortMemory)
 {
-    temporary_memory Temp = BeginTemporaryMemory(TempArena);
-
-    u32 Count = RenderGroup->PushBufferElementCount;
-    tile_sort_entry *Entries = (tile_sort_entry *)(RenderGroup->PushBufferBase + RenderGroup->SortEntryAt);
-    tile_sort_entry *TempSpace = PushArray(TempArena, Count, tile_sort_entry);
+    u32 Count = Commands->PushBufferElementCount;
+    tile_sort_entry *Entries = (tile_sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
 
     // BubbleSort(Count, Entries);
-    // MergeSort(Count, Entries, TempSpace);
-    RadixSort(Count, Entries, TempSpace);
+    // MergeSort(Count, Entries, (tile_sort_entry *)SortMemory);
+    RadixSort(Count, Entries, (tile_sort_entry *)SortMemory);
 
 #if HANDMADE_SLOW
     if(Count)
@@ -1185,25 +1190,23 @@ SortEntries(render_group *RenderGroup, memory_arena *TempArena)
         }
     }
 #endif
-
-    EndTemporaryMemory(Temp);
 }
 
 internal void
-RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget,
+RenderCommandsToBitmap(game_render_commands *Commands, loaded_bitmap *OutputTarget,
                     rectangle2i ClipRect)
 {
     TIMED_FUNCTION();
 
-    u32 SortEntryCount = RenderGroup->PushBufferElementCount;
-    tile_sort_entry *SortEntries = (tile_sort_entry *)(RenderGroup->PushBufferBase + RenderGroup->SortEntryAt);
+    u32 SortEntryCount = Commands->PushBufferElementCount;
+    tile_sort_entry *SortEntries = (tile_sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
 
     tile_sort_entry *Entry = SortEntries;
     for(u32 SortEntryIndex = 0;
         SortEntryIndex < SortEntryCount;
         SortEntryIndex++, Entry++)
     {
-        render_group_entry_header *Header = (render_group_entry_header *)(RenderGroup->PushBufferBase + Entry->PushBufferOffset);
+        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Entry->PushBufferOffset);
         void *Data = (u8 *)Header + sizeof(*Header);
 
         switch(Header->Type)
@@ -1292,39 +1295,13 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(DoTileRenderWork)
 {
     tile_render_work *Work = (tile_render_work *)Data;
 
-    RenderGroupToOutput(Work->RenderGroup, Work->OutputTarget, Work->ClipRect);
+    RenderCommandsToBitmap(Work->Commands, Work->OutputTarget, Work->ClipRect);
 }
 
 internal void
-RenderGroupToOutput(render_group *RenderGroup, loaded_bitmap *OutputTarget, memory_arena *TempMemory)
+SoftwareRenderCommands(platform_work_queue *RenderQueue, 
+                       game_render_commands *Commands, loaded_bitmap *OutputTarget)
 {
-    // TODO(georgy): Don't do this twice?
-    SortEntries(RenderGroup, TempMemory);
-
-    Assert(RenderGroup->InsideRender);    
-
-    Assert(((uintptr)OutputTarget->Memory & 15) == 0);
-
-    rectangle2i ClipRect;
-    ClipRect.MinX = 0;
-    ClipRect.MaxX = OutputTarget->Width;
-    ClipRect.MinY = 0;
-    ClipRect.MaxY = OutputTarget->Height;
-
-    tile_render_work Work;
-    Work.RenderGroup = RenderGroup;
-    Work.OutputTarget = OutputTarget;
-    Work.ClipRect = ClipRect;
-
-    DoTileRenderWork(0, &Work);
-}
-
-internal void
-TiledRenderGroupToOutput(platform_work_queue *RenderQueue, 
-                         render_group *RenderGroup, loaded_bitmap *OutputTarget)
-{
-    Assert(RenderGroup->InsideRender);
-    
     int32 const TileCountX = 2;
     int32 const TileCountY = 2;
     tile_render_work WorkArray[TileCountX * TileCountY];
@@ -1361,7 +1338,7 @@ TiledRenderGroupToOutput(platform_work_queue *RenderQueue,
                 ClipRect.MaxY = OutputTarget->Height;
             }
 
-            Work->RenderGroup = RenderGroup;
+            Work->Commands = Commands;
             Work->OutputTarget = OutputTarget;
             Work->ClipRect = ClipRect;
 
