@@ -295,13 +295,13 @@ GetNextSoundInChain(game_assets *Assets, sound_id ID)
     return(Result);
 }
 
-inline uint32 
+inline u32 
 BeginGeneration(game_assets *Assets)
 {
     BeginAssetLock(Assets);
 
     Assert(Assets->InFlightGenerationCount < ArrayCount(Assets->InFlightGenerations));
-    uint32 Result = Assets->NextGenerationID++;
+    u32 Result = Assets->NextGenerationID++;
     Assets->InFlightGenerations[Assets->InFlightGenerationCount++] = Result;
 
     EndAssetLock(Assets);
@@ -310,11 +310,11 @@ BeginGeneration(game_assets *Assets)
 }
 
 inline void 
-EndGeneration(game_assets *Assets, uint32 GenerationID)
+EndGeneration(game_assets *Assets, u32 GenerationID)
 {
     BeginAssetLock(Assets);
 
-    for(uint32 Index = 0;
+    for(u32 Index = 0;
         Index < Assets->InFlightGenerationCount;
         Index++)
     {

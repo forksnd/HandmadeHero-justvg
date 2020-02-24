@@ -327,6 +327,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
 {
     fill_ground_chunk_work *Work = (fill_ground_chunk_work *)Data;
 
+#if 0
     loaded_bitmap *Buffer = &Work->GroundBuffer->Bitmap;
     Buffer->AlignPercentage= V2(0.5f, 0.5f);
     Buffer->WidthOverHeight = 1.0f;
@@ -336,6 +337,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
     Assert(Width == Height);
     v2 HalfDim = 0.5f*V2(Width, Height);
 
+    render_group RenderGroup = BeginRenderGroup(Work->TranState->GameAssets);
     render_group *RenderGroup = AllocateRenderGroup(Work->TranState->Assets, &Work->Task->Arena, Kilobytes(512), true);
     BeginRender(RenderGroup);
     Orthographic(RenderGroup, Buffer->Width, Buffer->Height, (Buffer->Width-2) / Width);
@@ -390,7 +392,8 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
 
     RenderGroupToOutput(RenderGroup, Buffer, &Work->Task->Arena);
     EndRender(RenderGroup);
-    
+#endif
+
     EndTaskWithMemory(Work->Task);
 }
 

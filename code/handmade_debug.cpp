@@ -104,7 +104,7 @@ DEBUGTextOp(debug_state *DebugState, debug_text_op Op, v2 P, char *String, v4 Co
     rectangle2 Result = InvertedInfinityRectangle2();
     if(DebugState && DebugState->DebugFont)
     {
-        render_group *RenderGroup = DebugState->RenderGroup;
+        render_group *RenderGroup = &DebugState->RenderGroup;
         loaded_font *Font = DebugState->DebugFont; 
         hha_font *FontInfo = DebugState->DebugFontInfo;
 
@@ -189,7 +189,7 @@ DEBUGTextLine(char *String)
     debug_state *DebugState = DEBUGGetState();
     if(DebugState)
     {
-        render_group *RenderGroup = DebugState->RenderGroup;
+        render_group *RenderGroup = &DebugState->RenderGroup;
 
         loaded_font *Font = PushFont(RenderGroup, DebugState->FontID);
         if(Font)
@@ -456,7 +456,7 @@ WriteHandmadeConfig(debug_state *DebugState)
 internal void 
 DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
 {
-    PushRect(DebugState->RenderGroup, DefaultFlatTransform(), ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
+    PushRect(&DebugState->RenderGroup, DefaultFlatTransform(), ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
 
     r32 BarSpacing = 4.0f;
     r32 LaneHeight = 0.0f;
@@ -528,7 +528,7 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
             rectangle2 RegionRect = RectMinMax(V2(ThisMinX, StackY - LaneHeight*(Region->LaneIndex + 1)), 
                                                V2(ThisMaxX, StackY - LaneHeight*Region->LaneIndex));
 
-            PushRect(DebugState->RenderGroup, RegionRect, 0.0f, V4(Color, 1.0f));
+            PushRect(&DebugState->RenderGroup, RegionRect, 0.0f, V4(Color, 1.0f));
 
             if(IsInRectangle(RegionRect, MouseP))
             {
@@ -546,7 +546,7 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
     }
 #endif
 #if 0
-        PushRect(DebugState->RenderGroup, V3(ChartLeft + 0.5f*ChartWidth, ChartMinY + ChartHeight, 0.0f), V2(ChartWidth, 1.0f), V4(1, 1, 1, 1));
+        PushRect(&DebugState->RenderGroup, V3(ChartLeft + 0.5f*ChartWidth, ChartMinY + ChartHeight, 0.0f), V2(ChartWidth, 1.0f), V4(1, 1, 1, 1));
 #endif
 }
 
@@ -645,16 +645,16 @@ EndElement(layout_element *Element)
 
     if(Element->Size)
     {
-        PushRect(DebugState->RenderGroup, NoTransform, RectMinMax(V2(TotalMinCorner.x, InteriorMinCorner.y), 
+        PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(TotalMinCorner.x, InteriorMinCorner.y), 
                                                                   V2(InteriorMinCorner.x, InteriorMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
-        PushRect(DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMaxCorner.x, InteriorMinCorner.y), 
+        PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMaxCorner.x, InteriorMinCorner.y), 
                                                                   V2(TotalMaxCorner.x, InteriorMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
-        PushRect(DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, InteriorMaxCorner.y), 
+        PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, InteriorMaxCorner.y), 
                                                                   V2(InteriorMaxCorner.x, TotalMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
-        PushRect(DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, TotalMinCorner.y), 
+        PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, TotalMinCorner.y), 
                                                                   V2(InteriorMaxCorner.x, InteriorMinCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
 
@@ -664,9 +664,9 @@ EndElement(layout_element *Element)
 
         rectangle2 SizeBox = RectMinMax(V2(InteriorMaxCorner.x, TotalMinCorner.y),
                                         V2(TotalMaxCorner.x, InteriorMinCorner.y));
-        PushRect(DebugState->RenderGroup, NoTransform, SizeBox, 0.0f, 
-                InteractionIsHot(DebugState, SizeInteraction) ? 
-                V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
+        PushRect(&DebugState->RenderGroup, NoTransform, SizeBox, 0.0f, 
+                 InteractionIsHot(DebugState, SizeInteraction) ? 
+                 V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
         
         if(IsInRectangle(SizeBox, Layout->MouseP))
         {
@@ -824,7 +824,7 @@ DEBUGDrawEvent(layout *Layout, debug_stored_event *StoredEvent, debug_id DebugID
     object_transform NoTransform = DefaultFlatTransform();
 
     debug_state *DebugState = Layout->DebugState;
-    render_group *RenderGroup = DebugState->RenderGroup;
+    render_group *RenderGroup = &DebugState->RenderGroup;
 
     if(StoredEvent)
     {
@@ -856,8 +856,8 @@ DEBUGDrawEvent(layout *Layout, debug_stored_event *StoredEvent, debug_id DebugID
                 DefaultInteraction(&Element, TearInteraction);
                 EndElement(&Element);
 
-                PushRect(DebugState->RenderGroup, NoTransform, Element.Bounds, 0.0f, V4(0, 0, 0, 1));
-                PushBitmap(DebugState->RenderGroup, NoTransform, Event->Value_bitmap_id, View->InlineBlock.Dim.y, 
+                PushRect(RenderGroup, NoTransform, Element.Bounds, 0.0f, V4(0, 0, 0, 1));
+                PushBitmap(RenderGroup, NoTransform, Event->Value_bitmap_id, View->InlineBlock.Dim.y, 
                         V3(GetMinCorner(Element.Bounds), 0.0f), V4(1, 1, 1, 1), 0.0f);
             } break;
 
@@ -1027,7 +1027,7 @@ DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
             MoveInteraction.P = &Tree->UIP;
 
             rectangle2 MoveBox = RectCenterHalfDim(Tree->UIP - V2(4.0f, 4.0f), V2(4.0f, 4.0f));
-            PushRect(DebugState->RenderGroup, NoTransform, MoveBox, 0.0f, 
+            PushRect(&DebugState->RenderGroup, NoTransform, MoveBox, 0.0f, 
                      InteractionIsHot(DebugState, MoveInteraction) ?
                      V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
             
@@ -1762,7 +1762,8 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
 }
 
 internal void 
-DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 Height)
+DEBUGStart(debug_state *DebugState, game_render_commands *Commands, 
+           game_assets *Assets, u32 MainGenerationID, uint32 Width, uint32 Height)
 {
     TIMED_FUNCTION();
 
@@ -1826,9 +1827,6 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
             Assert(Context.GroupDepth == 0);
 #endif
 
-            DebugState->RenderGroup = AllocateRenderGroup(Assets, &DebugState->DebugArena, 
-                                                          Megabytes(16), false);
-
             DebugState->Paused = false;
             DebugState->ScopeToRecord = 0;
 
@@ -1837,7 +1835,7 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
             AddTree(DebugState, DebugState->RootGroup, V2(-0.5f*Width, 0.5f*Height));
         }
 
-        BeginRender(DebugState->RenderGroup);
+        DebugState->RenderGroup = BeginRenderGroup(Assets, Commands, MainGenerationID, false);
 
         DebugState->GlobalWidth = (real32)Width;
         DebugState->GlobalHeight = (real32)Height;
@@ -1848,11 +1846,11 @@ DEBUGStart(debug_state *DebugState, game_assets *Assets, uint32 Width, uint32 He
         WeightVector.E[Tag_FontType] = (real32)1.0f;
         DebugState->FontID = GetBestMatchFontFrom(Assets, Asset_Font, &MatchVector, &WeightVector);
 
-        DebugState->DebugFont = PushFont(DebugState->RenderGroup, DebugState->FontID);
-        DebugState->DebugFontInfo = GetFontInfo(DebugState->RenderGroup->Assets, DebugState->FontID);
+        DebugState->DebugFont = PushFont(&DebugState->RenderGroup, DebugState->FontID);
+        DebugState->DebugFontInfo = GetFontInfo(DebugState->RenderGroup.Assets, DebugState->FontID);
 
         DebugState->FontScale = 0.45f;
-        Orthographic(DebugState->RenderGroup, Width, Height, 1.0f);
+        Orthographic(&DebugState->RenderGroup, Width, Height, 1.0f);
         DebugState->LeftEdge = -0.5f*Width;
         DebugState->RightEdge = 0.5f*Width;
 
@@ -1938,17 +1936,17 @@ DEBUGDumpStruct(uint32 MemberCount, member_definition *MemberDefs, void *StructP
 }
 
 internal void
-DEBUGEnd(debug_state *DebugState, game_input *Input, loaded_bitmap *DrawBuffer)
+DEBUGEnd(debug_state *DebugState, game_input *Input)
 {
     TIMED_FUNCTION();
 
     if(DebugState)
     {
-        render_group *RenderGroup = DebugState->RenderGroup;
+        render_group *RenderGroup = &DebugState->RenderGroup;
 
         debug_event *HotEvent = 0;
 
-        v2 MouseP = Unproject(DebugState->RenderGroup, DefaultFlatTransform(), V2((real32)Input->MouseX, (real32)Input->MouseY)).xy;
+        v2 MouseP = Unproject(RenderGroup, DefaultFlatTransform(), V2((real32)Input->MouseX, (real32)Input->MouseY)).xy;
 
         DEBUGDrawMainMenu(DebugState, RenderGroup, MouseP);
         DEBUGInteract(DebugState, Input, MouseP);
@@ -2063,9 +2061,7 @@ DEBUGEnd(debug_state *DebugState, game_input *Input, loaded_bitmap *DrawBuffer)
             }
         }
 
-        RenderToOutput(DebugState->HighPriorityQueue, DebugState->RenderGroup, DrawBuffer,
-                       &DebugState->DebugArena);
-        EndRender(DebugState->RenderGroup);
+        EndRenderGroup(RenderGroup);
 
         // NOTE(georgy): Clear the UI state for the next frame
         ZeroStruct(DebugState->NextHotInteraction);
@@ -2087,15 +2083,10 @@ extern "C" DEBUG_GAME_FRAME_END(DEBUGFrameEnd)
     {
         game_assets *Assets = DEBUGGetGameAssets(Memory);
 
-        DEBUGStart(DebugState, Assets, Buffer->Width, Buffer->Height);
+        DEBUGStart(DebugState, RenderCommands, Assets, DEBUGGetMainGenerationID(Memory), RenderCommands->Width, RenderCommands->Height);
         CollateDebugRecords(DebugState, EventCount, GlobalDebugTable->Events[EventArrayIndex]);
 
-        loaded_bitmap DrawBuffer = {};
-        DrawBuffer.Width = Buffer->Width;
-        DrawBuffer.Height = Buffer->Height;
-        DrawBuffer.Pitch = Buffer->Pitch;
-        DrawBuffer.Memory = Buffer->Memory;
-        DEBUGEnd(DebugState, Input, &DrawBuffer);
+        DEBUGEnd(DebugState, Input);
     }
 
     return(GlobalDebugTable);

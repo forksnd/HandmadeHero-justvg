@@ -402,6 +402,7 @@ struct transient_state
     task_with_memory Tasks[4];
 
     game_assets *Assets;
+    u32 MainGenerationID;
 
     uint32 GroundBufferCount;
     ground_buffer *GroundBuffers;

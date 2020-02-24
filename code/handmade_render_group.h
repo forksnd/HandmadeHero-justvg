@@ -127,22 +127,14 @@ struct render_group
     struct game_assets *Assets;
     r32 GlobalAlpha;
 
-    u32 GenerationID;
-
     v2 MonitorHalfDimInMeters;
     camera_transform CameraTransform;
-
-    u32 MaxPushBufferSize;
-    u32 PushBufferSize;
-    u8 *PushBufferBase;
-
-    u32 PushBufferElementCount;
-    u32 SortEntryAt;
 
     u32 MissingResourceCount;
     b32 RendersInBackground;
 
-    b32 InsideRender;
+    u32 GenerationID;
+    game_render_commands *Commands;
 };
 
 struct entity_basis_p_result

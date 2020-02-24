@@ -323,6 +323,22 @@ struct game_offscreen_buffer
     int Pitch;
 };
 
+struct game_render_commands
+{
+    u32 Width;
+    u32 Height;
+    
+    u32 MaxPushBufferSize;
+    u32 PushBufferSize;
+    u8 *PushBufferBase;
+
+    u32 PushBufferElementCount;
+    u32 SortEntryAt;
+};
+
+#define RenderCommandStruct(MaxBufferBufferSize, PushBuffer, Width, Height) \
+    {Width, Height, MaxPushBufferSize, 0, (u8 *)PushBuffer, 0, MaxBufferBufferSize};
+
 struct game_sound_output_buffer
 {
     // NOTE(georgy): Samples must be padded to a multiple of 4 samples!
@@ -499,7 +515,7 @@ struct game_memory
     platform_api PlatformAPI;
 };
 
-#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_render_commands *RenderCommands)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
 // NOTE(george): At the moment, this has to be a very fast function, it cannot be
