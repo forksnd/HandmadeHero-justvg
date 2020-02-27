@@ -1,5 +1,90 @@
 #include "handmade_render_group.h"
 
+#define GL_SRGB8_ALPHA8 0x8C43
+#define GL_FRAMEBUFFER_SRGB 0x8DB9
+
+#define GL_SHADING_LANGUAGE_VERSION             0x8B8C
+// NOTE(georgy): Windows-specific
+#define WGL_CONTEXT_MAJOR_VERSION_ARB           0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB           0x2092
+#define WGL_CONTEXT_LAYER_PLANE_ARB             0x2093
+#define WGL_CONTEXT_FLAGS_ARB                   0x2094
+#define WGL_CONTEXT_PROFILE_MASK_ARB            0x9126
+
+#define WGL_CONTEXT_DEBUG_BIT_ARB               0x0001
+#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB  0x0002
+
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB        0x00000001
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
+
+struct opengl_info
+{
+    b32 ModernContext;
+
+    char *Vendor;
+    char *Renderer;
+    char *Version;
+    char *ShadingLanguageVersion;
+    char *Extensions;
+
+    b32 GL_EXT_texture_sRGB;
+    b32 GL_EXT_framebuffer_sRGB;
+};
+
+internal opengl_info
+OpenGLGetInfo(b32 ModernContext)
+{
+    opengl_info Result = {};
+
+    Result.ModernContext = ModernContext;
+    Result.Vendor = (char *)glGetString(GL_VENDOR);
+    Result.Renderer = (char *)glGetString(GL_RENDERER);
+    Result.Version = (char *)glGetString(GL_VERSION);
+    if(Result.ModernContext)
+    {
+        Result.ShadingLanguageVersion = (char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    }
+    else
+    {
+        Result.ShadingLanguageVersion = "(none)";
+    }
+    Result.Extensions = (char *)glGetString(GL_EXTENSIONS);
+
+    char *At = Result.Extensions;
+    while(*At)
+    {
+        while(IsWhitespace(*At)) {At++;}
+        char *End = At;
+        while(*End && !IsWhitespace(*End)) {End++;}
+
+        umm Count = End - At;
+        
+        if(StringsAreEqual(Count, At, "GL_EXT_texture_sRGB")) {Result.GL_EXT_texture_sRGB = true;}
+        else if(StringsAreEqual(Count, At, "GL_EXT_framebuffer_sRGB")) {Result.GL_EXT_framebuffer_sRGB = true;}
+
+        At = End;
+    }
+
+    return(Result);
+}
+
+internal void
+OpenGLInit(b32 ModernContext)
+{
+    opengl_info Info = OpenGLGetInfo(ModernContext);
+
+    OpenGLDefaultInternalTextureFormat = GL_RGBA8;
+    if(Info.GL_EXT_texture_sRGB)
+    {
+        OpenGLDefaultInternalTextureFormat = GL_SRGB8_ALPHA8;
+    }
+
+    if(Info.GL_EXT_framebuffer_sRGB)
+    {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    }
+}
+
 inline void
 OpenGLSetScreenSpace(s32 Width, s32 Height)
 {

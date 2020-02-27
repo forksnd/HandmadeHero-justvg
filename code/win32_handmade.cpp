@@ -1,6 +1,5 @@
 #include "handmade_platform.h"
-#include "handmade_intrinsics.h"
-#include "handmade_math.h"
+#include "handmade_shared.h"
 
 #include <Windows.h>
 #include <stdio.h>
@@ -84,6 +83,8 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 
 typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
 global_variable wgl_swap_interval_ext *wglSwapInterval;
+
+typedef HGLRC WINAPI wgl_create_context_attribs_arb(HDC hDC, HGLRC hSharedContext, const int *attribList);
 
 inline FILETIME 
 Win32GetLastWriteTime(char *Filename)
@@ -427,20 +428,44 @@ Win32InitOpenGL(HWND Window)
     HGLRC OpenGLRC = wglCreateContext(WindowDC);
     if(wglMakeCurrent(WindowDC, OpenGLRC))
     {   
-#define GL_SRGB8_ALPHA8 0x8C43
-#define GL_FRAMEBUFFER_SRGB 0x8DB9
-        OpenGLDefaultInternalTextureFormat = GL_RGBA8;
-        // TODO(georgy): Actually check for extensions!
-        // if(OpenGLExtensionIsAvailable())
+        b32 ModernContext = false;
+
+        wgl_create_context_attribs_arb *wglCreateContextAttribsARB = 
+            (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
+        if(wglCreateContextAttribsARB)
         {
-            OpenGLDefaultInternalTextureFormat = GL_SRGB8_ALPHA8;
+            // NOTE(georgy): This is a modern version of OpenGL
+            int Attribs[] = 
+            {
+                WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+                WGL_CONTEXT_MINOR_VERSION_ARB, 0,
+                WGL_CONTEXT_FLAGS_ARB, 0
+#if HANDMADE_INTERNAL
+                |WGL_CONTEXT_DEBUG_BIT_ARB
+#endif
+                ,
+                WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                0
+            };
+            HGLRC ShareContext = 0;
+            HGLRC ModernGLRC = wglCreateContextAttribsARB(WindowDC, ShareContext, Attribs);
+            if(ModernGLRC)
+            {
+                if(wglMakeCurrent(WindowDC, ModernGLRC))
+                {
+                    ModernContext = true;
+                    wglDeleteContext(OpenGLRC);
+                    OpenGLRC = ModernGLRC;
+                }
+            }
+        }
+        else
+        {
+            // NOTE(georgy): This is an antiquated version of OpenGL
         }
 
-        // if(OpenGLExtensionIsAvailable())
-        {
-            glEnable(GL_FRAMEBUFFER_SRGB);
-        }
-
+        OpenGLInit(ModernContext);
+        
         wglSwapInterval = (wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
         if(wglSwapInterval)
         {

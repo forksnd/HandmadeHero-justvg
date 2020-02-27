@@ -78,7 +78,7 @@ typedef double real64;
 typedef real32 r32;
 typedef real64 r64;
 
-typedef u64 umm;
+typedef uintptr umm;
 
 #pragma pack(push, 1)
 struct bitmap_id

@@ -14,8 +14,7 @@
 */
 
 #include "handmade_platform.h"
-#include "handmade_intrinsics.h"
-#include "handmade_math.h"
+#include "handmade_shared.h"
 #include "handmade_random.h"
 #include "handmade_file_formats.h"
 #include "handmade_meta.h"
@@ -53,47 +52,6 @@ struct temporary_memory
 
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
-
-inline bool32 
-StringsAreEqual(char *A, char *B)
-{
-    bool32 Result = (A == B);
-    
-    if(A && B)
-    {
-        while(*A && *B && (*A == *B))
-        {
-            A++;
-            B++;
-        }
-
-        Result = ((*A == 0) && (*B == 0));
-    }
-
-    return(Result);
-}
-
-inline bool32 
-StringsAreEqual(memory_index ALength, char *A, memory_index BLength, char *B)
-{
-    bool32 Result = (ALength == BLength);
-    
-    if(Result)
-    {
-        for(u32 Index = 0;
-            Index < ALength;
-            Index++)
-        {
-            if(A[Index] != B[Index])
-            {
-                Result = false;
-                break;
-            }
-        }
-    }
-
-    return(Result);
-}
 
 //
 //
