@@ -398,13 +398,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             case GameMode_TitleScreen:
             {
-                    Rerun = UpdateAndRenderTitleScreen(GameState, TranState, RenderGroup, Input, &DrawBuffer,
+                Rerun = UpdateAndRenderTitleScreen(GameState, TranState, RenderGroup, Input, &DrawBuffer,
                                                        GameState->TitleScreen);
             } break;
 
             case GameMode_CutScene:
             {
-                    Rerun = UpdateAndRenderCutScene(GameState, TranState, RenderGroup, &DrawBuffer,
+                Rerun = UpdateAndRenderCutScene(GameState, TranState, RenderGroup, &DrawBuffer,
                                                     Input, GameState->CutScene);
             } break;
 

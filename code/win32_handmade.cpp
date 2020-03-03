@@ -21,6 +21,12 @@ global_variable int64 GlobalPerfCounterFrequency;
 global_variable bool32 DEBUGGlobalShowCursor;
 global_variable WINDOWPLACEMENT GlobalWindowPosition = { sizeof(GlobalWindowPosition) };
 
+global_variable HDC GlobalDC;
+global_variable HGLRC GlobalOpenGLRC;
+
+typedef HGLRC WINAPI wgl_create_context_attribs_arb(HDC hDC, HGLRC hSharedContext, const int *attribList);
+global_variable wgl_create_context_attribs_arb *wglCreateContextAttribsARB;
+
 global_variable GLuint OpenGLDefaultInternalTextureFormat;
 
 #include "handmade_opengl.cpp"
@@ -83,8 +89,6 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 
 typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
 global_variable wgl_swap_interval_ext *wglSwapInterval;
-
-typedef HGLRC WINAPI wgl_create_context_attribs_arb(HDC hDC, HGLRC hSharedContext, const int *attribList);
 
 inline FILETIME 
 Win32GetLastWriteTime(char *Filename)
@@ -198,12 +202,12 @@ Win32ProcessXInputStickValue(SHORT Value, SHORT DeadzoneThreshold)
 }          
 
 #if HANDMADE_INTERNAL
-DEBUG_PLATFROM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
     VirtualFree(Memory, 0, MEM_RELEASE);
 }               
 
-DEBUG_PLATFROM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
     debug_read_file_result Result = {};
 
@@ -250,7 +254,7 @@ DEBUG_PLATFROM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
     return(Result);
 }
 
-DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(DEBUGExecuteSystemCommand)
+DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(DEBUGExecuteSystemCommand)
 {
     debug_executing_process Result = {};
 
@@ -274,7 +278,7 @@ DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(DEBUGExecuteSystemCommand)
     return(Result);
 }
 
-DEBUG_PLATFROM_GET_PROCESS_STATE(DEBUGGetProcessState)
+DEBUG_PLATFORM_GET_PROCESS_STATE(DEBUGGetProcessState)
 {
     debug_process_state Result = {};
     HANDLE hProcess = *(HANDLE *)&Process.OSHandle;
@@ -298,7 +302,7 @@ DEBUG_PLATFROM_GET_PROCESS_STATE(DEBUGGetProcessState)
     return(Result);
 }
 
-DEBUG_PLATFROM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
     bool32 Result = false;
 
@@ -406,6 +410,37 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
     }
 }
 
+int Win32OpenGLAttribs[] = 
+{
+    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 0,
+    WGL_CONTEXT_FLAGS_ARB, 0
+#if HANDMADE_INTERNAL
+    |WGL_CONTEXT_DEBUG_BIT_ARB
+#endif
+    ,
+    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+    0
+};
+
+internal void
+Win32CreateOpenGLContextForWorkerThread(void)
+{
+    if(wglCreateContextAttribsARB)
+    {
+        HDC WindowDC = GlobalDC;
+        HGLRC ShareContext = GlobalOpenGLRC;
+        HGLRC ModernGLRC = wglCreateContextAttribsARB(WindowDC, ShareContext, Win32OpenGLAttribs);
+        if(ModernGLRC)
+        {
+            if(wglMakeCurrent(WindowDC, ModernGLRC))
+            {
+
+            }
+        }
+    }
+}
+
 internal void
 Win32InitOpenGL(HWND Window)
 {
@@ -430,25 +465,13 @@ Win32InitOpenGL(HWND Window)
     {   
         b32 ModernContext = false;
 
-        wgl_create_context_attribs_arb *wglCreateContextAttribsARB = 
-            (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
+        wglCreateContextAttribsARB = (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
         if(wglCreateContextAttribsARB)
         {
             // NOTE(georgy): This is a modern version of OpenGL
-            int Attribs[] = 
-            {
-                WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-                WGL_CONTEXT_MINOR_VERSION_ARB, 0,
-                WGL_CONTEXT_FLAGS_ARB, 0
-#if HANDMADE_INTERNAL
-                |WGL_CONTEXT_DEBUG_BIT_ARB
-#endif
-                ,
-                WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                0
-            };
+            
             HGLRC ShareContext = 0;
-            HGLRC ModernGLRC = wglCreateContextAttribsARB(WindowDC, ShareContext, Attribs);
+            HGLRC ModernGLRC = wglCreateContextAttribsARB(WindowDC, ShareContext, Win32OpenGLAttribs);
             if(ModernGLRC)
             {
                 if(wglMakeCurrent(WindowDC, ModernGLRC))
@@ -456,6 +479,7 @@ Win32InitOpenGL(HWND Window)
                     ModernContext = true;
                     wglDeleteContext(OpenGLRC);
                     OpenGLRC = ModernGLRC;
+                    GlobalOpenGLRC = OpenGLRC;
                 }
             }
         }
@@ -477,7 +501,8 @@ Win32InitOpenGL(HWND Window)
         InvalidCodePath;
         // TODO(georgy): Diagnostic
     }
-    ReleaseDC(Window, WindowDC);
+
+    GlobalDC = WindowDC;
 }
 
 internal win32_window_dimension 
@@ -1190,7 +1215,9 @@ struct platform_work_queue
     uint32 volatile NextEntryToRead;
     HANDLE SemaphoreHandle;
 
-    platform_work_queue_entry Entries[256];    
+    platform_work_queue_entry Entries[256]; 
+
+    b32 NeedsOpenGL;   
 };
 
 internal void 
@@ -1259,7 +1286,11 @@ ThreadProc(LPVOID lpParameter)
 {
     platform_work_queue *Queue = (platform_work_queue *)lpParameter;
 
-    platform_work_queue_entry Entry = {};
+    if(Queue->NeedsOpenGL)
+    {
+        Win32CreateOpenGLContextForWorkerThread();
+    }
+
     for(;;)
     {
         if(Win32DoNextWorkQueueEntry(Queue))
@@ -1615,12 +1646,6 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 {
     win32_state Win32State = {};    
 
-    platform_work_queue HighPriorityQueue;
-    Win32MakeQueue(&HighPriorityQueue, 2);
-
-    platform_work_queue LowPriorityQueue;
-    Win32MakeQueue(&LowPriorityQueue, 2);
-
 #if 0
     Win32AddEntry(&Queue, DoWorkerWork, "String A0");
     Win32AddEntry(&Queue, DoWorkerWork, "String A1");
@@ -1717,6 +1742,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
         {
             ToggleFullscreen(Window);
             Win32InitOpenGL(Window);
+            
+            platform_work_queue HighPriorityQueue = {};
+            Win32MakeQueue(&HighPriorityQueue, 2);
+
+            platform_work_queue LowPriorityQueue = {};
+            LowPriorityQueue.NeedsOpenGL = true;
+            Win32MakeQueue(&LowPriorityQueue, 2);
 
             // NOTE(george): DirestSound output test
             win32_sound_output SoundOutput = {};

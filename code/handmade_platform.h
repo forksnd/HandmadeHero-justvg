@@ -297,20 +297,20 @@ struct debug_process_state
     int32 ReturnCode;
 };
 
-#define DEBUG_PLATFROM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *Filename)
-typedef DEBUG_PLATFROM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *Filename)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-#define DEBUG_PLATFROM_FREE_FILE_MEMORY(name) void name(void *Memory)
-typedef DEBUG_PLATFROM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 
-#define DEBUG_PLATFROM_WRITE_ENTIRE_FILE(name) bool32 name(char *Filename, uint32 MemorySize, void *Memory)
-typedef DEBUG_PLATFROM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) bool32 name(char *Filename, uint32 MemorySize, void *Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
-#define DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(name) debug_executing_process name(char *Path, char *Command, char *CommandLine)
-typedef DEBUG_PLATFROM_EXECUTE_SYSTEM_COMMAND(debug_platform_execute_system_command);
+#define DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(name) debug_executing_process name(char *Path, char *Command, char *CommandLine)
+typedef DEBUG_PLATFORM_EXECUTE_SYSTEM_COMMAND(debug_platform_execute_system_command);
 
-#define DEBUG_PLATFROM_GET_PROCESS_STATE(name) debug_process_state name(debug_executing_process Process)
-typedef DEBUG_PLATFROM_GET_PROCESS_STATE(debug_platform_get_process_state);
+#define DEBUG_PLATFORM_GET_PROCESS_STATE(name) debug_process_state name(debug_executing_process Process)
+typedef DEBUG_PLATFORM_GET_PROCESS_STATE(debug_platform_get_process_state);
 
 extern struct game_memory *DebugGlobalMemory;
 
@@ -459,6 +459,12 @@ typedef PLATFORM_FILE_ERROR(platform_file_error);
 
 #define PlatformNoFileErrors(Handle) ((Handle)->NoErrors) 
 
+#define PLATFORM_ALLOCATE_TEXTURE(name) void *name(u32 Width, u32 Height, void *Memory)
+typedef PLATFORM_ALLOCATE_TEXTURE(platform_allocate_texture);
+
+#define PLATFORM_DEALLOCATE_TEXTURE(name) void name(void *Texture)
+typedef PLATFORM_DEALLOCATE_TEXTURE(platform_deallocate_texture);
+
 #define PLATFORM_ALLOCATE_MEMORY(name) void *name(memory_index Size)
 typedef PLATFORM_ALLOCATE_MEMORY(platform_allocate_memory);
 
@@ -478,6 +484,9 @@ struct platform_api
 {
     platform_add_entry *AddEntry;
     platform_complete_all_work *CompleteAllWork;
+
+    platform_allocate_texture *AllocateTexture;
+    platform_deallocate_texture *DeallocateTexture;
 
     platform_get_all_files_of_type_begin *GetAllFilesOfTypeBegin;
     platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;

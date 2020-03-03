@@ -32,7 +32,7 @@ struct loaded_bitmap
     int32 Width;
     int32 Height;
     int32 Pitch;
-    u32 Handle;
+    void *TextureHandle;
 };
 
 struct environment_map

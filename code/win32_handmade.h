@@ -1,4 +1,5 @@
 #if !defined(WIN32_HANDMADE_H)
+#define WIN32_HANDMADE_H
 
 struct win32_sound_output
 {
@@ -95,5 +96,11 @@ struct win32_state
     char *OnePastLastEXEFilenameSlash;
 };
 
-#define WIN32_HANDMADE_H
+struct win32_thread_startup
+{
+    HWND Window;
+    HGLRC OpenGLRC;
+    platform_work_queue *Queue;
+};
+
 #endif
