@@ -26,22 +26,28 @@ global_variable WINDOWPLACEMENT GlobalWindowPosition = { sizeof(GlobalWindowPosi
 #define WGL_SUPPORT_OPENGL_ARB  0x2010
 #define WGL_DOUBLE_BUFFER_ARB   0x2011
 #define WGL_PIXEL_TYPE_ARB      0x2013 
+#define WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB 0x20A9
 
 #define WGL_FULL_ACCELERATION_ARB   0x2027
 #define WGL_TYPE_RGBA_ARB           0x202B 
 
 typedef HGLRC WINAPI wgl_create_context_attribs_arb(HDC hDC, HGLRC hSharedContext, const int *attribList);
 
-typedef BOOL WINAPI wgl_choose_pixel_format_arb(HDC hdc,
+typedef BOOL WINAPI wgl_choose_pixel_format_arb(
+    HDC hdc,
     const int *piAttribIList,
     const FLOAT *pfAttribFList,
     UINT nMaxFormats,
     int *piFormats,
     UINT *nNumFormats);
 
+typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
+
 global_variable HDC GlobalDC;
 global_variable HGLRC GlobalOpenGLRC;
+global_variable wgl_choose_pixel_format_arb *wglChoosePixelFormatARB;
 global_variable wgl_create_context_attribs_arb *wglCreateContextAttribsARB;
+global_variable wgl_swap_interval_ext *wglSwapInterval;
 
 global_variable GLuint OpenGLDefaultInternalTextureFormat;
 
@@ -102,9 +108,6 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
-
-typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
-global_variable wgl_swap_interval_ext *wglSwapInterval;
 
 inline FILETIME 
 Win32GetLastWriteTime(char *Filename)
@@ -461,18 +464,12 @@ Win32CreateOpenGLContextForWorkerThread(void)
     }
 }
 
-internal HGLRC
-Win32InitOpenGL(HDC WindowDC)
+internal void
+Win32SetPixelFormat(HDC WindowDC)
 {
     int SuggestedPixelFormatIndex = 0;
     GLuint ExtendedPick = 0;
 
-    // TODO(georgy): This needs to happen after we create the initial OpenGL context,
-    // BUT how do we do that given that the DC needs to be in the correct format
-    // first? Do we just wglMakeCurrent back to zero and _then_ reset the pixel format?
-    // Or what???
-    wgl_choose_pixel_format_arb *wglChoosePixelFormatARB = 
-        (wgl_choose_pixel_format_arb *)wglGetProcAddress("wglChoosePixelFormatARB");
     if(wglChoosePixelFormatARB)
     {
         int IntAttribList[] =
@@ -482,13 +479,15 @@ Win32InitOpenGL(HDC WindowDC)
             WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
             WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
             WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+            WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, GL_TRUE,
             0
         };
         float FloatAttribList[] = {0};
+
         wglChoosePixelFormatARB(WindowDC, IntAttribList, FloatAttribList, 1, &SuggestedPixelFormatIndex, &ExtendedPick);
     }
     
-    if(ExtendedPick == 0)
+    if(!ExtendedPick)
     {
         PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
         DesiredPixelFormat.nSize = sizeof(DesiredPixelFormat);
@@ -501,50 +500,84 @@ Win32InitOpenGL(HDC WindowDC)
 
         SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
     }
-    
+
     PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
     DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, sizeof(SuggestedPixelFormat), &SuggestedPixelFormat);
     SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
+}
 
-    HGLRC OpenGLRC = wglCreateContext(WindowDC);
-    if(wglMakeCurrent(WindowDC, OpenGLRC))
-    {   
-        b32 ModernContext = false;
+internal void
+Win32LoadWGLExtensions(void)
+{
+    WNDCLASSA WindowClass = {};
 
-        wglCreateContextAttribsARB = (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
-        if(wglCreateContextAttribsARB)
-        {
-            // NOTE(georgy): This is a modern version of OpenGL
+    WindowClass.lpfnWndProc = DefWindowProcA;
+    WindowClass.hInstance = GetModuleHandle(0);
+    WindowClass.lpszClassName = "HandmadeWGLLoader";
+
+    if(RegisterClassA(&WindowClass))
+    {
+        HWND Window = CreateWindowExA(
+                        0,
+                        WindowClass.lpszClassName,
+                        "Handmade Hero",
+                        0,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        CW_USEDEFAULT,
+                        0,
+                        0,
+                        WindowClass.hInstance,
+                        0);
+
+        HDC WindowDC = GetDC(Window);
+        Win32SetPixelFormat(WindowDC);
+
+        HGLRC OpenGLRC = wglCreateContext(WindowDC);
+        if(wglMakeCurrent(WindowDC, OpenGLRC))
+        {   
+            wglChoosePixelFormatARB = 
+                (wgl_choose_pixel_format_arb *)wglGetProcAddress("wglChoosePixelFormatARB");
+            wglCreateContextAttribsARB = (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
+            wglSwapInterval = (wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
             
-            HGLRC ShareContext = 0;
-            HGLRC ModernGLRC = wglCreateContextAttribsARB(WindowDC, ShareContext, Win32OpenGLAttribs);
-            if(ModernGLRC)
-            {
-                if(wglMakeCurrent(WindowDC, ModernGLRC))
-                {
-                    ModernContext = true;
-                    wglDeleteContext(OpenGLRC);
-                    OpenGLRC = ModernGLRC;
-                }
-            }
-        }
-        else
-        {
-            // NOTE(georgy): This is an antiquated version of OpenGL
+            wglMakeCurrent(0, 0);
         }
 
+        wglDeleteContext(OpenGLRC);
+        ReleaseDC(Window, WindowDC);
+        DestroyWindow(Window);
+    }
+}
+
+internal HGLRC
+Win32InitOpenGL(HDC WindowDC)
+{
+    Win32LoadWGLExtensions();
+
+    Win32SetPixelFormat(WindowDC);
+    
+    bool32 ModernContext = true;
+    HGLRC OpenGLRC = 0;
+    if(wglCreateContextAttribsARB)
+    {
+        OpenGLRC = wglCreateContextAttribsARB(WindowDC, 0, Win32OpenGLAttribs);
+    }
+    
+    if(!OpenGLRC)
+    {
+        ModernContext = false;
+        OpenGLRC = wglCreateContext(WindowDC);
+    }
+
+    if(wglMakeCurrent(WindowDC, OpenGLRC))
+    {
         OpenGLInit(ModernContext);
-        
-        wglSwapInterval = (wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
         if(wglSwapInterval)
         {
             wglSwapInterval(1);
         }
-    }
-    else
-    {
-        InvalidCodePath;
-        // TODO(georgy): Diagnostic
     }
 
     return(OpenGLRC);
@@ -1561,8 +1594,8 @@ InitFader(win32_fader *Fader, HINSTANCE Instance)
 {
     WNDCLASSA WindowClass = {};
 
-    WindowClass.style = CS_VREDRAW | CS_HREDRAW;
-    WindowClass.lpfnWndProc = Win32FadeWindowCallback;
+    WindowClass.style = 0;
+    WindowClass.lpfnWndProc = DefWindowProc;
     WindowClass.hInstance = Instance;
     WindowClass.hCursor = LoadCursor(0, IDC_ARROW);
     WindowClass.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
