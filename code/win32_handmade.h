@@ -96,9 +96,26 @@ struct win32_state
     char *OnePastLastEXEFilenameSlash;
 };
 
+struct platform_work_queue_entry
+{
+    platform_work_queue_callback *Callback;
+    void *Data;
+};
+struct platform_work_queue
+{
+    uint32 volatile CompletionGoal;
+    uint32 volatile CompletionCount;
+
+    uint32 volatile NextEntryToWrite;
+    uint32 volatile NextEntryToRead;
+    HANDLE SemaphoreHandle;
+
+    platform_work_queue_entry Entries[256]; 
+};
+
 struct win32_thread_startup
 {
-    HWND Window;
+    HDC OpenGLDC;
     HGLRC OpenGLRC;
     platform_work_queue *Queue;
 };
