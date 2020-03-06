@@ -267,104 +267,121 @@ DEBUGEventToText(char *Buffer, char *End, debug_event *Event, uint32 Flags)
     
     if(Flags & DEBUGVarToText_AddName)
     {
+        char *UseName = Name;
+        if(Flags & DEBUGVarToText_StartAtLastUnderscore)
+        {
+            for(char *Scan = Name;
+                *Scan;
+                Scan++)
+            {
+                if((Scan[0] == '_') &&
+                   (Scan[1] != 0))
+                {
+                    UseName = Scan + 1;
+                }
+            }
+        }
         At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                          "%s%s ", Name, (Flags & DEBUGVarToText_Colon) ? ":" : "");
+                          "%s%s ", UseName, (Flags & DEBUGVarToText_Colon) ? ":" : "");
     }
 
-    switch(Event->Type)
+    if(Flags & DEBUGVarToText_AddValue)
     {
-        case DebugType_b32:
+        switch(Event->Type)
         {
-            if(Flags & DEBUGVarToText_PrettyBools)
+            case DebugType_b32:
             {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%s", Event->Value_b32 ? "true" : "false");
-            }
-            else
-            {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%d", Event->Value_b32);
-            }
-        } break;
-
-        case DebugType_s32:
-        {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%d", Event->Value_s32);
-        } break;
-
-        case DebugType_u32:
-        {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%u", Event->Value_u32);
-        } break;
-
-        case DebugType_r32:
-        {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%f", Event->Value_r32);
-                if(Flags & DEBUGVarToText_FloatSuffix)
+                if(Flags & DEBUGVarToText_PrettyBools)
                 {
-                    *At++ = 'f';
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%s", Event->Value_b32 ? "true" : "false");
                 }
-        } break;
+                else
+                {
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%d", Event->Value_b32);
+                }
+            } break;
 
-        case DebugType_v2:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "V2(%f, %f)", Event->Value_v2.x, Event->Value_v2.y);
-        } break;
+            case DebugType_s32:
+            {
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%d", Event->Value_s32);
+            } break;
 
-        case DebugType_v3:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "V3(%f, %f, %f)", Event->Value_v3.x, Event->Value_v3.y, Event->Value_v3.z);
-        } break;
+            case DebugType_u32:
+            {
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%u", Event->Value_u32);
+            } break;
 
-        case DebugType_v4:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "V4(%f, %f, %f, %f)", Event->Value_v4.x, Event->Value_v4.y, Event->Value_v4.z, Event->Value_v4.w);
-        } break;
+            case DebugType_r32:
+            {
+                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%f", Event->Value_r32);
+                    if(Flags & DEBUGVarToText_FloatSuffix)
+                    {
+                        *At++ = 'f';
+                    }
+            } break;
 
-        case DebugType_rectangle2:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "Rect2(%f, %f -> %f, %f)", 
-                                Event->Value_rectangle2.Min.x,
-                                Event->Value_rectangle2.Min.y, 
-                                Event->Value_rectangle2.Max.x,
-                                Event->Value_rectangle2.Max.y);
-        } break;
+            case DebugType_v2:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "V2(%f, %f)", Event->Value_v2.x, Event->Value_v2.y);
+            } break;
 
-        case DebugType_rectangle3:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "Rect3(%f, %f, %f -> %f, %f, %f)", 
-                                Event->Value_rectangle3.Min.x,
-                                Event->Value_rectangle3.Min.y, 
-                                Event->Value_rectangle3.Min.z, 
-                                Event->Value_rectangle3.Max.x,
-                                Event->Value_rectangle3.Max.y,
-                                Event->Value_rectangle3.Max.z);
-        } break;
+            case DebugType_v3:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "V3(%f, %f, %f)", Event->Value_v3.x, Event->Value_v3.y, Event->Value_v3.z);
+            } break;
 
-        case DebugType_OpenDataBlock:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "%s", Event->BlockName);
-        } break;
+            case DebugType_v4:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "V4(%f, %f, %f, %f)", Event->Value_v4.x, Event->Value_v4.y, Event->Value_v4.z, Event->Value_v4.w);
+            } break;
 
-        case DebugType_CounterThreadList:
-        case DebugType_bitmap_id:
-        {
-        } break;
+            case DebugType_rectangle2:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "Rect2(%f, %f -> %f, %f)", 
+                                    Event->Value_rectangle2.Min.x,
+                                    Event->Value_rectangle2.Min.y, 
+                                    Event->Value_rectangle2.Max.x,
+                                    Event->Value_rectangle2.Max.y);
+            } break;
 
-        default:
-        {
-            At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                "UNHANDLED: %s", Event->BlockName);
-        } break;
+            case DebugType_rectangle3:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "Rect3(%f, %f, %f -> %f, %f, %f)", 
+                                    Event->Value_rectangle3.Min.x,
+                                    Event->Value_rectangle3.Min.y, 
+                                    Event->Value_rectangle3.Min.z, 
+                                    Event->Value_rectangle3.Max.x,
+                                    Event->Value_rectangle3.Max.y,
+                                    Event->Value_rectangle3.Max.z);
+            } break;
+
+            case DebugType_OpenDataBlock:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "%s", Event->BlockName);
+            } break;
+
+            case DebugType_CounterThreadList:
+            case DebugType_bitmap_id:
+            {
+            } break;
+
+            default:
+            {
+                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
+                                    "UNHANDLED: %s", Event->BlockName);
+            } break;
+        }
     }
 
     if(Flags & DEBUGVarToText_LineFeedEnd)
@@ -385,75 +402,6 @@ struct debug_variable_iterator
     debug_variable_link *Link;
     debug_variable_link *Sentinel;
 };
-
-internal void
-WriteHandmadeConfig(debug_state *DebugState)
-{
-#if 0
-    char Temp[4096];
-    char *At = Temp;
-    char *End = Temp + sizeof(Temp);
-
-    u32 Depth = 0;
-    debug_variable_iterator Stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
-
-    Stack[Depth].Link = DebugState->RootGroup->VarGroup.Next;
-    Stack[Depth].Sentinel = &DebugState->RootGroup->VarGroup;
-    Depth++;
-    while(Depth > 0)
-    {
-        debug_variable_iterator *Iter = Stack + (Depth - 1);
-        if(Iter->Link == Iter->Sentinel)
-        {
-            Depth--;
-        }
-        else
-        {
-            debug_variable *Var = Iter->Link->Var;
-            Iter->Link = Iter->Link->Next;
-
-            if (DEBUGShouldBeWritten(Event->Type))
-            {
-                for(int Index = 0;
-                    Index < Depth;
-                    Index++)
-                {
-                    *At++ = ' ';
-                    *At++ = ' ';
-                    *At++ = ' ';
-                    *At++ = ' ';
-                }
-
-                if(Event->Type == DebugType_OpenDataBlock)
-                {
-                    At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                    "// ");
-                }
-                At += DEBUGEventToText(At, End, Var, DEBUGVarToText_AddDebugUI|
-                                                     DEBUGVarToText_AddName|
-                                                     DEBUGVarToText_FloatSuffix|
-                                                     DEBUGVarToText_LineFeedEnd);
-            }
-
-            if(Event->Type == DebugType_OpenDataBlock)
-            {
-                Iter = Stack + Depth;
-                Iter->Link = Event->VarGroup.Next;
-                Iter->Sentinel = &Event->VarGroup;
-                Depth++;
-            }
-        }
-    }
-    
-    Platform.DEBUGWriteEntireFile("../code/handmade_config.h", (uint32)(At - Temp), Temp);
-
-    if(!DebugState->Compiling)
-    {
-        DebugState->Compiling = true;
-        DebugState->Compiler = Platform.DEBUGExecuteSystemCommand("..\\code", "c:\\windows\\system32\\cmd.exe", "/C build.bat");
-    }
-#endif
-}
 
 internal void 
 DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
@@ -700,6 +648,7 @@ GetOrCreateDebugViewFor(debug_state *DebugState, debug_id ID)
         if(DebugIDsAreEqual(Search->ID, ID))
         {
             Result = Search;
+            break;
         }
     }
 
@@ -863,13 +812,22 @@ DEBUGDrawEvent(layout *Layout, debug_stored_event *StoredEvent, debug_id DebugID
                         V3(GetMinCorner(Element.Bounds), 0.0f), V4(1, 1, 1, 1), 0.0f);
             } break;
 
+            case DebugType_OpenDataBlock:
+            {
+            } break;
+
+            case DebugType_CloseDataBlock:
+            {
+            } break;
+
             default:
             {
                 char Text[256];
                 DEBUGEventToText(Text, Text + sizeof(Text), Event, DEBUGVarToText_AddName|
-                                                                DEBUGVarToText_NullTerminator|
-                                                                DEBUGVarToText_Colon|
-                                                                DEBUGVarToText_PrettyBools);
+                                                                   DEBUGVarToText_AddValue |
+                                                                   DEBUGVarToText_NullTerminator|
+                                                                   DEBUGVarToText_Colon|
+                                                                   DEBUGVarToText_PrettyBools);
 
                 rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
                 v2 Dim = {GetDim(TextBounds).x, Layout->LineAdvance};
@@ -890,6 +848,7 @@ internal void
 DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug_id DebugID)
 {
     debug_state *DebugState = Layout->DebugState;
+
     debug_stored_event *OldestEvent = Element->OldestEvent;
     if(OldestEvent)
     {
@@ -919,13 +878,41 @@ DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug
                         LastOpenBlock = Event;
                     }
                 }
+                
+                debug_interaction ItemInteraction = DebugIDInteraction(DebugInteraction_ToggleExpansion, DebugID);
 
-                for(debug_stored_event *Event = LastOpenBlock;
-                    Event;
-                    Event = Event->Next)
+                char Text[256];
+                DEBUGEventToText(Text, Text + sizeof(Text), &LastOpenBlock->Event, 
+                                 DEBUGVarToText_AddName|
+                                 DEBUGVarToText_NullTerminator|
+                                 DEBUGVarToText_Colon|
+                                 DEBUGVarToText_PrettyBools |
+                                 DEBUGVarToText_StartAtLastUnderscore);
+
+                rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
+                v2 Dim = {GetDim(TextBounds).x, Layout->LineAdvance};
+
+                layout_element Element = BeginElementRectangle(Layout, &Dim);
+                DefaultInteraction(&Element, ItemInteraction);
+                EndElement(&Element);
+
+                b32 IsHot = InteractionIsHot(DebugState, ItemInteraction);
+                v4 ItemColor = IsHot ? V4(1, 1, 0, 1) : V4(1, 1, 1, 1);
+                DEBUGTextOutAt(V2(GetMinCorner(Element.Bounds).x, 
+                                  GetMaxCorner(Element.Bounds).y - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
+                               Text, ItemColor);    
+
+                if(View->Collapsible.ExpandedAlways)
                 {
-                    debug_id NewID = DebugIDFromGUID(Tree, Event->Event.GUID);
-                    DEBUGDrawEvent(Layout, Event, NewID);    
+                    Layout->Depth++;                                                            
+                    for(debug_stored_event *Event = LastOpenBlock;
+                        Event;
+                        Event = Event->Next)
+                    {
+                        debug_id NewID = DebugIDFromGUID(Tree, Event->Event.GUID);
+                        DEBUGDrawEvent(Layout, Event, NewID);    
+                    }
+                    Layout->Depth--;
                 }
             } break;
 
@@ -1171,8 +1158,6 @@ DEBUGEndInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
         } break;
     }
     
-    WriteHandmadeConfig(DebugState);
-
     DebugState->Interaction.Type = DebugInteraction_None;
     DebugState->Interaction.Generic = 0;
 }
@@ -1318,44 +1303,6 @@ AddRegion(debug_state *DebugState, debug_frame *CurrentFrame)
 }
 #endif
 
-inline open_debug_block *
-AllocateOpenDebugBlock(debug_state *DebugState, debug_element *Element,
-                       uint32 FrameIndex, debug_event *Event, 
-                       open_debug_block **FirstOpenBlock)
-{
-    open_debug_block *Result;
-    FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, PushStruct(&DebugState->DebugArena, open_debug_block));
-    
-    Result->StartingFrameIndex = FrameIndex;
-    Result->OpeningEvent = Event;
-    Result->Element = Element;
-    Result->NextFree = 0;
-
-    Result->Parent = *FirstOpenBlock;
-    *FirstOpenBlock = Result;
-
-    return(Result);
-}
-
-inline void
-DeallocateOpenDebugBlock(debug_state *DebugState, open_debug_block **FirstOpenBlock)
-{
-    open_debug_block *FreeBlock = *FirstOpenBlock;
-    *FirstOpenBlock = FreeBlock->Parent;
-
-    FreeBlock->NextFree = DebugState->FirstFreeBlock;
-    DebugState->FirstFreeBlock = FreeBlock;
-}
-
-inline bool32
-EventsMatch(debug_event *A, debug_event *B)
-{
-    // TODO(georgy): Have counters for blocks?
-    bool32 Result = (A->ThreadID == B->ThreadID);
-
-    return(Result);
-}
-
 internal debug_variable_link *
 AddElementToGroup(debug_state *DebugState, debug_variable_group *Parent, debug_element *Element)
 {
@@ -1445,6 +1392,44 @@ GetGroupForHierarchicalName(debug_state *DebugState, debug_variable_group *Paren
         debug_variable_group *SubGroup = GetOrCreateGroupWithName(DebugState, Parent, (u32)(FirstUnderscore - Name), Name);
         Result = GetGroupForHierarchicalName(DebugState, SubGroup, FirstUnderscore + 1);
     }
+
+    return(Result);
+}
+
+inline open_debug_block *
+AllocateOpenDebugBlock(debug_state *DebugState, debug_element *Element,
+                       uint32 FrameIndex, debug_event *Event, 
+                       open_debug_block **FirstOpenBlock)
+{
+    open_debug_block *Result;
+    FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, PushStruct(&DebugState->DebugArena, open_debug_block));
+    
+    Result->StartingFrameIndex = FrameIndex;
+    Result->OpeningEvent = Event;
+    Result->Element = Element;
+    Result->NextFree = 0;
+
+    Result->Parent = *FirstOpenBlock;
+    *FirstOpenBlock = Result;
+
+    return(Result);
+}
+
+inline void
+DeallocateOpenDebugBlock(debug_state *DebugState, open_debug_block **FirstOpenBlock)
+{
+    open_debug_block *FreeBlock = *FirstOpenBlock;
+    *FirstOpenBlock = FreeBlock->Parent;
+
+    FreeBlock->NextFree = DebugState->FirstFreeBlock;
+    DebugState->FirstFreeBlock = FreeBlock;
+}
+
+inline bool32
+EventsMatch(debug_event *A, debug_event *B)
+{
+    // TODO(georgy): Have counters for blocks?
+    bool32 Result = (A->ThreadID == B->ThreadID);
 
     return(Result);
 }

@@ -268,7 +268,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if HANDMADE_INTERNAL
     DebugGlobalMemory = Memory;
+
+    DEBUG_BEGIN_DATA_BLOCK(Game, DEBUG_POINTER_ID(Memory));
+    DEBUG_VALUE(Global_Renderer_Camera_UseDebug);
+    DEBUG_VALUE(Global_Renderer_Camera_DebugDistance);
+    DEBUG_VALUE(Global_Renderer_Camera_UseRoomBasedCamera);
+    DEBUG_VALUE(Global_GroundChunks_Checkboards);
+    DEBUG_VALUE(Global_GroundChunks_Outlines);
+    DEBUG_VALUE(Global_Particles_Test);
+    DEBUG_VALUE(Global_Simulation_UseSpaceOutlines);
+    DEBUG_END_DATA_BLOCK();
+
 #endif
+
     TIMED_FUNCTION();
 
 	Assert((&Input->Controllers[0].Start - &Input->Controllers[0].Buttons[0]) == 
