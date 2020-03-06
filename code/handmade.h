@@ -14,6 +14,7 @@
 */
 
 #include "handmade_platform.h"
+#include "handmade_config.h"
 #include "handmade_shared.h"
 #include "handmade_random.h"
 #include "handmade_file_formats.h"

@@ -235,7 +235,7 @@ EndSim(sim_region *Region, game_mode_world *WorldMode)
 
             NewCameraP.ChunkZ = Stored->P.ChunkZ;
 
-            DEBUG_IF(Renderer_Camera_UseRoomBasedCamera)
+            if(Global_Renderer_Camera_UseRoomBasedCamera)
             {
                 if(Entity->P.x > (9.0f))
                 {

@@ -142,7 +142,9 @@ DEBUGTextOp(debug_state *DebugState, debug_text_op Op, v2 P, char *String, v4 Co
                 v3 BitmapOffset = V3(AtX, AtY, 0);
                 if(Op == DEBUGTextOp_DrawText)
                 {
-                    PushBitmap(RenderGroup, DefaultFlatTransform(), BitmapID, BitmapScale, BitmapOffset, Color);
+                    PushBitmap(RenderGroup, DefaultFlatTransform(), BitmapID, BitmapScale, BitmapOffset, Color, 1.0f, 200000.0f);
+                    PushBitmap(RenderGroup, DefaultFlatTransform(), BitmapID, BitmapScale, 
+                        BitmapOffset + V3(2.0f, -2.0f, 0.0f), V4(0, 0, 0, 1.0f), 1.0f, 100000.0f);
                 }
                 else
                 {

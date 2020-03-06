@@ -297,14 +297,6 @@ inline debug_event DEBUGInitializeValue(debug_type Type, debug_event *SubEvent, 
     return(*SubEvent);
 }
 
-#define DEBUG_IF__(Path) \
-    local_persist debug_event DebugValue##Path = DEBUGInitializeValue((DebugValue##Path.Value_b32 = GlobalConstants_##Path, DebugType_b32), &DebugValue##Path, UniqueFileCounterString(), #Path); \
-    if(DebugValue##Path.Value_b32)
-
-#define DEBUG_VARIABLE__(type, Path, Variable) \
-    local_persist debug_event DebugValue##Variable = DEBUGInitializeValue((DebugValue##Variable.Value_##type = GlobalConstants_##Path##_##Variable, DebugType_##type), &DebugValue##Variable, UniqueFileCounterString(), #Path "_" #Variable); \
-    type Variable = DebugValue##Variable.Value_##type;
-
 #else
 
 inline debug_id DEBUG_POINTER_ID(void *Pointer) { debug_id NullID = {}; return (NullID); }
@@ -323,11 +315,5 @@ inline debug_id DEBUG_POINTER_ID(void *Pointer) { debug_id NullID = {}; return (
 #define DEBUG_VARIABLE__(type, Path, Variable) type Variable = GlobalConstants_##Path##_##Variable;
 
 #endif
-
-#define DEBUG_IF_(Path) DEBUG_IF__(Path)
-#define DEBUG_IF(Path) DEBUG_IF_(Path)
-
-#define DEBUG_VARIABLE_(type, Path, Variable) DEBUG_VARIABLE__(type, Path, Variable)
-#define DEBUG_VARIABLE(type, Path, Variable) DEBUG_VARIABLE_(type, Path, Variable)
 
 #endif

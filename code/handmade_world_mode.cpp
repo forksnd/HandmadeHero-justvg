@@ -359,7 +359,7 @@ internal PLATFORM_WORK_QUEUE_CALLBACK(FillGroundChunkWork)
             random_series Series = RandomSeed(139*ChunkX + 593*ChunkY + 329*ChunkZ);
 
             v4 Color;
-            DEBUG_IF(GroundChunks_Checkboards)
+            if(Global_GroundChunks_Checkboards)
             {
                 Color = V4(1, 0, 0, 1);
                 if((ChunkX % 2) == (ChunkY % 2))
@@ -660,7 +660,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
             real32 GroundSideInMeters = World->ChunkDimInMeters.x;
             PushBitmap(RenderGroup, Transform, Bitmap, GroundSideInMeters, V3(0, 0, 0));
-            DEBUG_IF(GroundChunks_Outlines)
+            if(Global_GroundChunks_Outlines)
             {
                 PushRectOutline(RenderGroup, Transform, Delta, V2(GroundSideInMeters, GroundSideInMeters), V4(1.0f, 1.0f, 0.0f, 1.0f));
             }
@@ -970,7 +970,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                     PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
                     DrawHitpoints(Entity, RenderGroup, EntityTransform);
 
-                    DEBUG_IF(Particles_Test)
+                    if(Global_Particles_Test)
                     {
                         for(uint32 ParticleSpawnIndex = 0;
                             ParticleSpawnIndex < 2;
@@ -1145,15 +1145,16 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
                 case EntityType_Space:
                 {
-#if DEBUGUI_UseSpaceOutlines
-                    for(uint32 VolumeIndex = 0;
-                        VolumeIndex < Entity->Collision->VolumeCount;
-                        VolumeIndex++)
+                    if(Global_Simulation_UseSpaceOutlines)
                     {
-                        sim_entity_collision_volume *Volume = Entity->Collision->Volumes + VolumeIndex;
-                        PushRectOutline(RenderGroup, EntityTransform, Volume->OffsetP - V3(0, 0, 0.5f*Volume->Dim.z), Volume->Dim.xy, V4(0, 0, 1, 1));
+                        for(uint32 VolumeIndex = 0;
+                            VolumeIndex < Entity->Collision->VolumeCount;
+                            VolumeIndex++)
+                        {
+                            sim_entity_collision_volume *Volume = Entity->Collision->Volumes + VolumeIndex;
+                            PushRectOutline(RenderGroup, EntityTransform, Volume->OffsetP - V3(0, 0, 0.5f*Volume->Dim.z), Volume->Dim.xy, V4(0, 0, 1, 1));
+                        }
                     }
-#endif
                 } break;
 
                 default:

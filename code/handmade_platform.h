@@ -4,8 +4,6 @@
 // TODO(georgy): Have the meta-parser ignore its own #define
 #define introspect(IGNORED)
 
-#include "handmade_config.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

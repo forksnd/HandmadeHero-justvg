@@ -70,11 +70,9 @@ GetRenderEntityBasisP(camera_transform CameraTransform,
 
         real32 DistanceAboveTarget = CameraTransform.DistanceAboveTarget;
 
-        DEBUG_IF(Renderer_Camera_UseDebug)        
+        if(Global_Renderer_Camera_UseDebug)        
         {
-            DEBUG_VARIABLE(r32, Renderer, DebugCameraDistance);
-
-            DistanceAboveTarget += DebugCameraDistance;
+            DistanceAboveTarget += Global_Renderer_Camera_DebugDistance;
         }
 
         real32 DistanceToPZ = DistanceAboveTarget - P.z;
@@ -144,13 +142,13 @@ GetBitmapDim(render_group *Group, object_transform ObjectTransform,
 
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
-           loaded_bitmap *Bitmap, real32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), real32 CAlign = 1.0f)
+           loaded_bitmap *Bitmap, r32 Height, v3 Offset, 
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, r32 SortBias = 0.0f)
 {
     used_bitmap_dim Dim = GetBitmapDim(Group, ObjectTransform, Bitmap, Height, Offset, CAlign);
     if(Dim.Basis.Valid)
     {
-        render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap, Dim.Basis.SortKey);
+        render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap, Dim.Basis.SortKey + SortBias);
         if(Entry)
         {
             Entry->Bitmap = Bitmap;
@@ -164,7 +162,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
            bitmap_id ID, real32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), real32 CAlign = 1.0f)
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, r32 SortBias = 0.0f)
 {
     loaded_bitmap *Bitmap = GetBitmap(Group->Assets, ID, Group->GenerationID);
     if(Group->RendersInBackground && !Bitmap)
@@ -175,7 +173,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 
     if(Bitmap)
     {
-        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign);
+        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign, SortBias);
     }
     else
     {

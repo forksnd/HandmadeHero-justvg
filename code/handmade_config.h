@@ -1,7 +1,7 @@
-#define GlobalConstants_Renderer_Camera_UseDebug 0
-#define GlobalConstants_Renderer_DebugCameraDistance 10.0f
-#define GlobalConstants_Renderer_UseSoftware false
-#define GlobalConstants_Renderer_Camera_UseRoomBasedCamera 0
-#define GlobalConstants_GroundChunks_Checkboards 0
-#define GlobalConstants_GroundChunks_Outlines 0
-#define GlobalConstants_Particles_Test 0
+global_variable b32 Global_Renderer_Camera_UseDebug = false;
+global_variable r32 Global_Renderer_Camera_DebugDistance = 10.0f;
+global_variable b32 Global_Renderer_Camera_UseRoomBasedCamera = false;
+global_variable b32 Global_GroundChunks_Checkboards = false;
+global_variable b32 Global_GroundChunks_Outlines = false;
+global_variable b32 Global_Particles_Test = false;
+global_variable b32 Global_Simulation_UseSpaceOutlines = false;

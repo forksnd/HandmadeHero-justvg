@@ -48,9 +48,11 @@ LoadAssetWorkDirectly(load_asset_work *Work)
 
             case FinalizeAsset_Bitmap:
             {
+#if 0
                 loaded_bitmap *Bitmap = &Work->Asset->Header->Bitmap;
                 Bitmap->TextureHandle = 
                     Platform.AllocateTexture(Bitmap->Width, Bitmap->Height, Bitmap->Memory);
+#endif
             } break;
         }
     }    

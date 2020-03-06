@@ -168,6 +168,34 @@ OpenGLDisplayBitmap(s32 Width, s32 Height, void *Memory, s32 Pitch,
     OpenGLRectangle(MinP, MaxP, Color);
 }
 
+PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture) 
+{
+    GLuint Handle;
+    glGenTextures(1, &Handle);
+    glBindTexture(GL_TEXTURE_2D, Handle);
+    glTexImage2D(GL_TEXTURE_2D, 0, OpenGLDefaultInternalTextureFormat, Width, Height, 
+                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, Memory);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glFlush();
+
+    Assert(sizeof(Handle) <= sizeof(void *));
+    return((void *)Handle);
+}
+
+PLATFORM_DEALLOCATE_TEXTURE(Win32DeallocateTexture)
+{
+    GLuint Handle = (GLuint)Texture;
+    glDeleteTextures(1, &Handle);
+}
+
 // TODO(georgy): Get rid of this
 global_variable u32 TextureBoundCount = 0;
 internal void
@@ -219,6 +247,13 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
                 v2 MaxP = MinP + Entry->Size.x*XAxis + Entry->Size.y*YAxis;
 
                 // TODO(georgy): Hold the frame if we are not ready with the texture?
+#if 1
+                if(!Entry->Bitmap->TextureHandle)
+                {
+                    Entry->Bitmap->TextureHandle = Win32AllocateTexture(Entry->Bitmap->Width, Entry->Bitmap->Height, Entry->Bitmap->Memory);
+                }
+#endif
+
                 glBindTexture(GL_TEXTURE_2D, (GLuint)Entry->Bitmap->TextureHandle);
                 OpenGLRectangle(MinP, MaxP, Entry->Color);
 			} break;
@@ -239,30 +274,4 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
 			InvalidDefaultCase;
 		}
     }
-}
-
-PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture) 
-{
-    GLuint Handle;
-    glGenTextures(1, &Handle);
-    glBindTexture(GL_TEXTURE_2D, Handle);
-    glTexImage2D(GL_TEXTURE_2D, 0, OpenGLDefaultInternalTextureFormat, Width, Height, 
-                 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, Memory);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    Assert(sizeof(Handle) <= sizeof(void *));
-    return((void *)Handle);
-}
-
-PLATFORM_DEALLOCATE_TEXTURE(Win32DeallocateTexture)
-{
-    GLuint Handle = (GLuint)Texture;
-    glDeleteTextures(1, &Handle);
 }
