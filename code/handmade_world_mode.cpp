@@ -1191,7 +1191,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
                 if(DEBUG_REQUESTED(EntityDebugID))
                 {
-                    DEBUG_BEGIN_DATA_BLOCK(Simulation_Entity, EntityDebugID); // , Entity->StorageIndex);
+                    DEBUG_DATA_BLOCK(Simulation_Entity, EntityDebugID); // , Entity->StorageIndex);
                     DEBUG_VALUE(Entity->StorageIndex);               
                     DEBUG_VALUE(Entity->Updatable);               
                     DEBUG_VALUE(Entity->Type);               
@@ -1217,7 +1217,6 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
     #endif
                     DEBUG_VALUE(Entity->WalkableDim);
                     DEBUG_VALUE(Entity->WalkableHeight);
-                    DEBUG_END_DATA_BLOCK();
                 }
             }
         }

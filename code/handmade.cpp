@@ -269,15 +269,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if HANDMADE_INTERNAL
     DebugGlobalMemory = Memory;
 
-    DEBUG_BEGIN_DATA_BLOCK(Game, DEBUG_POINTER_ID(Memory));
-    DEBUG_VALUE(Global_Renderer_Camera_UseDebug);
-    DEBUG_VALUE(Global_Renderer_Camera_DebugDistance);
-    DEBUG_VALUE(Global_Renderer_Camera_UseRoomBasedCamera);
-    DEBUG_VALUE(Global_GroundChunks_Checkboards);
-    DEBUG_VALUE(Global_GroundChunks_Outlines);
-    DEBUG_VALUE(Global_Particles_Test);
-    DEBUG_VALUE(Global_Simulation_UseSpaceOutlines);
-    DEBUG_END_DATA_BLOCK();
+    {DEBUG_DATA_BLOCK("Renderer");
+        {DEBUG_DATA_BLOCK("Renderer/Camera");
+            DEBUG_VALUE(Global_Renderer_Camera_UseDebug);
+            DEBUG_VALUE(Global_Renderer_Camera_DebugDistance);
+            DEBUG_VALUE(Global_Renderer_Camera_UseRoomBasedCamera);
+        }  
+    }
+    {DEBUG_DATA_BLOCK("GroundChunks");
+        DEBUG_VALUE(Global_GroundChunks_Checkboards);
+        DEBUG_VALUE(Global_GroundChunks_Outlines);
+    }
+    {DEBUG_DATA_BLOCK("Particles");
+        DEBUG_VALUE(Global_Particles_Test);
+    }
+    {DEBUG_DATA_BLOCK("Simulation");
+        DEBUG_VALUE(Global_Simulation_UseSpaceOutlines);
+    }
+    {DEBUG_DATA_BLOCK("Profile");
+        DEBUG_PROFILE(GameUpdateAndRender);
+    }
 
 #endif
 
