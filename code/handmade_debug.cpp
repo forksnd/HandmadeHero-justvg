@@ -2,6 +2,7 @@
 
 // TODO(georgy): Stop using stdio!
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "handmade_debug.h"
 
@@ -257,7 +258,7 @@ internal memory_index
 DEBUGEventToText(char *Buffer, char *End, debug_event *Event, uint32 Flags)
 {
     char *At = Buffer;
-    char *Name = Event->BlockName;
+    char *Name = Event->GUID;
 
     if(Flags & DEBUGVarToText_AddDebugUI)
     {
@@ -268,13 +269,13 @@ DEBUGEventToText(char *Buffer, char *End, debug_event *Event, uint32 Flags)
     if(Flags & DEBUGVarToText_AddName)
     {
         char *UseName = Name;
-        if(Flags & DEBUGVarToText_StartAtLastUnderscore)
+        if(Flags & DEBUGVarToText_StartAtLastSlash)
         {
             for(char *Scan = Name;
                 *Scan;
                 Scan++)
             {
-                if((Scan[0] == '_') &&
+                if((Scan[0] == '/') &&
                    (Scan[1] != 0))
                 {
                     UseName = Scan + 1;
@@ -365,21 +366,16 @@ DEBUGEventToText(char *Buffer, char *End, debug_event *Event, uint32 Flags)
                                     Event->Value_rectangle3.Max.z);
             } break;
 
-            case DebugType_OpenDataBlock:
-            {
-                At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                    "%s", Event->BlockName);
-            } break;
-
             case DebugType_CounterThreadList:
             case DebugType_bitmap_id:
+            case DebugType_OpenDataBlock:
             {
             } break;
 
             default:
             {
                 At += _snprintf_s(At, (size_t)(End - At), (size_t)(End - At), 
-                                    "UNHANDLED: %s", Event->BlockName);
+                                    "UNHANDLED: %s", Event->GUID);
             } break;
         }
     }
@@ -907,7 +903,7 @@ DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug
                                  DEBUGVarToText_NullTerminator|
                                  DEBUGVarToText_Colon|
                                  DEBUGVarToText_PrettyBools |
-                                 DEBUGVarToText_StartAtLastUnderscore);
+                                 DEBUGVarToText_StartAtLastSlash);
 
                 rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
                 v2 Dim = {GetDim(TextBounds).x, Layout->LineAdvance};
@@ -1395,22 +1391,22 @@ GetGroupForHierarchicalName(debug_state *DebugState, debug_variable_group *Paren
 {
     debug_variable_group *Result = Parent;
 
-    char *FirstUnderscore = 0;
+    char *FirstSeparator = 0;
     for(char *Scan = Name;
         *Scan;
         Scan++)
     {
-        if(*Scan == '_')
+        if(*Scan == '/')
         {
-            FirstUnderscore = Scan;
+            FirstSeparator = Scan;
             break;
         }
     }
 
-    if(FirstUnderscore)
+    if(FirstSeparator)
     {
-        debug_variable_group *SubGroup = GetOrCreateGroupWithName(DebugState, Parent, (u32)(FirstUnderscore - Name), Name);
-        Result = GetGroupForHierarchicalName(DebugState, SubGroup, FirstUnderscore + 1);
+        debug_variable_group *SubGroup = GetOrCreateGroupWithName(DebugState, Parent, (u32)(FirstSeparator - Name), Name);
+        Result = GetGroupForHierarchicalName(DebugState, SubGroup, FirstSeparator + 1);
     }
 
     return(Result);
@@ -1562,6 +1558,7 @@ StoreEvent(debug_state *DebugState, debug_element *Element, debug_event *Event)
     Result->Next = 0;
     Result->FrameIndex = DebugState->CollationFrame->FrameIndex;
     Result->Event = *Event;
+    Result->Event.GUID = GetName(Element);
 
     if(Element->MostRecentEvent)
     {
@@ -1580,8 +1577,37 @@ GetElementFromEvent(debug_state *DebugState, debug_event *Event)
 {
     Assert(Event->GUID);
 
-    u32 HashValue = (u32)((memory_index)Event->GUID >> 2);
-    // TODO(georgy): Verify this turns into an and (not a mod)
+    u32 HashValue = 0;
+    u32 FileNameCount = 0;
+    u32 NameStartsAt = 0;
+    u32 LineNumber = 0;
+    u32 PipeCount = 0;
+    for(char *Scan = Event->GUID;
+        *Scan;
+        Scan++)
+    {
+        if(*Scan == '|')
+        {
+            if(PipeCount == 0)
+            {
+                FileNameCount = (u32)(Scan - Event->GUID);
+                LineNumber = atoi(Scan + 1);
+            }
+            else if(PipeCount == 1)
+            {
+            }
+            else 
+            {
+                NameStartsAt = (u32)(Scan - Event->GUID + 1);
+            }
+
+            PipeCount++;
+        }
+
+        // TODO(georgy): Better hash function
+        HashValue += 65599*Hashvalue + *Scan;
+    }
+
     u32 Index = (HashValue % ArrayCount(DebugState->ElementHash));
 
     debug_element *Result = 0;
@@ -1590,7 +1616,7 @@ GetElementFromEvent(debug_state *DebugState, debug_event *Event)
         Chain;
         Chain = Chain->NextInHash)
     {
-        if(Chain->GUID == Event->GUID)
+        if(StringsAreEqual(Chain->GUID, Event->GUID))
         {
             Result = Chain;
             break;
@@ -1601,13 +1627,17 @@ GetElementFromEvent(debug_state *DebugState, debug_event *Event)
     {
         Result = PushStruct(&DebugState->DebugArena, debug_element);
 
-        Result->GUID = Event->GUID;
+        Result->GUID = PushString(&DebugState->DebugArena, Event->GUID);
+        Result->FileNameCount = FileNameCount;
+        Result->LineNumber = LineNumber;
+        Result->NameStartsAt = NameStartsAt;
+
         Result->NextInHash = DebugState->ElementHash[Index];
         DebugState->ElementHash[Index] = Result;
 
         Result->OldestEvent = Result->MostRecentEvent = 0;
 
-        debug_variable_group *ParentGroup = GetGroupForHierarchicalName(DebugState, DebugState->RootGroup, Event->BlockName);
+        debug_variable_group *ParentGroup = GetGroupForHierarchicalName(DebugState, DebugState->RootGroup, GetName(Result));
         AddElementToGroup(DebugState, ParentGroup, Result);
     }
 
@@ -1694,7 +1724,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                             if(MatchingBlock->StartingFrameIndex == FrameIndex)
                             {
                                 char *MatchName = 
-                                    MatchingBlock->Parent ? MatchingBlock->Parent->OpeningEvent->BlockName : 0;
+                                    MatchingBlock->Parent ? MatchingBlock->Parent->OpeningEvent->GUID : 0;
                                 if(MatchName == DebugState->ScopeToRecord)
                                 {
 #if 0
@@ -1782,7 +1812,6 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
             DebugState->OldestFrame = DebugState->MostRecentFrame = DebugState->FirstFreeFrame = 0;
             DebugState->CollationFrame = 0;
 
-            DebugState->HighPriorityQueue = DebugGlobalMemory->HighPriorityQueue;
             DebugState->TreeSentinel.Next = &DebugState->TreeSentinel;
             DebugState->TreeSentinel.Prev = &DebugState->TreeSentinel;
             DebugState->TreeSentinel.Group = 0;
@@ -1954,19 +1983,6 @@ DEBUGEnd(debug_state *DebugState, game_input *Input)
         DEBUGDrawMainMenu(DebugState, RenderGroup, MouseP);
         DEBUGInteract(DebugState, Input, MouseP);
 
-        if(DebugState->Compiling)
-        {
-            debug_process_state State = Platform.DEBUGGetProcessState(DebugState->Compiler);
-            if(State.IsRunning)
-            {
-                DEBUGTextLine("COMPILING");
-            }
-            else
-            {
-                DebugState->Compiling = false;
-            }
-        }
-
         loaded_font *Font = DebugState->DebugFont;
         hha_font *Info = DebugState->DebugFontInfo;
         if(Font)
@@ -2056,7 +2072,7 @@ DEBUGEnd(debug_state *DebugState, game_input *Input)
         {
             if(HotEvent)
             {
-                DebugState->ScopeToRecord = HotEvent->BlockName;
+                DebugState->ScopeToRecord = HotEvent->GUID;
             }
             else
             {

@@ -1989,7 +1989,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                 while (GlobalRunning)
                 {   
-                    {DEBUG_DATA_BLOCK(Platform_Controls, DEBUG_POINTER_ID(&DebugTimeMarkerIndex));
+                    {DEBUG_DATA_BLOCK("Platform/Controls");
                         DEBUG_VALUE(GlobalPause);
                         DEBUG_VALUE(GlobalRenderingType);
                     }
@@ -1998,7 +1998,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                     // 
                     // 
 
-                    BEGIN_BLOCK(ExecutableRefresh);
+                    BEGIN_BLOCK("Executable Refresh");
                     NewInput->dtForFrame = TargetSecondsPerFrame;
 
                     if(UpdateFade(&Fader, NewInput->dtForFrame, Window) == Win32Fade_WaitingForClose)
@@ -2019,13 +2019,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
                         GameMemory.ExecutableReloaded = true;
                     }
-                    END_BLOCK(ExecutableRefresh);
+                    END_BLOCK();
 
                     // 
                     // 
                     // 
 
-                    BEGIN_BLOCK(InputProcessing);
+                    BEGIN_BLOCK("Input Processing");
 
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
                     game_controller_input *NewKeyboardController = GetController(NewInput, 0);
@@ -2147,13 +2147,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                                 NewController->IsConnected = false;
                             }
                         }
-                        END_BLOCK(InputProcessing);
+                        END_BLOCK();
 
                         // 
                         // 
                         // 
 
-                        BEGIN_BLOCK(GameUpdate);
+                        BEGIN_BLOCK("Game Update");
                                             
                         game_render_commands RenderCommands = RenderCommandStruct(
                             PushBufferSize, 
@@ -2197,13 +2197,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             // HandleDebugCycleCounters(&GameMemory);
                         }
 
-                        END_BLOCK(GameUpdate);
+                        END_BLOCK();
 
                         // 
                         // 
                         // 
 
-                        BEGIN_BLOCK(AudioUpdate);
+                        BEGIN_BLOCK("Audio Update");
 
                         LARGE_INTEGER AudioWallClock = Win32GetWallClock();
                         real32 FromBeginToAudioSeconds = Win32GetSecondsElapsed(FlipWallClock, AudioWallClock);                        
@@ -2331,14 +2331,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             SoundIsValid = false;
                         }
 
-                        END_BLOCK(AudioUpdate);
+                        END_BLOCK();
 
                         // 
                         // 
                         // 
 
 #if HANDMADE_INTERNAL
-                        BEGIN_BLOCK(CollationTime);
+                        BEGIN_BLOCK("Collation Time");
 
                         if(Game.DEBUGFrameEnd)
                         {
@@ -2346,14 +2346,14 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         }
                         GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
                         
-                        END_BLOCK(CollationTime);
+                        END_BLOCK();
 #endif
 
                         // 
                         // 
                         // 
 
-                        BEGIN_BLOCK(FrameWait);
+                        BEGIN_BLOCK("Frame Wait");
 
                         LARGE_INTEGER WorkCounter = Win32GetWallClock();
                         real32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
@@ -2400,13 +2400,13 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         }
 #endif
 #endif
-                        END_BLOCK(FrameWait);
+                        END_BLOCK();
 
                         // 
                         // 
                         // 
 
-                        BEGIN_BLOCK(FrameDisplay);
+                        BEGIN_BLOCK("Frame Display");
 
                         umm NeededSortMemorySize = RenderCommands.PushBufferElementCount * sizeof(tile_sort_entry);
                         if(CurrentSortMemorySize < NeededSortMemorySize)
@@ -2429,7 +2429,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         NewInput = OldInput;
                         OldInput = Temp;                        
 
-                        END_BLOCK(FrameDisplay);
+                        END_BLOCK();
 
                         LARGE_INTEGER EndCounter = Win32GetWallClock();  
                         FRAME_MARKER(Win32GetSecondsElapsed(LastCounter, EndCounter));

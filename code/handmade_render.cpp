@@ -592,7 +592,7 @@ DrawRectangleQuickly(loaded_bitmap *Buffer, v2 Origin, v2 XAxis, v2 YAxis, v4 Co
         int32 MaxY = FillRect.MaxY;
         int32 MinX = FillRect.MinX;
         int32 MaxX = FillRect.MaxX;
-        TIMED_BLOCK(PixelFill, GetClampedRectArea(FillRect) / 2);
+        TIMED_BLOCK("Pixel Fill", GetClampedRectArea(FillRect) / 2);
         for (int Y = MinY; Y < MaxY; Y++)
         {
             __m128 PixelPy = _mm_set1_ps((real32)Y - Origin.y);

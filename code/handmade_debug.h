@@ -12,7 +12,7 @@ enum debug_variable_to_text_flag
 	DEBUGVarToText_NullTerminator = 0x10,
 	DEBUGVarToText_Colon = 0x20,
 	DEBUGVarToText_PrettyBools = 0x40,
-	DEBUGVarToText_StartAtLastUnderscore = 0x80,
+	DEBUGVarToText_StartAtLastSlash = 0x80,
 	DEBUGVarToText_AddValue = 0x100,
 };
 
@@ -61,14 +61,26 @@ struct debug_stored_event
 	debug_event Event;
 };
 
+struct debug_string
+{
+	u32 Length;
+	char *Value;
+};
+
 struct debug_element
 {
 	char *GUID;
+	u32 FileNameCount;
+	u32 LineNumber;
+	u32 NameStartsAt;
+
 	debug_element *NextInHash;
 
 	debug_stored_event *OldestEvent;
 	debug_stored_event *MostRecentEvent;
 };
+inline char *GetName(debug_element *Element) {char *Result = Element->GUID + Element->NameStartsAt; return(Result);}
+inline debug_string GetFileName(debug_element *Element) {debug_string Result = {Element->FileNameCount, Element->GUID}; return(Result);}
 
 struct debug_variable_group;
 struct debug_variable_link
@@ -223,17 +235,12 @@ struct debug_state
 {
 	b32 Initialized;
 
-	platform_work_queue *HighPriorityQueue;
-
 	memory_arena DebugArena;
 	memory_arena PerFrameArena;
 
 	render_group RenderGroup;
 	loaded_font *DebugFont;
 	hha_font *DebugFontInfo;
-	
-	bool32 Compiling;
-	debug_executing_process Compiler;
 	
 	v2 MenuP;
 	b32 MenuActive;
