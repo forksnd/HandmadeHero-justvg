@@ -251,6 +251,15 @@ struct debug_data_block
         RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
         DEBUGValueSetEventData(Event, Value); \
     }
+// TODO(georgy): DEBUGHandleValueEdit(Event, &Value); 
+
+#define DEBUG_B32(Value) \
+    { \
+        RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
+        Event->Type = DebugType_b32; \
+        Event->Value_b32 = Value; \
+    }
+// TODO(georgy): DEBUGHandleValueEdit(Event, &Value); 
 
 #define DEBUG_BEGIN_ARRAY(...)
 #define DEBUG_END_ARRAY(...)

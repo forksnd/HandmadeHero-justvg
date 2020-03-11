@@ -1990,8 +1990,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                 while (GlobalRunning)
                 {   
                     {DEBUG_DATA_BLOCK("Platform/Controls");
-                        DEBUG_VALUE(GlobalPause);
-                        DEBUG_VALUE(GlobalRenderingType);
+                        DEBUG_B32(GlobalPause);
+                        DEBUG_B32(GlobalRenderingType);
                     }
 
                     // 
