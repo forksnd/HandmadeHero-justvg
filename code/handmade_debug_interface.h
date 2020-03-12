@@ -67,6 +67,8 @@ struct debug_event
 
 struct debug_table
 {
+    debug_event EditEvent;
+
 	uint32 CurrentEventArrayIndex;
     // TODO(georgy): This could actually be a u32 atomic now, since we
     // only need 1 bit to store which array we're using...
@@ -153,82 +155,29 @@ StringLength(char *String)
 
 #if defined(__cplusplus) && HANDMADE_INTERNAL
 
-inline void
-DEBUGValueSetEventData(debug_event *Event, r32 Value)
-{
-    Event->Type = DebugType_r32;
-    Event->Value_r32 = Value;
+#define DEBUGValueSetEventData_(type) \
+inline void \
+DEBUGValueSetEventData(debug_event *Event, type Ignored, void *Value) \
+{ \
+    Event->Type = DebugType_##type; \
+    if(GlobalDebugTable->EditEvent.GUID == Event->GUID) \
+    { \
+        *(type *)Value = GlobalDebugTable->EditEvent.Value_##type; \
+    } \
+    Event->Value_##type = *(type *)Value; \
 }
 
-inline void
-DEBUGValueSetEventData(debug_event *Event, u32 Value)
-{
-    Event->Type = DebugType_u32;
-    Event->Value_u32 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, s32 Value)
-{
-    Event->Type = DebugType_s32;
-    Event->Value_s32 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, v2 Value)
-{
-    Event->Type = DebugType_v2;
-    Event->Value_v2 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, v3 Value)
-{
-    Event->Type = DebugType_v3;
-    Event->Value_v3 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, v4 Value)
-{
-    Event->Type = DebugType_v4;
-    Event->Value_v4 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, rectangle2 Value)
-{
-    Event->Type = DebugType_rectangle2;
-    Event->Value_rectangle2 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, rectangle3 Value)
-{
-    Event->Type = DebugType_rectangle3;
-    Event->Value_rectangle3 = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, bitmap_id Value)
-{
-    Event->Type = DebugType_bitmap_id;
-    Event->Value_bitmap_id = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, sound_id Value)
-{
-    Event->Type = DebugType_sound_id;
-    Event->Value_sound_id = Value;
-}
-
-inline void
-DEBUGValueSetEventData(debug_event *Event, font_id Value)
-{
-    Event->Type = DebugType_font_id;
-    Event->Value_font_id = Value;
-}
+DEBUGValueSetEventData_(r32)
+DEBUGValueSetEventData_(u32)
+DEBUGValueSetEventData_(s32)
+DEBUGValueSetEventData_(v2)
+DEBUGValueSetEventData_(v3)
+DEBUGValueSetEventData_(v4)
+DEBUGValueSetEventData_(rectangle2)
+DEBUGValueSetEventData_(rectangle3)
+DEBUGValueSetEventData_(bitmap_id)
+DEBUGValueSetEventData_(sound_id)
+DEBUGValueSetEventData_(font_id)
 
 struct debug_data_block
 {
@@ -249,17 +198,15 @@ struct debug_data_block
 #define DEBUG_VALUE(Value) \
     { \
         RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
-        DEBUGValueSetEventData(Event, Value); \
+        DEBUGValueSetEventData(Event, Value, (void *)&Value); \
     }
-// TODO(georgy): DEBUGHandleValueEdit(Event, &Value); 
 
 #define DEBUG_B32(Value) \
     { \
         RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
+        DEBUGValueSetEventData(Event, (s32)0, (void *)&Value); \
         Event->Type = DebugType_b32; \
-        Event->Value_b32 = Value; \
     }
-// TODO(georgy): DEBUGHandleValueEdit(Event, &Value); 
 
 #define DEBUG_BEGIN_ARRAY(...)
 #define DEBUG_END_ARRAY(...)

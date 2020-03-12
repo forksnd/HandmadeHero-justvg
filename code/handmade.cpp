@@ -279,6 +279,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {DEBUG_DATA_BLOCK("GroundChunks");
         DEBUG_B32(Global_GroundChunks_Checkboards);
         DEBUG_B32(Global_GroundChunks_Outlines);
+        DEBUG_B32(Global_GroundChunksOn);
     }
     {DEBUG_DATA_BLOCK("Particles");
         DEBUG_B32(Global_Particles_Test);
