@@ -1902,7 +1902,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             GameMemory.PermanentStorageSize = Megabytes(256);
             GameMemory.TransientStorageSize = Gigabytes(1);
-            GameMemory.DebugStorageSize = Megabytes(64);
+            GameMemory.DebugStorageSize = Megabytes(256);
             // TODO(george): TransientStorage needs to be broken up
             // into game transient and cache transient, and only
             // the former need to be saved for state playback.

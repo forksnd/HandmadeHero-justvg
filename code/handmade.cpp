@@ -288,7 +288,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         DEBUG_B32(Global_Simulation_UseSpaceOutlines);
     }
     {DEBUG_DATA_BLOCK("Profile");
-        DEBUG_PROFILE(GameUpdateAndRender);
+        DEBUG_THREAD_INTERVAL_GRAPH(GameUpdateAndRender);
     }
 
 #endif

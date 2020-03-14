@@ -69,6 +69,8 @@ LoadAssetWorkDirectly(load_asset_work *Work)
 }
 internal PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
 {
+    TIMED_FUNCTION();
+
     load_asset_work *Work = (load_asset_work *)Data;
 
     LoadAssetWorkDirectly(Work);

@@ -59,6 +59,7 @@ struct debug_stored_event
 
 	u32 FrameIndex;
 	debug_event Event;
+	// TODO(georgy): Store call attribution data here?
 };
 
 struct debug_string
@@ -255,6 +256,7 @@ struct debug_state
 	debug_element *ElementHash[1024];
 	debug_view *ViewHash[4096];
 	debug_variable_group *RootGroup;
+	debug_variable_group *ProfileGroup;
 	debug_tree TreeSentinel;
 
 	v2 LastMouseP;
