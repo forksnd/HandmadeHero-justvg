@@ -398,15 +398,15 @@ struct debug_variable_iterator
 };
 
 internal void 
-DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
+DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP,
+              debug_stored_event *RootEvent)
 {
+    debug_profile_node *RootNode = &RootEvent->ProfileNode;
     object_transform NoTransform = DefaultFlatTransform();
 
     PushRect(&DebugState->RenderGroup, NoTransform, ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
 
-    debug_frame *Frame = DebugState->MostRecentFrame;
-
-    r32 FrameSpan = (r32)(Frame->EndClock - Frame->BeginClock);
+    r32 FrameSpan = (r32)(RootNode->Duration);
     r32 PixelSpan = GetDim(ProfileRect).x;
 
     r32 Scale = 0.0f;
@@ -438,57 +438,36 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP)
         {0, 0.5f, 1},
     };
 
-    for(debug_variable_link *Link = DebugState->ProfileGroup->Sentinel.Next;
-        Link != &DebugState->ProfileGroup->Sentinel;
-        Link = Link->Next)
+    for(debug_stored_event *StoredEvent = RootNode->FirstChild;
+        StoredEvent;
+        StoredEvent = StoredEvent->ProfileNode.NextSameParent)
     {
-        debug_element *Element = Link->Element;
+        debug_profile_node *Node = &StoredEvent->ProfileNode;
+        debug_element *Element = Node->Element;
         Assert(Element);
 
-        debug_event *OpenEvent = 0;
-        for(debug_stored_event *Event = Element->OldestEvent;
-            Event;
-            Event = Event->Next)
+        v3 Color = Colors[(u32)Element->GUID % ArrayCount(Colors)];
+        real32 ThisMinX = ProfileRect.Min.x + Scale*(r32)(Node->ParentRelativeClock);
+        real32 ThisMaxX = ThisMinX + Scale*(r32)(Node->Duration);
+
+        u32 LaneIndex = 0;
+        rectangle2 RegionRect = RectMinMax(V2(ThisMinX, ProfileRect.Max.y - LaneHeight*(LaneIndex + 1)), 
+                                            V2(ThisMaxX, ProfileRect.Max.y - LaneHeight*LaneIndex));
+
+        PushRect(&DebugState->RenderGroup, NoTransform, RegionRect, 0.0f, V4(Color, 1.0f));
+
+        if(IsInRectangle(RegionRect, MouseP))
         {
-            // TODO(georgy): Replace ThreadID with a well-formed ordinal
-            // at collation time?
-            if(Event->FrameIndex == Frame->FrameIndex)
-            {
-                if(Event->Event.Type == DebugType_BeginBlock)
-                {   
-                    OpenEvent = &Event->Event;
-                }
-
-                if(OpenEvent && (Event->Event.Type == DebugType_EndBlock))
-                {
-                    debug_event *CloseEvent = &Event->Event;
-
-                    v3 Color = Colors[(u32)CloseEvent->GUID % ArrayCount(Colors)];
-                    real32 ThisMinX = ProfileRect.Min.x + Scale*(OpenEvent->Clock - Frame->BeginClock);
-                    real32 ThisMaxX = ProfileRect.Min.x + Scale*(CloseEvent->Clock - Frame->BeginClock);
-
-                    u32 LaneIndex = 0;
-                    rectangle2 RegionRect = RectMinMax(V2(ThisMinX, ProfileRect.Max.y - LaneHeight*(LaneIndex + 1)), 
-                                                       V2(ThisMaxX, ProfileRect.Max.y - LaneHeight*LaneIndex));
-
-                    PushRect(&DebugState->RenderGroup, NoTransform, RegionRect, 0.0f, V4(Color, 1.0f));
-
-                    if(IsInRectangle(RegionRect, MouseP))
-                    {
-                        debug_event *Record = OpenEvent;
 #if 0
-                        char TextBuffer[256];
-                        _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                                    "%s: %I64ucy [%s(%d)]", 
-                                    Record->BlockName,
-                                    Region->CycleCount,
-                                    Record->FileName,
-                                    Record->LineNumber);
-                        DEBUGTextOutAt(MouseP + V2(0.0f, 10.0f), TextBuffer);
+            char TextBuffer[256];
+            _snprintf_s(TextBuffer, sizeof(TextBuffer), 
+                        "%s: %I64ucy [%s(%d)]", 
+                        Record->BlockName,
+                        Region->CycleCount,
+                        Record->FileName,
+                        Record->LineNumber);
+            DEBUGTextOutAt(MouseP + V2(0.0f, 10.0f), TextBuffer);
 #endif                        
-                    }
-                }
-            }
         }
     }
 }
@@ -820,7 +799,11 @@ DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug
                 // DefaultInteraction(&Element, ItemInteraction);
                 EndElement(&Element);
 
-                DrawProfileIn(DebugState, Element.Bounds, Layout->MouseP);
+                debug_frame *Frame = DebugState->MostRecentFrame;
+                if(Frame && Frame->RootProfileNode)
+                {
+                    DrawProfileIn(DebugState, Element.Bounds, Layout->MouseP, Frame->RootProfileNode);
+                }
             } break;
 
             default:
@@ -1509,7 +1492,8 @@ StoreEvent(debug_state *DebugState, debug_element *Element, debug_event *Event)
     Result->Next = 0;
     Result->FrameIndex = DebugState->CollationFrame->FrameIndex;
     Result->Event = *Event;
-    // Result->Event.GUID = GetName(Element);
+
+    DebugState->CollationFrame->StoredEventCount++;
 
     if(Element->MostRecentEvent)
     {
@@ -1702,10 +1686,49 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
             {
                 case DebugType_BeginBlock:
                 {
+                    DebugState->CollationFrame->ProfileBlockCount++;
                     debug_element *Element = GetElementFromEvent(DebugState, Event, DebugState->ProfileGroup, false);
+
+                    debug_stored_event *ParentEvent = DebugState->CollationFrame->RootProfileNode;
+                    u64 ClockBasis = DebugState->CollationFrame->BeginClock;
+                    if(Thread->FirstOpenCodeBlock)
+                    {
+                        ParentEvent = Thread->FirstOpenCodeBlock->Node;
+                        ClockBasis = Thread->FirstOpenCodeBlock->OpeningEvent->Clock;
+                    }
+                    else if(!ParentEvent)
+                    {
+                        debug_event NullEvent = {};
+                        ParentEvent = StoreEvent(DebugState, Element, &NullEvent);
+                        debug_profile_node *Node = &ParentEvent->ProfileNode;
+                        Node->Element = 0;
+                        Node->FirstChild = 0;
+                        Node->NextSameParent = 0;
+                        Node->ParentRelativeClock = 0;
+                        Node->Duration = (u32)(DebugState->CollationFrame->EndClock - DebugState->CollationFrame->BeginClock);
+                        Node->AggregateCount = 0;
+                        Node->ThreadOrdinal = 0;
+                        Node->CoreIndex = 0;
+                        
+                        DebugState->CollationFrame->RootProfileNode = ParentEvent;
+                    }
+
+                    debug_stored_event *StoredEvent = StoreEvent(DebugState, Element, Event);
+                    debug_profile_node *Node = &StoredEvent->ProfileNode;
+                    Node->Element = Element;
+                    Node->FirstChild = 0;
+                    Node->ParentRelativeClock = (u32)(Event->Clock - ClockBasis);
+                    Node->Duration = 0;
+                    Node->AggregateCount = 0;
+                    Node->ThreadOrdinal = (u16)Thread->LaneIndex;
+                    Node->CoreIndex = Event->CoreIndex;
+                    
+                    Node->NextSameParent = ParentEvent->ProfileNode.FirstChild;
+                    ParentEvent->ProfileNode.FirstChild = StoredEvent;
+
                     open_debug_block *DebugBlock = AllocateOpenDebugBlock(DebugState, Element, FrameIndex, Event, 
                                                                           &Thread->FirstOpenCodeBlock);
-                    StoreEvent(DebugState, Element, Event);
+                    DebugBlock->Node = StoredEvent;                                                                          
                 } break;
 
                 case DebugType_EndBlock:
@@ -1716,7 +1739,8 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                         debug_event *OpeningEvent = MatchingBlock->OpeningEvent;
                         if(EventsMatch(OpeningEvent, Event))
                         {
-                            StoreEvent(DebugState, MatchingBlock->Element, Event);
+                            debug_profile_node *Node = &MatchingBlock->Node->ProfileNode;
+                            Node->Duration = (u32)(Event->Clock - OpeningEvent->Clock);
                             DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenCodeBlock);
                         }
                         else
@@ -1728,6 +1752,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
 
                 case DebugType_OpenDataBlock:
                 {
+                    DebugState->CollationFrame->DataBlockCount++;
                     open_debug_block *DebugBlock = AllocateOpenDebugBlock(DebugState, 0, FrameIndex, Event,
                                                                           &Thread->FirstOpenDataBlock);
 
@@ -2024,8 +2049,11 @@ DEBUGEnd(debug_state *DebugState, game_input *Input)
             {
                 char TextBuffer[256];
                 _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                            "Last frame time: %.02fms", 
-                            DebugState->MostRecentFrame->WallSecondsElapsed * 1000.0f);
+                            "Last frame time: %.02fms %de %dp %dd", 
+                            DebugState->MostRecentFrame->WallSecondsElapsed * 1000.0f,
+                            DebugState->MostRecentFrame->StoredEventCount,
+                            DebugState->MostRecentFrame->ProfileBlockCount,
+                            DebugState->MostRecentFrame->DataBlockCount);
                 DEBUGTextLine(TextBuffer);
 
                 _snprintf_s(TextBuffer, sizeof(TextBuffer), 

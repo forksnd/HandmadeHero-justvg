@@ -49,6 +49,18 @@ struct debug_view
 	};
 };
 
+struct debug_profile_node
+{
+	struct debug_element *Element;
+	struct debug_stored_event *FirstChild;
+	struct debug_stored_event *NextSameParent;
+	u32 ParentRelativeClock;
+	u32 Duration;
+	u32 AggregateCount;
+	u16 ThreadOrdinal;
+	u16 CoreIndex;
+};
+
 struct debug_stored_event
 {
 	union
@@ -58,8 +70,12 @@ struct debug_stored_event
 	};
 
 	u32 FrameIndex;
-	debug_event Event;
-	// TODO(georgy): Store call attribution data here?
+
+	union
+	{
+		debug_profile_node ProfileNode;
+		debug_event Event;
+	};
 };
 
 struct debug_string
@@ -171,6 +187,12 @@ struct debug_frame
 	real32 FrameBarScale;
 
 	u32 FrameIndex;
+
+	u32 StoredEventCount;
+	u32 ProfileBlockCount;
+	u32 DataBlockCount;
+
+	debug_stored_event *RootProfileNode;
 };
 
 struct open_debug_block
@@ -184,6 +206,8 @@ struct open_debug_block
 	uint32 StartingFrameIndex;
 	debug_event *OpeningEvent;
 	debug_element *Element;
+
+	debug_stored_event *Node;
 
 	// NOTE(georgy): Only for data blocks?
 	debug_variable_group *Group;
