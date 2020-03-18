@@ -143,9 +143,9 @@ DEBUGTextOp(debug_state *DebugState, debug_text_op Op, v2 P, char *String, v4 Co
                 v3 BitmapOffset = V3(AtX, AtY, 0);
                 if(Op == DEBUGTextOp_DrawText)
                 {
-                    PushBitmap(RenderGroup, DefaultFlatTransform(), BitmapID, BitmapScale, BitmapOffset, Color, 1.0f, 200000.0f);
-                    PushBitmap(RenderGroup, DefaultFlatTransform(), BitmapID, BitmapScale, 
-                        BitmapOffset + V3(2.0f, -2.0f, 0.0f), V4(0, 0, 0, 1.0f), 1.0f, 100000.0f);
+                    PushBitmap(RenderGroup, DebugState->TextTransform, BitmapID, BitmapScale, BitmapOffset, Color, 1.0f);
+                    PushBitmap(RenderGroup, DebugState->ShadowTransform, BitmapID, BitmapScale, 
+                        BitmapOffset + V3(2.0f, -2.0f, 0.0f), V4(0, 0, 0, 1.0f), 1.0f);
                 }
                 else
                 {
@@ -402,9 +402,8 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP,
               debug_stored_event *RootEvent)
 {
     debug_profile_node *RootNode = &RootEvent->ProfileNode;
-    object_transform NoTransform = DefaultFlatTransform();
 
-    PushRect(&DebugState->RenderGroup, NoTransform, ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
+    PushRect(&DebugState->RenderGroup, DebugState->BackingTransform, ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
 
     r32 FrameSpan = (r32)(RootNode->Duration);
     r32 PixelSpan = GetDim(ProfileRect).x;
@@ -435,7 +434,7 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP,
         {0.5f, 1, 0},
         {0, 1, 0.5f},
         {0.5f, 0, 1},
-        {0, 0.5f, 1},
+        // {0, 0.5f, 1},
     };
 
     for(debug_stored_event *StoredEvent = RootNode->FirstChild;
@@ -454,20 +453,15 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP,
         rectangle2 RegionRect = RectMinMax(V2(ThisMinX, ProfileRect.Max.y - LaneHeight*(LaneIndex + 1)), 
                                             V2(ThisMaxX, ProfileRect.Max.y - LaneHeight*LaneIndex));
 
-        PushRect(&DebugState->RenderGroup, NoTransform, RegionRect, 0.0f, V4(Color, 1.0f));
+        PushRect(&DebugState->RenderGroup, DebugState->BackingTransform, RegionRect, 0.0f, V4(Color, 1.0f));
 
         if(IsInRectangle(RegionRect, MouseP))
         {
-#if 0
             char TextBuffer[256];
             _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                        "%s: %I64ucy [%s(%d)]", 
-                        Record->BlockName,
-                        Region->CycleCount,
-                        Record->FileName,
-                        Record->LineNumber);
+                        "%s: %ucy", 
+                        Element->GUID, Node->Duration);
             DEBUGTextOutAt(MouseP + V2(0.0f, 10.0f), TextBuffer);
-#endif                        
         }
     }
 }
@@ -536,10 +530,9 @@ DefaultInteraction(layout_element *Element, debug_interaction Interaction)
 inline void
 EndElement(layout_element *Element)
 {
-    object_transform NoTransform = DefaultFlatTransform();
-
     layout *Layout = Element->Layout;
     debug_state *DebugState = Layout->DebugState;
+    object_transform NoTransform = DebugState->BackingTransform;
 
     real32 SizeHandlePixels = 4.0f;
 
@@ -568,16 +561,16 @@ EndElement(layout_element *Element)
     if(Element->Size)
     {
         PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(TotalMinCorner.x, InteriorMinCorner.y), 
-                                                                  V2(InteriorMinCorner.x, InteriorMaxCorner.y)), 
+                                                                   V2(InteriorMinCorner.x, InteriorMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
         PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMaxCorner.x, InteriorMinCorner.y), 
-                                                                  V2(TotalMaxCorner.x, InteriorMaxCorner.y)), 
+                                                                   V2(TotalMaxCorner.x, InteriorMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
         PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, InteriorMaxCorner.y), 
-                                                                  V2(InteriorMaxCorner.x, TotalMaxCorner.y)), 
+                                                                   V2(InteriorMaxCorner.x, TotalMaxCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
         PushRect(&DebugState->RenderGroup, NoTransform, RectMinMax(V2(InteriorMinCorner.x, TotalMinCorner.y), 
-                                                                  V2(InteriorMaxCorner.x, InteriorMinCorner.y)), 
+                                                                   V2(InteriorMaxCorner.x, InteriorMinCorner.y)), 
                 0.0f, V4(0, 0, 0, 1));
 
         debug_interaction SizeInteraction = {};
@@ -1636,6 +1629,11 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
 
             DebugState->CollationFrame->EndClock = Event->Clock;
             DebugState->CollationFrame->WallSecondsElapsed = Event->Value_r32;
+            if(DebugState->CollationFrame->RootProfileNode)
+            {
+                DebugState->CollationFrame->RootProfileNode->ProfileNode.Duration = 
+                (u32)(DebugState->CollationFrame->EndClock - DebugState->CollationFrame->BeginClock);
+            }
             
 #if 0
             real32 ClockRange = (real32)(DebugState->CollationFrame->EndClock - DebugState->CollationFrame->BeginClock);
@@ -1705,7 +1703,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                         Node->FirstChild = 0;
                         Node->NextSameParent = 0;
                         Node->ParentRelativeClock = 0;
-                        Node->Duration = (u32)(DebugState->CollationFrame->EndClock - DebugState->CollationFrame->BeginClock);
+                        Node->Duration = 0;
                         Node->AggregateCount = 0;
                         Node->ThreadOrdinal = 0;
                         Node->CoreIndex = 0;
@@ -1879,6 +1877,14 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
         DebugState->RightEdge = 0.5f*Width;
 
         DebugState->AtY = 0.5f*Height;        
+
+        DebugState->TextTransform = DefaultFlatTransform();
+        DebugState->ShadowTransform = DefaultFlatTransform();
+        DebugState->BackingTransform = DefaultFlatTransform();
+
+        DebugState->TextTransform.SortBias = 300000.0f;
+        DebugState->ShadowTransform.SortBias = 200000.0f;
+        DebugState->BackingTransform.SortBias = 100000.0f;
     }
 }
 

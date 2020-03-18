@@ -89,7 +89,7 @@ GetRenderEntityBasisP(camera_transform CameraTransform,
         }
     }
 
-    Result.SortKey = 4096.0f*(2.0f*P.z + 1.0f*(r32)ObjectTransform.Upright) - P.y;
+    Result.SortKey = ObjectTransform.SortBias + 4096.0f*(2.0f*P.z + 1.0f*(r32)ObjectTransform.Upright) - P.y;
 
     return(Result);
 }
@@ -143,12 +143,12 @@ GetBitmapDim(render_group *Group, object_transform ObjectTransform,
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
            loaded_bitmap *Bitmap, r32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, r32 SortBias = 0.0f)
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f)
 {
     used_bitmap_dim Dim = GetBitmapDim(Group, ObjectTransform, Bitmap, Height, Offset, CAlign);
     if(Dim.Basis.Valid)
     {
-        render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap, Dim.Basis.SortKey + SortBias);
+        render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap, Dim.Basis.SortKey);
         if(Entry)
         {
             Entry->Bitmap = Bitmap;
@@ -162,7 +162,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
            bitmap_id ID, real32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, r32 SortBias = 0.0f)
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f)
 {
     loaded_bitmap *Bitmap = GetBitmap(Group->Assets, ID, Group->GenerationID);
     if(Group->RendersInBackground && !Bitmap)
@@ -173,7 +173,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 
     if(Bitmap)
     {
-        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign, SortBias);
+        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign);
     }
     else
     {

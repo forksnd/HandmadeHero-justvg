@@ -56,6 +56,7 @@ global_variable wgl_swap_interval_ext *wglSwapIntervalEXT;
 global_variable wgl_get_extensions_string_ext *wglGetExtensionsStringEXT;
 global_variable b32 OpenGLSupportsSRGBFramebuffer;
 global_variable GLuint OpenGLDefaultInternalTextureFormat;
+global_variable GLuint OpenGLReservedBlitTexture;
 
 #include "handmade_opengl.cpp"
 #include "handmade_render.cpp"
@@ -598,6 +599,8 @@ Win32InitOpenGL(HDC WindowDC)
         {
             wglSwapIntervalEXT(1);
         }
+
+        glGenTextures(1, &OpenGLReservedBlitTexture);
     }
 
     return(OpenGLRC);
@@ -675,7 +678,7 @@ Win32DisplayBufferInWindow(platform_work_queue *RenderQueue, game_render_command
         if(GlobalRenderingType == Win32RenderType_RenderSoftware_DisplayOpenGL)
         {
             OpenGLDisplayBitmap(GlobalBackbuffer.Width, GlobalBackbuffer.Height, GlobalBackbuffer.Memory, GlobalBackbuffer.Pitch,
-                                WindowWidth, WindowHeight);
+                                WindowWidth, WindowHeight, OpenGLReservedBlitTexture);
             SwapBuffers(DeviceContext);
         }
         else
@@ -1971,6 +1974,16 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 #endif
             if(Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage)
             {
+                // TODO(georgy): Monitor XBox controllers for being plugged in after
+                // the fact!
+                b32 XBoxControllerPresent[XUSER_MAX_COUNT] = {};
+                for(u32 ControllerIndex = 0;
+                    ControllerIndex < XUSER_MAX_COUNT;
+                    ControllerIndex++)
+                {
+                    XBoxControllerPresent[ControllerIndex] = true;
+                }
+
                 game_input Input[2] = {};
                 game_input *NewInput = &Input[0];
                 game_input *OldInput = &Input[1];
@@ -2085,7 +2098,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
                             XINPUT_STATE ControllerState;
-                            if (XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                            if(XBoxControllerPresent[ControllerIndex] && 
+                               XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
                             {
                                 // NOTE(george): This controller is plugged in
                                 NewController->IsConnected = true;
@@ -2145,6 +2159,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             {
                                 // NOTE(george): This controller is not available
                                 NewController->IsConnected = false;
+                                XBoxControllerPresent[ControllerIndex] = false;
                             }
                         }
                         END_BLOCK();
