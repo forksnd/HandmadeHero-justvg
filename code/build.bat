@@ -14,10 +14,10 @@ pushd ..\..\build
 del *.pdb >NUL 2> NUL
 
 REM Simple preprocessor
-cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\handmade\code\simple_preprocessor.cpp /link %CommonLinkerFlags%
-pushd ..\handmade\code
-..\..\build\simple_preprocessor.exe > handmade_generated.h
-popd
+REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\handmade\code\simple_preprocessor.cpp /link %CommonLinkerFlags%
+REM pushd ..\handmade\code
+REM ..\..\build\simple_preprocessor.exe > handmade_generated.h
+REM popd
 
 REM Asset file builder build
 REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\handmade\code\test_asset_builder.cpp /link %CommonLinkerFlags%

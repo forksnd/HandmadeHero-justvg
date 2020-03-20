@@ -18,7 +18,6 @@
 #include "handmade_shared.h"
 #include "handmade_random.h"
 #include "handmade_file_formats.h"
-#include "handmade_meta.h"
 #include "handmade_cutscene.h"
 
 #define DLIST_INSERT(Sentinel, Element) \
@@ -216,6 +215,21 @@ PushString(memory_arena *Arena, char *Source)
     {
         Dest[CharIndex] = Source[CharIndex];
     }
+
+    return(Dest);
+}
+
+inline char *
+PushAndNullTerminateString(memory_arena *Arena, u32 Length, char *Source)
+{
+    char *Dest = (char *)PushSize_(Arena, Length + 1, NoClear());
+    for(uint32 CharIndex = 0;
+        CharIndex < Length;
+        CharIndex++)
+    {
+        Dest[CharIndex] = Source[CharIndex];
+    }
+    Dest[Length] = 0;
 
     return(Dest);
 }

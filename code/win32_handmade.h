@@ -55,23 +55,6 @@ struct win32_debug_time_marker
     DWORD FlipWriteCursor;
 };
 
-enum win32_fader_state
-{
-    Win32Fade_FadingIn,
-    Win32Fade_WaitingForShow,
-    Win32Fade_Inactive,
-    Win32Fade_FadingGame,
-    Win32Fade_FadingOut,
-    Win32Fade_WaitingForClose
-};
-struct win32_fader
-{
-    HWND Window;
-
-    r32 Alpha;
-    win32_fader_state State;
-};
-
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
 struct win32_replay_buffer
 {

@@ -170,7 +170,7 @@ OpenGLDisplayBitmap(s32 Width, s32 Height, void *Memory, s32 Pitch,
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture) 
+PLATFORM_ALLOCATE_TEXTURE(AllocateTexture) 
 {
     GLuint Handle;
     glGenTextures(1, &Handle);
@@ -192,7 +192,7 @@ PLATFORM_ALLOCATE_TEXTURE(Win32AllocateTexture)
     return((void *)Handle);
 }
 
-PLATFORM_DEALLOCATE_TEXTURE(Win32DeallocateTexture)
+PLATFORM_DEALLOCATE_TEXTURE(DeallocateTexture)
 {
     GLuint Handle = (GLuint)Texture;
     glDeleteTextures(1, &Handle);
@@ -252,7 +252,7 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
 #if 1
                 if(!Entry->Bitmap->TextureHandle)
                 {
-                    Entry->Bitmap->TextureHandle = Win32AllocateTexture(Entry->Bitmap->Width, Entry->Bitmap->Height, Entry->Bitmap->Memory);
+                    Entry->Bitmap->TextureHandle = AllocateTexture(Entry->Bitmap->Width, Entry->Bitmap->Height, Entry->Bitmap->Memory);
                 }
 #endif
 

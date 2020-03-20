@@ -873,10 +873,7 @@ DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
                             ItemInteraction = DebugLinkInteraction(DebugInteraction_TearValue, Link);
                         }
 
-                        char Text[256];
-                        Assert((Link->Children->NameLength + 1) < ArrayCount(Text));
-                        Copy(Link->Children->NameLength, Link->Children->Name, Text);
-                        Text[Link->Children->NameLength] = 0;
+                        char *Text = Link->Children->Name;
 
                         rectangle2 TextBounds = DEBUGGetTextSize(DebugState, Text);
                         v2 Dim = {GetDim(TextBounds).x, Layout.LineAdvance};
@@ -1155,9 +1152,6 @@ DEBUGInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
     DebugState->LastMouseP = MouseP;
 }
 
-global_variable debug_table GlobalDebugTable_;
-debug_table *GlobalDebugTable = &GlobalDebugTable_;
-
 inline uint32
 GetLaneFromThreadIndex(debug_state *DebugState, uint32 ThreadIndex)
 {
@@ -1239,8 +1233,7 @@ CreateVariableGroup(debug_state *DebugState, u32 NameLength, char *Name)
     debug_variable_group *Group = PushStruct(&DebugState->DebugArena, debug_variable_group);
     DLIST_INIT(&Group->Sentinel);
 
-    Group->NameLength = NameLength;
-    Group->Name = Name;
+    Group->Name = PushAndNullTerminateString(&DebugState->DebugArena, NameLength, Name);
 
     return(Group);
 }
@@ -1251,8 +1244,10 @@ CloneVariableLink(debug_state *DebugState, debug_variable_group *DestGroup, debu
     debug_variable_link *Dest = AddElementToGroup(DebugState, DestGroup, Source->Element);
     if(Source->Children)
     {
-        Dest->Children = 
-            CreateVariableGroup(DebugState, Source->Children->NameLength, Source->Children->Name);
+        Dest->Children = PushStruct(&DebugState->DebugArena, debug_variable_group);
+        DLIST_INIT(&Dest->Children->Sentinel);
+        Dest->Children->Name = Source->Children->Name;
+
         for(debug_variable_link *Child = Source->Children->Sentinel.Next;
             Child != &Source->Children->Sentinel;
             Child = Child->Next)
@@ -1282,8 +1277,7 @@ GetOrCreateGroupWithName(debug_state *DebugState, debug_variable_group *Parent, 
         Link != &Parent->Sentinel;
         Link = Link->Next)
     {
-        if(Link->Children && StringsAreEqual(Link->Children->NameLength, Link->Children->Name,
-                                             NameLength, Name))
+        if(Link->Children && StringsAreEqual(NameLength, Name, Link->Children->Name))
         {
             Result = Link->Children;
             break;
@@ -1348,7 +1342,7 @@ AllocateOpenDebugBlock(debug_state *DebugState, debug_element *Element,
     FREELIST_ALLOCATE(Result, DebugState->FirstFreeBlock, PushStruct(&DebugState->DebugArena, open_debug_block));
     
     Result->StartingFrameIndex = FrameIndex;
-    Result->OpeningEvent = Event;
+    Result->BeginClock = Event->Clock;
     Result->Element = Element;
     Result->NextFree = 0;
 
@@ -1692,7 +1686,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                     if(Thread->FirstOpenCodeBlock)
                     {
                         ParentEvent = Thread->FirstOpenCodeBlock->Node;
-                        ClockBasis = Thread->FirstOpenCodeBlock->OpeningEvent->Clock;
+                        ClockBasis = Thread->FirstOpenCodeBlock->BeginClock;
                     }
                     else if(!ParentEvent)
                     {
@@ -1734,17 +1728,11 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                     if(Thread->FirstOpenCodeBlock)
                     {
                         open_debug_block *MatchingBlock = Thread->FirstOpenCodeBlock;
-                        debug_event *OpeningEvent = MatchingBlock->OpeningEvent;
-                        if(EventsMatch(OpeningEvent, Event))
-                        {
-                            debug_profile_node *Node = &MatchingBlock->Node->ProfileNode;
-                            Node->Duration = (u32)(Event->Clock - OpeningEvent->Clock);
-                            DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenCodeBlock);
-                        }
-                        else
-                        {
-                            // TODO(georgy): Record span that goes to the beginning of the frame series?
-                        }
+                        Assert(Thread->ID == Event->ThreadID);
+
+                        debug_profile_node *Node = &MatchingBlock->Node->ProfileNode;
+                        Node->Duration = (u32)(Event->Clock - MatchingBlock->BeginClock);
+                        DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenCodeBlock);
                     }
                 } break;
 
@@ -1764,11 +1752,8 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                     if(Thread->FirstOpenDataBlock)
                     {
                         open_debug_block *MatchingBlock = Thread->FirstOpenDataBlock;
-                        debug_event *OpeningEvent = MatchingBlock->OpeningEvent;
-                        if(EventsMatch(OpeningEvent, Event))
-                        {
-                            DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenDataBlock);
-                        }
+                        Assert(Thread->ID == Event->ThreadID);
+                        DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenDataBlock);
                     }
                 } break;                
 
@@ -1885,83 +1870,6 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
         DebugState->TextTransform.SortBias = 300000.0f;
         DebugState->ShadowTransform.SortBias = 200000.0f;
         DebugState->BackingTransform.SortBias = 100000.0f;
-    }
-}
-
-internal void
-DEBUGDumpStruct(uint32 MemberCount, member_definition *MemberDefs, void *StructPtr, uint32 IndentLevel = 0)
-{
-    for(uint32 MemberIndex = 0;
-        MemberIndex < MemberCount;
-        MemberIndex++)
-    {
-        char TextBufferBase[256];
-        char *TextBuffer = TextBufferBase;
-        for(uint32 Indent = 0;
-            Indent < IndentLevel;
-            Indent++)
-        {
-            *TextBuffer++ = ' ';
-            *TextBuffer++ = ' ';
-            *TextBuffer++ = ' ';
-            *TextBuffer++ = ' ';
-        }
-        TextBuffer[0] = 0;
-        size_t TextBufferLeft = (TextBufferBase + sizeof(TextBufferBase)) - TextBuffer;
-
-        member_definition *Member = MemberDefs + MemberIndex;
-
-        void *MemberPtr = (uint8 *)StructPtr + Member->Offset;
-        if(Member->Flags & MetaMemberFlag_IsPointer)
-        {
-            MemberPtr = *(void **)MemberPtr;
-        }
-        if(MemberPtr)
-        {
-            switch(Member->Type)
-            {
-                case MetaType_uint32: 
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: %u", Member->Name, *(uint32 *)MemberPtr);
-                } break;
-
-                case MetaType_bool32: 
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: %u", Member->Name, *(bool32 *)MemberPtr);
-                } break;
-
-                case MetaType_int32: 
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: %d", Member->Name, *(int32 *)MemberPtr);
-                } break;
-
-                case MetaType_real32: 
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: %f", Member->Name, *(real32 *)MemberPtr);
-                } break;
-
-                case MetaType_v2:
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: {%f,%f}", 
-                                Member->Name, 
-                                ((v2 *)MemberPtr)->x, ((v2 *)MemberPtr)->y);
-                } break;
-
-                case MetaType_v3:
-                {
-                    _snprintf_s(TextBuffer, TextBufferLeft, TextBufferLeft, "%s: {%f,%f,%f}", 
-                                Member->Name, 
-                                ((v3 *)MemberPtr)->x, ((v3 *)MemberPtr)->y, ((v3 *)MemberPtr)->z);
-                } break;
-
-                META_HANDLE_TYPE_DUMP(MemberPtr, IndentLevel + 1);
-            }
-
-            if(TextBuffer[0])
-            {
-                DEBUGTextLine(TextBufferBase);
-            }
-        }
     }
 }
 
@@ -2110,6 +2018,4 @@ extern "C" DEBUG_GAME_FRAME_END(DEBUGFrameEnd)
 
         DEBUGEnd(DebugState, Input);
     }
-
-    return(GlobalDebugTable);
 }
