@@ -122,11 +122,21 @@ global_variable scene_layer IntroLayers2[] =
 
 #define INTRO_SCENE(Index) Asset_OpeningCutscene, Index, ArrayCount(IntroLayers##Index), IntroLayers##Index
 // NOTE(georgy): There are more shots for this one, but I decided not to copy them from the stream (laziness)
-layered_scene IntroCutScene[] = 
+global_variable layered_scene IntroCutScene[] = 
 {
     {Asset_None, 0, 0, 0, CUTSCENE_WARMUP_SECONDS},
     {INTRO_SCENE(1), 20.0f, {0.0f, 0.0f, 10.0f}, {-4.0f, -2.0f, 5.0f}, 0.1f},
     {INTRO_SCENE(2), 20.0f, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}}
+};
+
+struct cutscene
+{
+    u32 SceneCount;
+    layered_scene *Scenes;
+};
+global_variable cutscene Cutscenes[] = 
+{
+    {ArrayCount(IntroCutScene), IntroCutScene},
 };
 
 internal b32
@@ -135,12 +145,13 @@ RenderCutSceneAtTime(game_assets *Assets, render_group *RenderGroup, loaded_bitm
 {
     b32 CutSceneStillRunning = false;
 
+    cutscene Info = Cutscenes[CutScene->ID];
     r32 tBase = 0.0f;
     for(u32 ShotIndex = 0;
-        ShotIndex < CutScene->SceneCount;
+        ShotIndex < Info.SceneCount;
         ShotIndex++)
     {
-        layered_scene *Scene = CutScene->Scenes + ShotIndex;
+        layered_scene *Scene = Info.Scenes + ShotIndex;
         r32 tStart = tBase;
         r32 tEnd = tStart + Scene->Duration;
 
@@ -238,8 +249,7 @@ PlayIntroCutScene(game_state *GameState, transient_state *TranState)
 
     game_mode_cutscene *Result = PushStruct(&GameState->ModeArena, game_mode_cutscene);
 
-    Result->SceneCount = ArrayCount(IntroCutScene);
-    Result->Scenes = IntroCutScene;
+    Result->ID = CutsceneID_Intro;
     Result->t = 0;
 
     GameState->CutScene = Result;

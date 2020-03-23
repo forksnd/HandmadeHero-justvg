@@ -32,10 +32,13 @@ struct layered_scene
     r32 tFadeIn;
 };
 
+enum cutscene_id
+{
+    CutsceneID_Intro,
+};
 struct game_mode_cutscene
 {
-    u32 SceneCount;
-    layered_scene *Scenes;
+    cutscene_id ID;
     r32 t;
 };
 

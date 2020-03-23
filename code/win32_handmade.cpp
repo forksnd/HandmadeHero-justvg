@@ -1552,6 +1552,7 @@ debug_table *GlobalDebugTable = &GlobalDebugTable_;
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
+    DEBUGSetEventRecording(true);
     win32_state Win32State = {};    
 
 #if 0
@@ -1830,25 +1831,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         DEBUG_B32(GlobalRenderingType);
                     }
 
-                    // 
-                    // 
-                    // 
-
-                    BEGIN_BLOCK("Executable Refresh");
                     NewInput->dtForFrame = TargetSecondsPerFrame;
-
-                    GameMemory.ExecutableReloaded = false;
-                    FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
-                    if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
-                    {
-                        Win32CompleteAllWork(&HighPriorityQueue);
-                        Win32CompleteAllWork(&LowPriorityQueue);
-
-                        Win32UnloadGameCode(&Game);
-                        Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
-                        GameMemory.ExecutableReloaded = true;
-                    }
-                    END_BLOCK();
 
                     // 
                     // 
@@ -2168,20 +2151,39 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         // 
 
 #if HANDMADE_INTERNAL
-                        BEGIN_BLOCK("Collation Time");
-                        
+                        BEGIN_BLOCK("Debug Collation");
+
+                        FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
+                        b32 ExecutableNeedsToBeReloaded = CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime);
+                    
+                        GameMemory.ExecutableReloaded = false;
+                        if(ExecutableNeedsToBeReloaded)
+                        {
+                            Win32CompleteAllWork(&HighPriorityQueue);
+                            Win32CompleteAllWork(&LowPriorityQueue);
+                            DEBUGSetEventRecording(false);
+                        }
+
                         if(Game.DEBUGFrameEnd)
                         {
                             Game.DEBUGFrameEnd(&GameMemory, NewInput, &RenderCommands);
                         }
-                        else
-                        {
-                            // NOTE(georgy): If for some reason the game didn't load,
-                            //               make sure we clear the debug event array 
-                            //               so it doesn't pile up on itself.
-                            GlobalDebugTable_.EventArrayIndex_EventIndex = 0;
-                        }
                         
+                        if(ExecutableNeedsToBeReloaded)
+                        {
+                            Win32UnloadGameCode(&Game);
+                            for(u32 LoadTryIndex = 0;
+                                !Game.IsValid && (LoadTryIndex < 100);
+                                LoadTryIndex++)
+                            {
+                                Game = Win32LoadGameCode(SourceGameCodeFullPath, TempGameCodeFullPath, GameCodeLockFullPath);
+                                Sleep(100);
+                            }
+                            
+                            GameMemory.ExecutableReloaded = true;
+                            DEBUGSetEventRecording(Game.IsValid);
+                        }
+
                         END_BLOCK();
 #endif
 

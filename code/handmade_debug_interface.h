@@ -68,6 +68,7 @@ struct debug_event
 struct debug_table
 {
     debug_event EditEvent;
+    u32 RecordIncrement;
 
 	uint32 CurrentEventArrayIndex;
     // TODO(georgy): This could actually be a u32 atomic now, since we
@@ -82,8 +83,10 @@ extern debug_table *GlobalDebugTable;
 #define UniqueFileCounterString_(A, B, C, D) UniqueFileCounterString__(A, B, C, D)
 #define DEBUG_NAME(Name) UniqueFileCounterString_(__FILE__, __LINE__, __COUNTER__, Name)
 
+#define DEBUGSetEventRecording(Enabled) (GlobalDebugTable->RecordIncrement = (Enabled) ? 1 : 0)
+
 #define RecordDebugEvent(EventType, GUIDInit) \
-    uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, 1); \
+    uint64 ArrayIndex_EventIndex = AtomicAddU64(&GlobalDebugTable->EventArrayIndex_EventIndex, GlobalDebugTable->RecordIncrement); \
 	uint32 EventIndex = ArrayIndex_EventIndex & 0xFFFFFFFF;									\
 	Assert(EventIndex < ArrayCount(GlobalDebugTable->Events[0]));												\
 	debug_event *Event = GlobalDebugTable->Events[ArrayIndex_EventIndex >> 32LL] + EventIndex;	\

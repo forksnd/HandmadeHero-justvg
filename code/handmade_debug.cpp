@@ -451,7 +451,7 @@ DrawProfileIn(debug_state *DebugState, rectangle2 ProfileRect, v2 MouseP,
 
         u32 LaneIndex = 0;
         rectangle2 RegionRect = RectMinMax(V2(ThisMinX, ProfileRect.Max.y - LaneHeight*(LaneIndex + 1)), 
-                                            V2(ThisMaxX, ProfileRect.Max.y - LaneHeight*LaneIndex));
+                                           V2(ThisMaxX, ProfileRect.Max.y - LaneHeight*LaneIndex));
 
         PushRect(&DebugState->RenderGroup, DebugState->BackingTransform, RegionRect, 0.0f, V4(Color, 1.0f));
 
