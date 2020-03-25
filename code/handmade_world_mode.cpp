@@ -612,7 +612,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
     real32 WidthOfMonitor = 0.635f; // NOTE(george): Horizontal measurment of monitor in meters
     real32 MetersToPixels = (real32)DrawBuffer->Width/WidthOfMonitor;
 
-    Clear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
+    Clear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 1.0f));
 
     real32 FocalLength = 0.6f;
     real32 DistanceAboveGround = 24.0f;

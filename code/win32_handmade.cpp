@@ -594,7 +594,7 @@ Win32InitOpenGL(HDC WindowDC)
 
     if(wglMakeCurrent(WindowDC, OpenGLRC))
     {
-        OpenGLInit(ModernContext);
+        OpenGLInit(ModernContext, OpenGLSupportsSRGBFramebuffer);
         if(wglSwapIntervalEXT)
         {
             wglSwapIntervalEXT(1);
@@ -1616,7 +1616,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
        1080 -> 2048 = 2048-1080 -> 968 pixels
        1024 + 128 = 1152
     */  
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
+    Win32ResizeDIBSection(&GlobalBackbuffer, 1364, 768);
+    // Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
+    // Win32ResizeDIBSection(&GlobalBackbuffer, 1200, 740);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 540, 400);
     

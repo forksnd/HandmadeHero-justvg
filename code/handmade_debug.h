@@ -271,6 +271,7 @@ struct debug_state
 
 	object_transform TextTransform;
     object_transform ShadowTransform;
+    object_transform UITransform;
     object_transform BackingTransform;
 	
 	v2 MenuP;
