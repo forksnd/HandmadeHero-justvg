@@ -1780,7 +1780,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             umm CurrentSortMemorySize = Megabytes(1);
             void *SortMemory = Win32AllocateMemory(CurrentSortMemorySize);
-            u32 PushBufferSize = Megabytes(4);
+            u32 PushBufferSize = Megabytes(64);
             void *PushBuffer = Win32AllocateMemory(PushBufferSize);
 
 #if 0

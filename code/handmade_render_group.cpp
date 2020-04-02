@@ -228,7 +228,6 @@ PushRect(render_group *Group, object_transform ObjectTransform,
     PushRect(Group, ObjectTransform, V3(GetCenter(Rectangle), Z), GetDim(Rectangle), Color);
 }
 
-
 inline void
 PushRectOutline(render_group *Group, object_transform ObjectTransform, 
                 v3 Offset, v2 Dim, v4 Color = V4(1, 1, 1, 1), real32 Thickness = 0.1f)
@@ -240,6 +239,13 @@ PushRectOutline(render_group *Group, object_transform ObjectTransform,
     // NOTE(george): Left and right
     PushRect(Group, ObjectTransform, Offset - V3(Dim.x/2, 0, 0), V2(Thickness, Dim.y), Color);    
     PushRect(Group, ObjectTransform, Offset + V3(Dim.x/2, 0, 0), V2(Thickness, Dim.y), Color);    
+}
+
+inline void
+PushRectOutline(render_group *Group, object_transform ObjectTransform, 
+                rectangle2 Rectangle, real32 Z, v4 Color = V4(1, 1, 1, 1), real32 Thickness = 0.1f)
+{
+    PushRectOutline(Group, ObjectTransform, V3(GetCenter(Rectangle), Z), GetDim(Rectangle), Color, Thickness);
 }
 
 inline void
