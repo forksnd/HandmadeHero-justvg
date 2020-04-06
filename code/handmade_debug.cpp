@@ -500,6 +500,21 @@ global_variable v3 DebugColorTable[] =
     // {0, 0.5f, 1},
 };
 
+internal u64
+GetTotalClocks(debug_element_frame *Frame)
+{
+    u64 Result = 0;
+
+    for(debug_stored_event *Event = Frame->OldestEvent;
+        Event;
+        Event = Event->Next)
+    {
+        Result += Event->ProfileNode.Duration;
+    }
+
+    return(Result);
+}
+
 internal void
 DrawProfileBars(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRect, v2 MouseP,
                 debug_profile_node *RootNode, r32 LaneStride, r32 LaneHeight)
@@ -536,7 +551,7 @@ DrawProfileBars(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRec
         {
             char TextBuffer[256];
             _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                        "%s: %ucy", 
+                        "%s: %I64ucy", 
                         Element->GUID, Node->Duration);
             DEBUGTextOutAt(MouseP + V2(0.0f, DebugState->MouseTextStackY), TextBuffer);
             DebugState->MouseTextStackY -= GetLineAdvance(DebugState);
@@ -555,11 +570,9 @@ DrawProfileBars(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRec
 
 internal void 
 DrawProfileIn(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRect, v2 MouseP,
-              debug_stored_event *RootEvent)
+              debug_element *RootElement)
 {
     DebugState->MouseTextStackY = 10.0f;
-
-    debug_profile_node *RootNode = &RootEvent->ProfileNode;
     PushRect(&DebugState->RenderGroup, DebugState->BackingTransform, ProfileRect, 0.0f, V4(0.0f, 0.0f, 0.0f, 0.25f));
 
     u32 LaneCount = DebugState->FrameBarLaneCount;
@@ -569,13 +582,32 @@ DrawProfileIn(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRect,
         LaneHeight = GetDim(ProfileRect).y / LaneCount;
     }
 
-    DrawProfileBars(DebugState, GraphID, ProfileRect, MouseP, RootNode, LaneHeight, LaneHeight);
+    debug_element_frame *RootFrame = RootElement->Frames + DebugState->MostRecentFrameOrdinal;
+    r32 NextX = ProfileRect.Min.x;
+    u64 TotalClock = GetTotalClocks(RootFrame);
+    u64 RelativeClock = 0;
+    for(debug_stored_event *Event = RootFrame->OldestEvent;
+        Event;
+        Event = Event->Next)
+    {
+        debug_profile_node *Node = &Event->ProfileNode;
+        rectangle2 EventRect = ProfileRect;
+
+        RelativeClock += Node->Duration;
+        r32 t = (r32)((r64)RelativeClock / (r64)TotalClock);
+        EventRect.Min.x = NextX;
+        EventRect.Max.x = (1.0f - t)*ProfileRect.Min.x + t*ProfileRect.Max.x;
+        NextX = EventRect.Max.x;
+
+        DrawProfileBars(DebugState, GraphID, ProfileRect, MouseP, Node, LaneHeight, LaneHeight);
+    }
 }
 
 internal void 
 DrawFrameBars(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRect, v2 MouseP,
-              debug_stored_event *FirstEvent, u32 FrameCount = 10)
+              debug_element *RootElement)
 {
+    u32 FrameCount = ArrayCount(RootElement->Frames);
     if(FrameCount > 0)
     {
         DebugState->MouseTextStackY = 10.0f;
@@ -584,57 +616,60 @@ DrawFrameBars(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileRect,
 
         r32 BarWidth = GetDim(ProfileRect).x / (r32)FrameCount;
         r32 AtX = ProfileRect.Min.x;
-        debug_stored_event *RootEvent = FirstEvent;
         for(u32 FrameIndex = 0;
-            RootEvent && (FrameIndex < FrameCount);
-            FrameIndex++, RootEvent = RootEvent->Next)
+            FrameIndex < FrameCount;
+            FrameIndex++)
         {
-            debug_profile_node *RootNode = &RootEvent->ProfileNode;
-            r32 FrameSpan = (r32)(RootNode->Duration);
-            r32 PixelSpan = GetDim(ProfileRect).y;
-
-            r32 Scale = 0.0f;
-            if(FrameSpan > 0)
+            debug_stored_event *RootEvent = RootElement->Frames[FrameIndex].MostRecentEvent;
+            if(RootEvent)
             {
-                Scale = PixelSpan / FrameSpan;
-            }
+                debug_profile_node *RootNode = &RootEvent->ProfileNode;
+                r32 FrameSpan = (r32)(RootNode->Duration);
+                r32 PixelSpan = GetDim(ProfileRect).y;
 
-            for(debug_stored_event *StoredEvent = RootNode->FirstChild;
-                StoredEvent;
-                StoredEvent = StoredEvent->ProfileNode.NextSameParent)
-            {
-                debug_profile_node *Node = &StoredEvent->ProfileNode;
-                debug_element *Element = Node->Element;
-                Assert(Element);
-
-                v3 Color = DebugColorTable[(u32)Element->GUID % ArrayCount(DebugColorTable)];
-                r32 ThisMinY = ProfileRect.Min.y + Scale*(r32)(Node->ParentRelativeClock);
-                r32 ThisMaxY = ThisMinY + Scale*(r32)(Node->Duration);
-
-                rectangle2 RegionRect = RectMinMax(V2(AtX, ThisMinY), 
-                                                V2(AtX + BarWidth, ThisMaxY));
-
-                PushRectOutline(&DebugState->RenderGroup, DebugState->UITransform, RegionRect, 0.0f, V4(Color, 1.0f), 2.0f);
-
-                if(IsInRectangle(RegionRect, MouseP))
+                r32 Scale = 0.0f;
+                if(FrameSpan > 0)
                 {
-                    char TextBuffer[256];
-                    _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                                "%s: %ucy", 
-                                Element->GUID, Node->Duration);
-                    DEBUGTextOutAt(MouseP + V2(0.0f, DebugState->MouseTextStackY), TextBuffer);
-                    DebugState->MouseTextStackY -= GetLineAdvance(DebugState);
-
-                    debug_interaction ZoomInteraction = {};
-                    ZoomInteraction.ID = GraphID;
-                    ZoomInteraction.Type = DebugInteraction_SetProfileGraphRoot;
-                    ZoomInteraction.Element = Element;
-
-                    DebugState->NextHotInteraction = ZoomInteraction;
+                    Scale = PixelSpan / FrameSpan;
                 }
-            }
 
-            AtX += BarWidth;
+                for(debug_stored_event *StoredEvent = RootNode->FirstChild;
+                    StoredEvent;
+                    StoredEvent = StoredEvent->ProfileNode.NextSameParent)
+                {
+                    debug_profile_node *Node = &StoredEvent->ProfileNode;
+                    debug_element *Element = Node->Element;
+                    Assert(Element);
+
+                    v3 Color = DebugColorTable[(u32)Element->GUID % ArrayCount(DebugColorTable)];
+                    r32 ThisMinY = ProfileRect.Min.y + Scale*(r32)(Node->ParentRelativeClock);
+                    r32 ThisMaxY = ThisMinY + Scale*(r32)(Node->Duration);
+
+                    rectangle2 RegionRect = RectMinMax(V2(AtX, ThisMinY), 
+                                                    V2(AtX + BarWidth, ThisMaxY));
+
+                    PushRectOutline(&DebugState->RenderGroup, DebugState->UITransform, RegionRect, 0.0f, V4(Color, 1.0f), 2.0f);
+
+                    if(IsInRectangle(RegionRect, MouseP))
+                    {
+                        char TextBuffer[256];
+                        _snprintf_s(TextBuffer, sizeof(TextBuffer), 
+                                    "%s: %I64ucy", 
+                                    Element->GUID, Node->Duration);
+                        DEBUGTextOutAt(MouseP + V2(0.0f, DebugState->MouseTextStackY), TextBuffer);
+                        DebugState->MouseTextStackY -= GetLineAdvance(DebugState);
+
+                        debug_interaction ZoomInteraction = {};
+                        ZoomInteraction.ID = GraphID;
+                        ZoomInteraction.Type = DebugInteraction_SetProfileGraphRoot;
+                        ZoomInteraction.Element = Element;
+
+                        DebugState->NextHotInteraction = ZoomInteraction;
+                    }
+                }
+
+                AtX += BarWidth;
+            }
         }
     }
 }
@@ -977,21 +1012,13 @@ DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug
 
                 u32 MostRecentFrameOrdinal = DebugState->MostRecentFrameOrdinal;
                 debug_element *ViewingElement = GetElementFromGUID(DebugState, Graph->GUID);
-                if(ViewingElement)
+                if(!ViewingElement)
                 {
-                    RootNode = ViewingElement->Frames[MostRecentFrameOrdinal].OldestEvent;
+                    ViewingElement = DebugState->RootProfileElement;
                 }
 
-                if(!RootNode)
-                {
-                    RootNode = DebugState->Frames[MostRecentFrameOrdinal].RootProfileNode;
-                }
-
-                if(RootNode)
-                {
-                    DrawProfileIn(DebugState, DebugID, Element.Bounds, Layout->MouseP, RootNode);
-                    // DrawFrameBars(DebugState, DebugID, Element.Bounds, Layout->MouseP, RootNode);
-                }
+                DrawProfileIn(DebugState, DebugID, Element.Bounds, Layout->MouseP, ViewingElement);
+                // DrawFrameBars(DebugState, DebugID, Element.Bounds, Layout->MouseP, ViewingElement);
             } break;
 
             default:
@@ -1719,8 +1746,8 @@ GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_
         if(CreateHierarchy)
         {
             ParentGroup = GetGroupForHierarchicalName(DebugState, Parent, GetName(Result), false);
+            AddElementToGroup(DebugState, ParentGroup, Result);
         }
-        AddElementToGroup(DebugState, ParentGroup, Result);
     }
 
     return(Result);
@@ -1744,7 +1771,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
             if(CollationFrame->RootProfileNode)
             {
                 CollationFrame->RootProfileNode->ProfileNode.Duration = 
-                (u32)(CollationFrame->EndClock - CollationFrame->BeginClock);
+                    CollationFrame->EndClock - CollationFrame->BeginClock;
             }
             
             DebugState->TotalFrameCount++;
@@ -1790,14 +1817,13 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                     else if(!ParentEvent)
                     {
                         debug_event NullEvent = {};
-                        ParentEvent = StoreEvent(DebugState, Element, &NullEvent);
+                        ParentEvent = StoreEvent(DebugState, DebugState->RootProfileElement, &NullEvent);
                         debug_profile_node *Node = &ParentEvent->ProfileNode;
                         Node->Element = 0;
                         Node->FirstChild = 0;
                         Node->NextSameParent = 0;
                         Node->ParentRelativeClock = 0;
                         Node->Duration = 0;
-                        Node->AggregateCount = 0;
                         Node->ThreadOrdinal = 0;
                         Node->CoreIndex = 0;
                         
@@ -1808,9 +1834,8 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                     debug_profile_node *Node = &StoredEvent->ProfileNode;
                     Node->Element = Element;
                     Node->FirstChild = 0;
-                    Node->ParentRelativeClock = (u32)(Event->Clock - ClockBasis);
+                    Node->ParentRelativeClock = Event->Clock - ClockBasis;
                     Node->Duration = 0;
-                    Node->AggregateCount = 0;
                     Node->ThreadOrdinal = (u16)Thread->LaneIndex;
                     Node->CoreIndex = Event->CoreIndex;
                     
@@ -1830,7 +1855,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                         Assert(Thread->ID == Event->ThreadID);
 
                         debug_profile_node *Node = &MatchingBlock->Node->ProfileNode;
-                        Node->Duration = (u32)(Event->Clock - MatchingBlock->BeginClock);
+                        Node->Duration = Event->Clock - MatchingBlock->BeginClock;
                         DeallocateOpenDebugBlock(DebugState, &Thread->FirstOpenCodeBlock);
                     }
                 } break;
@@ -1934,6 +1959,10 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
             DEBUGEndVariableGroup(&Context);
             Assert(Context.GroupDepth == 0);
 #endif
+
+            debug_event RootProfileEvent = {};
+            RootProfileEvent.GUID = DEBUG_NAME("RootProfile");
+            DebugState->RootProfileElement = GetElementFromEvent(DebugState, &RootProfileEvent, 0, false);
 
             DebugState->Paused = false;
             DebugState->ScopeToRecord = 0;

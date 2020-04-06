@@ -142,7 +142,7 @@ Win32LoadGameCode(char *SourceDLLName, char *TempDLLName, char *LockFilename)
 
         CopyFile(SourceDLLName, TempDLLName, FALSE);
 
-        Result.GameCodeDLL = LoadLibraryA(TempDLLName);    
+        Result.GameCodeDLL = LoadLibraryA(TempDLLName);
         if (Result.GameCodeDLL)
         {
             Result.UpdateAndRender = (game_update_and_render *) GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
