@@ -270,6 +270,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
     DebugGlobalMemory = Memory;
 
+    {DEBUG_DATA_BLOCK("Debug Control");
+        DEBUG_UI_ELEMENT(DebugType_FrameSlider, FrameSlider);
+    }
     {DEBUG_DATA_BLOCK("Renderer");
         {DEBUG_DATA_BLOCK("Camera");
             DEBUG_B32(Global_Renderer_Camera_UseDebug);
@@ -289,7 +292,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         DEBUG_B32(Global_Simulation_UseSpaceOutlines);
     }
     {DEBUG_DATA_BLOCK("Profile");
-        DEBUG_THREAD_INTERVAL_GRAPH(GameUpdateAndRender);
+        DEBUG_UI_ELEMENT(DebugType_LastFrameInfo, LastFrame);
+        DEBUG_UI_ELEMENT(DebugType_DebugMemoryInfo, DebugMemory);
+        DEBUG_UI_ELEMENT(DebugType_ThreadIntervalGraph, GameUpdateAndRender);
     }
 
 #endif
