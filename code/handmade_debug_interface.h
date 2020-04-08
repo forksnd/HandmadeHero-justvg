@@ -36,10 +36,10 @@ enum debug_type
 	DebugType_font_id,
 
     DebugType_ThreadIntervalGraph,
-	// DebugType_CounterFunctionList,
+    DebugType_FrameBarGraph,
     DebugType_LastFrameInfo,
     DebugType_DebugMemoryInfo,
-    DebugType_FrameSlider
+    DebugType_FrameSlider,
 };
 struct debug_event
 {

@@ -106,6 +106,8 @@ struct debug_element
 	u32 LineNumber;
 	u32 NameStartsAt;
 
+	debug_type Type;
+
 	b32 ValueWasEdited;
 
 	debug_element_frame Frames[DEBUG_FRAME_COUNT];
@@ -240,17 +242,21 @@ enum debug_interaction_type
 
 	DebugInteraction_SetProfileGraphRoot,
 	DebugInteraction_SetViewFrameOrdinal,
+
+	DebugInteraction_SetElementType,
 };
 struct debug_interaction
 {
 	debug_id ID;
 	debug_interaction_type Type;
 	
+	debug_element *Element;
+
 	union
 	{
 		void *Generic;
 		u32 UInt32;
-		debug_element *Element;
+		debug_type DebugType;
 		debug_tree *Tree;
 		debug_variable_link *Link;
 		v2 *P;
@@ -322,6 +328,32 @@ struct debug_state
 
 	// NOTE(georgy): Per-frame storage management
 	debug_stored_event *FirstFreeStoredEvent;
+};
+
+struct layout
+{
+    debug_state *DebugState;
+    v2 MouseP;
+    v2 BaseCorner;
+	v2 At;
+    u32 Depth;
+    real32 LineAdvance;
+    real32 NextYDelta;
+    real32 SpacingX;
+    real32 SpacingY;
+	u32 NoLineFeed;
+};
+
+struct layout_element
+{
+    // NOTE(georgy): Storage
+    layout *Layout;
+    v2 *Dim;
+    v2 *Size;
+    debug_interaction Interaction;
+
+    // NOTE(georgy): Out
+    rectangle2 Bounds;
 };
 
 internal debug_variable_group *CreateVariableGroup(debug_state *DebugState, u32 NameLength, char *Name);
