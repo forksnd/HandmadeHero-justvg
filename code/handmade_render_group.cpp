@@ -104,16 +104,16 @@ PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Typ
 
     Size += sizeof(render_group_entry_header);
 
-    if((Commands->PushBufferSize + Size) < (Commands->SortEntryAt - sizeof(tile_sort_entry)))
+    if((Commands->PushBufferSize + Size) < (Commands->SortEntryAt - sizeof(sort_entry)))
     {
         render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Commands->PushBufferSize);
         Header->Type = Type;
         Result = (uint8 *)Header + sizeof(*Header);
 
-        Commands->SortEntryAt -= sizeof(tile_sort_entry);
-        tile_sort_entry *Entry = (tile_sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
+        Commands->SortEntryAt -= sizeof(sort_entry);
+        sort_entry *Entry = (sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
         Entry->SortKey = SortKey;
-        Entry->PushBufferOffset = Commands->PushBufferSize;
+        Entry->Index = Commands->PushBufferSize;
 
         Commands->PushBufferSize += Size;
         Commands->PushBufferElementCount++;

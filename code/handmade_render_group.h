@@ -154,12 +154,6 @@ struct used_bitmap_dim
     v3 P;
 };
 
-struct tile_sort_entry
-{
-    r32 SortKey;
-    u32 PushBufferOffset;
-};
-
 inline object_transform
 DefaultUprightTransform(void)
 {

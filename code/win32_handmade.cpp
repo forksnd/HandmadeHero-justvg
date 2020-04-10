@@ -58,6 +58,7 @@ global_variable b32 OpenGLSupportsSRGBFramebuffer;
 global_variable GLuint OpenGLDefaultInternalTextureFormat;
 global_variable GLuint OpenGLReservedBlitTexture;
 
+#include "handmade_sort.cpp"
 #include "handmade_opengl.cpp"
 #include "handmade_render.cpp"
 
@@ -128,6 +129,13 @@ Win32GetLastWriteTime(char *Filename)
     }
 
     return(LastWriteTime);
+}
+
+inline b32
+Win32TimeIsValid(FILETIME Time)
+{
+    b32 Result = (Time.dwLowDateTime != 0) && (Time.dwHighDateTime != 0);
+    return(Result);
 }
 
 internal win32_game_code
@@ -1549,6 +1557,34 @@ global_variable debug_table GlobalDebugTable_;
 debug_table *GlobalDebugTable = &GlobalDebugTable_;
 #endif
 
+internal void
+Win32FullRestart(char *SourceEXE, char *DestEXE, char *DeleteEXE)
+{
+    DeleteFile(DeleteEXE);
+    if(MoveFile(DestEXE, DeleteEXE))
+    {
+        if(MoveFile(SourceEXE, DestEXE))
+        {
+            STARTUPINFO StartupInfo = {};
+            StartupInfo.cb = sizeof(StartupInfo);
+
+            PROCESS_INFORMATION ProcessInfo = {};
+            if(CreateProcess(DestEXE, GetCommandLine(), 0, 0, FALSE, 0, 0, 
+                            "C:\\Users\\georg\\source\\repos\\HandmadeHero\\handmade\\data", 
+                            &StartupInfo, &ProcessInfo))
+            {
+                CloseHandle(ProcessInfo.hProcess);
+            }
+            else
+            {
+                // TODO(georgy): Error!
+            }
+
+            ExitProcess(0);
+        }
+    }
+}
+
 int CALLBACK 
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
@@ -1586,6 +1622,18 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
     GlobalPerfCounterFrequency = PerfCounterFrequencyResult.QuadPart;
 
     Win32GetEXEFilename(&Win32State);
+
+    char Win32EXEFullPath[MAX_PATH];
+    Win32BuildEXEPathFilename(&Win32State, "win32_handmade.exe", 
+                              sizeof(Win32EXEFullPath), Win32EXEFullPath);
+
+    char TempWin32EXEFullPath[MAX_PATH];
+    Win32BuildEXEPathFilename(&Win32State, "win32_handmade_temp.exe", 
+                              sizeof(TempWin32EXEFullPath), TempWin32EXEFullPath);   
+
+    char DeleteWin32EXEFullPath[MAX_PATH];
+    Win32BuildEXEPathFilename(&Win32State, "win32_handmade_old.exe", 
+                              sizeof(DeleteWin32EXEFullPath), DeleteWin32EXEFullPath);   
 
     char SourceGameCodeFullPath[MAX_PATH];
     Win32BuildEXEPathFilename(&Win32State, "handmade.dll", 
@@ -2156,8 +2204,21 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         BEGIN_BLOCK("Debug Collation");
 
                         FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
-                        b32 ExecutableNeedsToBeReloaded = CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime);
-                    
+                        b32 ExecutableNeedsToBeReloaded = (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0);
+                        
+                        
+                        FILETIME NewEXETime = Win32GetLastWriteTime(TempWin32EXEFullPath);
+                        FILETIME OldEXETime = Win32GetLastWriteTime(Win32EXEFullPath);
+                        if(Win32TimeIsValid(NewEXETime))
+                        {
+                            b32 Win32NeedsToBeReloaded = (CompareFileTime(&NewEXETime, &OldEXETime) != 0);
+                            // TODO(georgy): Compare file contents here
+                            if(Win32NeedsToBeReloaded)
+                            {
+                                Win32FullRestart(TempWin32EXEFullPath, Win32EXEFullPath, DeleteWin32EXEFullPath);
+                            }
+                        }
+
                         GameMemory.ExecutableReloaded = false;
                         if(ExecutableNeedsToBeReloaded)
                         {
@@ -2248,7 +2309,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
                         BEGIN_BLOCK("Frame Display");
 
-                        umm NeededSortMemorySize = RenderCommands.PushBufferElementCount * sizeof(tile_sort_entry);
+                        umm NeededSortMemorySize = RenderCommands.PushBufferElementCount * sizeof(sort_entry);
                         if(CurrentSortMemorySize < NeededSortMemorySize)
                         {
                             Win32DeallocateMemory(SortMemory);

@@ -220,14 +220,14 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
     OpenGLSetScreenSpace(Commands->Width, Commands->Height);
 
     u32 SortEntryCount = Commands->PushBufferElementCount;
-    tile_sort_entry *SortEntries = (tile_sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
+    sort_entry *SortEntries = (sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
 
-    tile_sort_entry *Entry = SortEntries;
+    sort_entry *Entry = SortEntries;
     for(u32 SortEntryIndex = 0;
         SortEntryIndex < SortEntryCount;
         SortEntryIndex++, Entry++)
     {
-        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Entry->PushBufferOffset);
+        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Entry->Index);
         void *Data = (u8 *)Header + sizeof(*Header);
 
         switch(Header->Type)
