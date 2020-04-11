@@ -1,54 +1,4 @@
 
-inline render_group
-BeginRenderGroup(game_assets *Assets, game_render_commands *Commands,
-                 u32 GenerationID, bool32 RendersInBackground)
-{
-	render_group Result = {};
-
-    Result.Assets = Assets;
-    Result.RendersInBackground = RendersInBackground;
-    Result.GlobalAlpha = 1.0f;
-    Result.GenerationID = GenerationID;
-    Result.Commands = Commands;
-
-	return(Result);
-}
-
-inline void
-EndRenderGroup(render_group *RenderGroup)
-{
-    // TODO(georgy):
-    // RenderGroup->Commands->MissingResourceCount += RenderGroup->MissingResourceCount;
-}
-
-inline void
-Perspective(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, 
-            real32 MetersToPixels, real32 FocalLength, real32 DistanceAboveTarget)
-{
-    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
-    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters,
-                                           0.5f*PixelHeight*PixelsToMeters};
-
-    RenderGroup->CameraTransform.MetersToPixels = MetersToPixels;
-    RenderGroup->CameraTransform.FocalLength = FocalLength; // NOTE(george): Meters the person is sitting from their monitor
-    RenderGroup->CameraTransform.DistanceAboveTarget = DistanceAboveTarget;
-    RenderGroup->CameraTransform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
-    RenderGroup->CameraTransform.Orthographic = false;
-}
-
-inline void
-Orthographic(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, real32 MetersToPixels)
-{
-    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
-    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters, 0.5f*PixelHeight*PixelsToMeters};
-
-    RenderGroup->CameraTransform.MetersToPixels = MetersToPixels;
-    RenderGroup->CameraTransform.FocalLength = 1.0f; // NOTE(george): Meters the person is sitting from their monitor
-    RenderGroup->CameraTransform.DistanceAboveTarget = 1.0f;
-    RenderGroup->CameraTransform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
-    RenderGroup->CameraTransform.Orthographic = true;
-}
-
 internal entity_basis_p_result
 GetRenderEntityBasisP(camera_transform CameraTransform,
                       object_transform ObjectTransform,
@@ -107,7 +57,8 @@ PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Typ
     if((Commands->PushBufferSize + Size) < (Commands->SortEntryAt - sizeof(sort_entry)))
     {
         render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Commands->PushBufferSize);
-        Header->Type = Type;
+        Header->Type = (u16)Type;
+        Header->ClipRectIndex = SafeTruncateToU16(Group->CurrentClipRectIndex);
         Result = (uint8 *)Header + sizeof(*Header);
 
         Commands->SortEntryAt -= sizeof(sort_entry);
@@ -285,6 +236,66 @@ CoordinateSystem(render_group *Group, v2 Origin, v2 XAxis, v2 YAxis, v4 Color,
 #endif
 }
 
+inline u32
+PushClipRect(render_group *Group, u32 X, u32 Y, u32 W, u32 H)
+{
+    u32 Result = 0;
+
+    game_render_commands *Commands = Group->Commands;
+
+    u32 Size = sizeof(render_entry_cliprect);
+    if((Commands->PushBufferSize + Size) < Commands->SortEntryAt)
+    {
+        render_entry_cliprect *Rect = (render_entry_cliprect *)(Commands->PushBufferBase + Commands->PushBufferSize);
+        Commands->PushBufferSize += Size;
+
+        Result = Commands->ClipRectCount++;
+        
+        if(Commands->LastRect)
+        {
+            Commands->LastRect = Commands->LastRect->Next = Rect;
+        }
+        else
+        {
+            Commands->FirstRect = Commands->LastRect = Rect;
+        }
+        Rect->Next = 0;
+
+        Rect->Rect.MinX = X;
+        Rect->Rect.MinY = Y;
+        Rect->Rect.MaxX = Rect->Rect.MinX + W;
+        Rect->Rect.MaxY = Rect->Rect.MinY + H;
+    }
+    
+    return(Result);
+}
+
+inline u32
+PushClipRect(render_group *Group, object_transform ObjectTransform, v3 Offset, v2 Dim)
+{
+    u32 Result = 0;
+
+    v3 P = Offset - V3(0.5f*Dim, 0.0f);
+    entity_basis_p_result Basis = GetRenderEntityBasisP(Group->CameraTransform, ObjectTransform, P);
+    if(Basis.Valid)
+    {
+        v2 P = Basis.P;
+        v2 DimB = Basis.Scale*Dim;
+
+        Result = PushClipRect(Group, RoundReal32ToInt32(P.x), RoundReal32ToInt32(P.y), RoundReal32ToInt32(DimB.x), RoundReal32ToInt32(DimB.y));
+    }    
+
+    return(Result);
+}
+
+inline u32
+PushClipRect(render_group *Group, object_transform ObjectTransform, 
+             rectangle2 Rectangle, real32 Z)
+{
+    u32 Result = PushClipRect(Group, ObjectTransform, V3(GetCenter(Rectangle), Z), GetDim(Rectangle));
+    return(Result);
+}
+
 inline v3
 Unproject(render_group *Group, object_transform ObjectTransform, v2 PixelsXY)
 {
@@ -338,3 +349,56 @@ AllResourcesPresent(render_group *Group)
 
     return(Result);
 } 
+
+inline render_group
+BeginRenderGroup(game_assets *Assets, game_render_commands *Commands, u32 GenerationID, bool32 RendersInBackground)
+{
+	render_group Result = {};
+
+    Result.Assets = Assets;
+    Result.RendersInBackground = RendersInBackground;
+    Result.GlobalAlpha = 1.0f;
+    Result.GenerationID = GenerationID;
+    Result.Commands = Commands;
+
+	return(Result);
+}
+
+inline void
+EndRenderGroup(render_group *RenderGroup)
+{
+    // TODO(georgy):
+    // RenderGroup->Commands->MissingResourceCount += RenderGroup->MissingResourceCount;
+}
+
+inline void
+Perspective(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, 
+            real32 MetersToPixels, real32 FocalLength, real32 DistanceAboveTarget)
+{
+    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
+    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters,
+                                           0.5f*PixelHeight*PixelsToMeters};
+
+    RenderGroup->CameraTransform.MetersToPixels = MetersToPixels;
+    RenderGroup->CameraTransform.FocalLength = FocalLength; // NOTE(george): Meters the person is sitting from their monitor
+    RenderGroup->CameraTransform.DistanceAboveTarget = DistanceAboveTarget;
+    RenderGroup->CameraTransform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
+    RenderGroup->CameraTransform.Orthographic = false;
+
+    RenderGroup->CurrentClipRectIndex = PushClipRect(RenderGroup, 0, 0, PixelWidth, PixelHeight);
+}
+
+inline void
+Orthographic(render_group *RenderGroup, uint32 PixelWidth, uint32 PixelHeight, real32 MetersToPixels)
+{
+    real32 PixelsToMeters = SafeRatio1(1.0f, MetersToPixels);
+    RenderGroup->MonitorHalfDimInMeters = {0.5f*PixelWidth*PixelsToMeters, 0.5f*PixelHeight*PixelsToMeters};
+
+    RenderGroup->CameraTransform.MetersToPixels = MetersToPixels;
+    RenderGroup->CameraTransform.FocalLength = 1.0f; // NOTE(george): Meters the person is sitting from their monitor
+    RenderGroup->CameraTransform.DistanceAboveTarget = 1.0f;
+    RenderGroup->CameraTransform.ScreenCenter = V2(0.5f*PixelWidth, 0.5f*PixelHeight);
+    RenderGroup->CameraTransform.Orthographic = true;
+
+    RenderGroup->CurrentClipRectIndex = PushClipRect(RenderGroup, 0, 0, PixelWidth, PixelHeight);
+}

@@ -63,6 +63,7 @@ struct debug_profile_node
 	struct debug_stored_event *FirstChild;
 	struct debug_stored_event *NextSameParent;
 	u64 Duration;
+	u64 DurationOfChildren;
 	u64 ParentRelativeClock;
 	u32 Reserved;
 	u16 ThreadOrdinal;

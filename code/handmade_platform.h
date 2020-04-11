@@ -247,10 +247,9 @@ SafeTruncateUInt64(uint64 Value)
 }
 
 inline uint16
-SafeTruncateToUInt16(uint32 Value)
+SafeTruncateToU16(uint32 Value)
 {
-    Assert(Value <= 65535);
-    Assert(Value >= 0);
+    Assert(Value <= 0xFFFF);
     uint16 Result = (uint16) Value;
     return (Result);
 }
@@ -334,8 +333,13 @@ struct game_render_commands
 
     u32 PushBufferElementCount;
     u32 SortEntryAt;
-};
 
+    u32 ClipRectCount;
+    struct render_entry_cliprect *ClipRects;
+
+    render_entry_cliprect *FirstRect;
+    render_entry_cliprect *LastRect;
+};
 #define RenderCommandStruct(MaxPushBufferSize, PushBuffer, Width, Height) \
     {Width, Height, MaxPushBufferSize, 0, (u8 *)PushBuffer, 0, MaxPushBufferSize};
 

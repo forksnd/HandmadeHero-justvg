@@ -220,7 +220,7 @@ struct debug_data_block
 
 #define DEBUG_UI_ELEMENT(Type, Name) \
     { \
-        RecordDebugEvent(Type, DEBUG_NAME(#Name)); \
+        RecordDebugEvent(Type, #Name); \
     }
 
 inline debug_id DEBUG_POINTER_ID(void *Pointer) 

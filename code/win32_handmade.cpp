@@ -657,9 +657,11 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
 
 internal void 
 Win32DisplayBufferInWindow(platform_work_queue *RenderQueue, game_render_commands *Commands, 
-                           HDC DeviceContext, int WindowWidth, int WindowHeight, void *SortMemory)
+                           HDC DeviceContext, int WindowWidth, int WindowHeight, 
+                           void *SortMemory, void *ClipRectMemory)
 {
     SortEntries(Commands, SortMemory);
+    LinearizeClipRects(Commands, ClipRectMemory);
 
 /*  TODO(georgy): Do we want to check for resources like before? Probably?
     if(AllResourcesPresent(RenderGroup))
@@ -1828,6 +1830,9 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
             umm CurrentSortMemorySize = Megabytes(1);
             void *SortMemory = Win32AllocateMemory(CurrentSortMemorySize);
+            umm CurrentClipMemorySize = Megabytes(1);
+            void *ClipMemory = Win32AllocateMemory(CurrentClipMemorySize);
+
             u32 PushBufferSize = Megabytes(64);
             void *PushBuffer = Win32AllocateMemory(PushBufferSize);
 
@@ -2206,7 +2211,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                         FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeFullPath);
                         b32 ExecutableNeedsToBeReloaded = (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0);
                         
-                        
+#if 0
                         FILETIME NewEXETime = Win32GetLastWriteTime(TempWin32EXEFullPath);
                         FILETIME OldEXETime = Win32GetLastWriteTime(Win32EXEFullPath);
                         if(Win32TimeIsValid(NewEXETime))
@@ -2218,6 +2223,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                                 Win32FullRestart(TempWin32EXEFullPath, Win32EXEFullPath, DeleteWin32EXEFullPath);
                             }
                         }
+#endif
 
                         GameMemory.ExecutableReloaded = false;
                         if(ExecutableNeedsToBeReloaded)
@@ -2317,10 +2323,19 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
                             SortMemory = Win32AllocateMemory(CurrentSortMemorySize);
                         }
 
+                        // TODO(georgy): Collapse this with above!
+                        umm NeededClipMemorySize = RenderCommands.ClipRectCount * sizeof(render_entry_cliprect);
+                        if(CurrentClipMemorySize < NeededClipMemorySize)
+                        {
+                            Win32DeallocateMemory(ClipMemory);
+                            CurrentClipMemorySize = NeededClipMemorySize;
+                            ClipMemory = Win32AllocateMemory(CurrentClipMemorySize);
+                        }
+                        
                         win32_window_dimension Dimension = GetWindowDimension(Window);
                         HDC DeviceContext = GetDC(Window);
                         Win32DisplayBufferInWindow(&HighPriorityQueue, &RenderCommands, DeviceContext, 
-                                                   Dimension.Width, Dimension.Height, SortMemory);
+                                                   Dimension.Width, Dimension.Height, SortMemory, ClipMemory);
                         ReleaseDC(Window, DeviceContext);         
 
                         FlipWallClock = Win32GetWallClock();              

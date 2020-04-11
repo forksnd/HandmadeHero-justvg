@@ -634,6 +634,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
     real32 FadeBottomEndZ = -2.25f*WorldMode->TypicalFloorHeight;
     real32 FadeBottomStartZ = -2.0f*WorldMode->TypicalFloorHeight;
 
+#if 0
     // NOTE(george): Ground chunk rendering
     if(Global_GroundChunksOn)
     {
@@ -722,6 +723,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
             }
         }
     }
+#endif
 
     b32 HeroesExist = false;
     b32 QuitRequested = false;

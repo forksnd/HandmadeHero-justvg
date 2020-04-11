@@ -322,8 +322,9 @@ EndElement(layout_element *Element)
         SizeInteraction.Type = DebugInteraction_Resize;
         SizeInteraction.P = Element->Size;
 
-        rectangle2 SizeBox = RectMinMax(V2(InteriorMaxCorner.x, TotalMinCorner.y),
-                                        V2(TotalMaxCorner.x, InteriorMinCorner.y));
+        rectangle2 SizeBox = AddRadiusTo(RectMinMax(V2(InteriorMaxCorner.x, TotalMinCorner.y),
+                                                    V2(TotalMaxCorner.x, InteriorMinCorner.y)), 
+                                         V2(4.0f, 4.0f));
         PushRect(&DebugState->RenderGroup, NoTransform, SizeBox, 0.0f, 
                  InteractionIsHot(DebugState, SizeInteraction) ? 
                  V4(1, 1, 0, 1) : V4(1, 1, 1, 1));

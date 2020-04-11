@@ -1170,13 +1170,30 @@ SortEntries(game_render_commands *Commands, void *SortMemory)
 }
 
 internal void
+LinearizeClipRects(game_render_commands *Commands, void *ClipMemory)
+{
+    render_entry_cliprect *Out = (render_entry_cliprect *)ClipMemory;
+    for(render_entry_cliprect *Rect = Commands->FirstRect;
+        Rect;
+        Rect = Rect->Next)
+    {
+        *Out++ = *Rect;
+    }
+
+    Commands->ClipRects = (render_entry_cliprect *)ClipMemory;
+}
+
+internal void
 RenderCommandsToBitmap(game_render_commands *Commands, loaded_bitmap *OutputTarget,
-                    rectangle2i ClipRect)
+                       rectangle2i BaseClipRect)
 {
     TIMED_FUNCTION();
 
     u32 SortEntryCount = Commands->PushBufferElementCount;
     sort_entry *SortEntries = (sort_entry *)(Commands->PushBufferBase + Commands->SortEntryAt);
+
+    u32 ClipRectIndex = 0xFFFFFFFF;
+    rectangle2i ClipRect = BaseClipRect;
 
     sort_entry *Entry = SortEntries;
     for(u32 SortEntryIndex = 0;
@@ -1184,8 +1201,16 @@ RenderCommandsToBitmap(game_render_commands *Commands, loaded_bitmap *OutputTarg
         SortEntryIndex++, Entry++)
     {
         render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Entry->Index);
-        void *Data = (u8 *)Header + sizeof(*Header);
+        if(ClipRectIndex != Header->ClipRectIndex)
+        {
+            ClipRectIndex = Header->ClipRectIndex;
+            Assert(ClipRectIndex < Commands->ClipRectCount);
 
+            render_entry_cliprect *Clip = Commands->ClipRects + ClipRectIndex;
+            ClipRect = Intersect(BaseClipRect, Clip->Rect);
+        }
+
+        void *Data = (u8 *)Header + sizeof(*Header);
         switch(Header->Type)
 		{
 			case RenderGroupEntryType_render_entry_clear:
@@ -1194,13 +1219,6 @@ RenderCommandsToBitmap(game_render_commands *Commands, loaded_bitmap *OutputTarg
 
                 DrawRectangle(OutputTarget, V2(0, 0), V2((real32)OutputTarget->Width, (real32)OutputTarget->Height), Entry->Color,
                               ClipRect);
-			} break;
-
-            case RenderGroupEntryType_render_entry_saturation:
-			{
-				render_entry_saturation *Entry = (render_entry_saturation *)Data;
-
-                ChangeSaturation(OutputTarget, Entry->Level);
 			} break;
 
             case RenderGroupEntryType_render_entry_bitmap:
