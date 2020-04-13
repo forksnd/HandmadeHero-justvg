@@ -141,7 +141,7 @@ DEBUGGetState(void)
 }
 
 internal debug_tree *
-AddTree(debug_state *DebugState, debug_variable_group *Group, v2 AtP)
+AddTree(debug_state *DebugState, debug_variable_link *Group, v2 AtP)
 {   
     debug_tree *Tree = PushStruct(&DebugState->DebugArena, debug_tree);
 
@@ -363,12 +363,6 @@ GetOrCreateDebugViewFor(debug_state *DebugState, debug_id ID)
     return(Result);
 }
 
-struct debug_variable_iterator
-{
-    debug_variable_link *Link;
-    debug_variable_link *Sentinel;
-};
-
 internal u64
 GetTotalClocks(debug_element_frame *Frame)
 {
@@ -561,8 +555,8 @@ DrawTopClocksList(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileR
     temporary_memory Temp = BeginTemporaryMemory(&DebugState->DebugArena);
 
     u32 LinkCount = 0;
-    for(debug_variable_link *Link = DebugState->ProfileGroup->Sentinel.Next;
-        Link != &DebugState->ProfileGroup->Sentinel;
+    for(debug_variable_link *Link = GetSentinel(DebugState->ProfileGroup)->Next;
+        Link != GetSentinel(DebugState->ProfileGroup);
         Link = Link->Next)
     {
         LinkCount++;
@@ -574,11 +568,11 @@ DrawTopClocksList(debug_state *DebugState, debug_id GraphID, rectangle2 ProfileR
 
     r64 TotalTime = 0.0f;
     u32 Index = 0;
-    for(debug_variable_link *Link = DebugState->ProfileGroup->Sentinel.Next;
-        Link != &DebugState->ProfileGroup->Sentinel;
+    for(debug_variable_link *Link = GetSentinel(DebugState->ProfileGroup)->Next;
+        Link != GetSentinel(DebugState->ProfileGroup);
         Link = Link->Next, Index++)
     {
-        Assert(!Link->Children);
+        Assert(!HasChildren(Link));
 
         debug_clock_entry *Entry = Entries + Index;
         sort_entry *Sort = SortA + Index;
@@ -956,100 +950,91 @@ DEBUGDrawElement(layout *Layout, debug_tree *Tree, debug_element *Element, debug
 }
 
 internal void
-DEBUGDrawMainMenu(debug_state *DebugState, render_group *RenderGroup, v2 MouseP)
+DrawTreeLink(debug_state *DebugState, layout *Layout, debug_tree *Tree, debug_variable_link *Link)
+{
+    u32 FrameOrdinal = DebugState->ViewingFrameOrdinal;
+
+    if(HasChildren(Link)) 
+    {
+        debug_id ID = DebugIDFromLink(Tree, Link);
+        debug_view *View = GetOrCreateDebugViewFor(DebugState, ID);
+        debug_interaction ItemInteraction = DebugIDInteraction(DebugInteraction_ToggleExpansion, ID);
+        if(DebugState->AltUI)
+        {
+            ItemInteraction = DebugLinkInteraction(DebugInteraction_TearValue, Link);
+        }
+
+        char *Text = Link->Name;
+
+        rectangle2 TextBounds = GetTextSize(DebugState, Text);
+        v2 Dim = {GetDim(TextBounds).x, Layout->LineAdvance};
+
+        layout_element Element = BeginElementRectangle(Layout, &Dim);
+        DefaultInteraction(&Element, ItemInteraction);
+        EndElement(&Element);
+
+        bool32 IsHot = InteractionIsHot(DebugState, ItemInteraction);
+        v4 ItemColor = (IsHot) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
+
+        TextOutAt(DebugState, V2(GetMinCorner(Element.Bounds).x, 
+                                 GetMaxCorner(Element.Bounds).y - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
+                  Text, ItemColor);
+
+        if(View->Collapsible.ExpandedAlways)
+        {
+            Layout->Depth++;
+
+            for(debug_variable_link *SubLink = Link->FirstChild;
+                SubLink != GetSentinel(Link);
+                SubLink = SubLink->Next)
+            {
+                DrawTreeLink(DebugState, Layout, Tree, SubLink);
+            }
+         
+            Layout->Depth--;
+        }
+    }
+    else
+    {
+        debug_id DebugID = DebugIDFromLink(Tree, Link);
+        DEBUGDrawElement(Layout, Tree, Link->Element, DebugID, FrameOrdinal);
+    }
+}
+
+internal void
+DrawTrees(debug_state *DebugState, v2 MouseP)
 {
     object_transform NoTransform = DefaultFlatTransform();
+    render_group *RenderGroup = &DebugState->RenderGroup;
 
-    u32 FrameOrdinal = DebugState->ViewingFrameOrdinal;
     for(debug_tree *Tree = DebugState->TreeSentinel.Next;
         Tree != &DebugState->TreeSentinel;
         Tree = Tree->Next)
     {
         layout Layout = BeginLayout(DebugState, MouseP, Tree->UIP);
-
-        u32 Depth = 0;
-        debug_variable_iterator Stack[DEBUG_MAX_VARIABLE_STACK_DEPTH];
-
-        debug_variable_group *Group = Tree->Group;
+        debug_variable_link *Group = Tree->Group;
         if(Group)
         {
-            Stack[Depth].Link = Group->Sentinel.Next;
-            Stack[Depth].Sentinel = &Group->Sentinel;
-            Depth++;
-            while(Depth > 0)
+            for(debug_variable_link *SubLink = Group->FirstChild;
+                SubLink != GetSentinel(Group);
+                SubLink = SubLink->Next)
             {
-                debug_variable_iterator *Iter = Stack + (Depth - 1);
-                if(Iter->Link == Iter->Sentinel)
-                {
-                    Depth--;
-                }
-                else
-                {
-                    Layout.Depth = Depth;
-
-                    debug_variable_link *Link = Iter->Link;
-                    Iter->Link = Iter->Link->Next;
-
-                    if(Link->Children) 
-                    {
-                        debug_id ID = DebugIDFromLink(Tree, Link);
-                        debug_view *View = GetOrCreateDebugViewFor(DebugState, ID);
-                        debug_interaction ItemInteraction = DebugIDInteraction(DebugInteraction_ToggleExpansion, ID);
-                        if(DebugState->AltUI)
-                        {
-                            ItemInteraction = DebugLinkInteraction(DebugInteraction_TearValue, Link);
-                        }
-
-                        char *Text = Link->Children->Name;
-
-                        rectangle2 TextBounds = GetTextSize(DebugState, Text);
-                        v2 Dim = {GetDim(TextBounds).x, Layout.LineAdvance};
-
-                        layout_element Element = BeginElementRectangle(&Layout, &Dim);
-                        DefaultInteraction(&Element, ItemInteraction);
-                        EndElement(&Element);
-
-                        bool32 IsHot = InteractionIsHot(DebugState, ItemInteraction);
-                        v4 ItemColor = (IsHot) ? V4(1, 1, 0, 1) :  V4(1, 1, 1, 1);
-
-                        TextOutAt(DebugState, V2(GetMinCorner(Element.Bounds).x, 
-                                                      GetMaxCorner(Element.Bounds).y - DebugState->FontScale*GetStartingBaselineY(DebugState->DebugFontInfo)), 
-                                       Text, ItemColor);
-
-                        if(View->Collapsible.ExpandedAlways)
-                        {
-                            Iter = Stack + Depth;
-                            Iter->Link = Link->Children->Sentinel.Next;
-                            Iter->Sentinel = &Link->Children->Sentinel;
-                            Depth++;
-                        }
-                    }
-                    else
-                    {
-                        debug_id DebugID = DebugIDFromLink(Tree, Link);
-                        DEBUGDrawElement(&Layout, Tree, Link->Element, DebugID, FrameOrdinal);
-                    }
-                }
+                DrawTreeLink(DebugState, &Layout, Tree, SubLink);
             }
         }
 
-        DebugState->AtY = Layout.At.y;
+        debug_interaction MoveInteraction = {};
+        MoveInteraction.Type = DebugInteraction_Move;
+        MoveInteraction.P = &Tree->UIP;
 
-        if(1)
+        rectangle2 MoveBox = RectCenterHalfDim(Tree->UIP - V2(4.0f, 4.0f), V2(4.0f, 4.0f));
+        PushRect(RenderGroup, NoTransform, MoveBox, 0.0f, 
+                 InteractionIsHot(DebugState, MoveInteraction) ?
+                 V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
+        
+        if(IsInRectangle(MoveBox, MouseP))
         {
-            debug_interaction MoveInteraction = {};
-            MoveInteraction.Type = DebugInteraction_Move;
-            MoveInteraction.P = &Tree->UIP;
-
-            rectangle2 MoveBox = RectCenterHalfDim(Tree->UIP - V2(4.0f, 4.0f), V2(4.0f, 4.0f));
-            PushRect(&DebugState->RenderGroup, NoTransform, MoveBox, 0.0f, 
-                     InteractionIsHot(DebugState, MoveInteraction) ?
-                     V4(1, 1, 0, 1) : V4(1, 1, 1, 1));
-            
-            if(IsInRectangle(MoveBox, MouseP))
-            {
-                DebugState->NextHotInteraction = MoveInteraction;
-            }
+            DebugState->NextHotInteraction = MoveInteraction;
         }
 
         EndLayout(&Layout);
@@ -1129,7 +1114,7 @@ DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
         {
             case DebugInteraction_TearValue:
             {
-                debug_variable_group *RootGroup = CloneVariableGroup(DebugState, DebugState->HotInteraction.Link);
+                debug_variable_link *RootGroup = CloneVariableLink(DebugState, DebugState->HotInteraction.Link);
                 debug_tree *Tree = AddTree(DebugState, RootGroup, MouseP);
                 DebugState->HotInteraction.Type = DebugInteraction_Move;
                 DebugState->HotInteraction.P = &Tree->UIP;
@@ -1153,7 +1138,7 @@ DEBUGBeginInteract(debug_state *DebugState, game_input *Input, v2 MouseP)
     }
 }
 
-internal debug_element *GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_group *Parent, u32 Op);
+internal debug_element *GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_link *Parent, u32 Op);
 internal void
 DEBUGMarkEditedEvent(debug_state *DebugState, debug_event *Event)
 {
@@ -1334,111 +1319,92 @@ GetDebugThread(debug_state *DebugState, uint32 ThreadID)
     return(Result);
 }
 
-#if 0
-internal debug_frame_region *
-AddRegion(debug_state *DebugState, debug_frame *CurrentFrame)
-{
-    Assert(CurrentFrame->RegionCount < MAX_REGIONS_PER_FRAME);
-    debug_frame_region *Result = CurrentFrame->Regions + CurrentFrame->RegionCount++;
-
-    return(Result);
-}
-#endif
-
 internal debug_variable_link *
-AddElementToGroup(debug_state *DebugState, debug_variable_group *Parent, debug_element *Element)
+CreateVariableLink(debug_state *DebugState, u32 NameLength, char *Name)
 {
     debug_variable_link *Link = PushStruct(&DebugState->DebugArena, debug_variable_link);
+    DLIST_INIT(GetSentinel(Link));
+    Link->Next = Link->Prev = 0;
+    Link->Name = NameLength ? PushAndNullTerminateString(&DebugState->DebugArena, NameLength, Name) : 0;
+    Link->Element = 0;
 
-    DLIST_INSERT_AS_LAST(&Parent->Sentinel, Link);
-    Link->Children = 0;
+    return(Link);
+}
+
+internal debug_variable_link *
+AddElementToGroup(debug_state *DebugState, debug_variable_link *Parent, debug_element *Element)
+{
+    debug_variable_link *Link = CreateVariableLink(DebugState, 0, 0);
+
+    if(Parent)
+    {
+        DLIST_INSERT_AS_LAST(GetSentinel(Parent), Link);
+    }
     Link->Element = Element;
 
     return(Link);
 }
 
 internal debug_variable_link *
-AddGroupToGroup(debug_state *DebugState, debug_variable_group *Parent, debug_variable_group *Group)
+AddLinkToGroup(debug_state *DebugState, debug_variable_link *Parent, debug_variable_link *Link)
 {
-    debug_variable_link *Link = PushStruct(&DebugState->DebugArena, debug_variable_link);
-    
-    DLIST_INSERT_AS_LAST(&Parent->Sentinel, Link);
-    Link->Children = Group;
-    Link->Element = 0;
-
+    DLIST_INSERT_AS_LAST(GetSentinel(Parent), Link);
     return(Link);
 }
 
-internal debug_variable_group *
-CreateVariableGroup(debug_state *DebugState, u32 NameLength, char *Name)
-{
-    debug_variable_group *Group = PushStruct(&DebugState->DebugArena, debug_variable_group);
-    DLIST_INIT(&Group->Sentinel);
-
-    Group->Name = PushAndNullTerminateString(&DebugState->DebugArena, NameLength, Name);
-
-    return(Group);
-}
-
 internal debug_variable_link *
-CloneVariableLink(debug_state *DebugState, debug_variable_group *DestGroup, debug_variable_link *Source)
+CloneVariableLink(debug_state *DebugState, debug_variable_link *DestGroup, debug_variable_link *Source)
 {
     debug_variable_link *Dest = AddElementToGroup(DebugState, DestGroup, Source->Element);
-    if(Source->Children)
+    Dest->Name = Source->Name;
+    if(HasChildren(Source))
     {
-        Dest->Children = PushStruct(&DebugState->DebugArena, debug_variable_group);
-        DLIST_INIT(&Dest->Children->Sentinel);
-        Dest->Children->Name = Source->Children->Name;
-
-        for(debug_variable_link *Child = Source->Children->Sentinel.Next;
-            Child != &Source->Children->Sentinel;
+        for(debug_variable_link *Child = Source->FirstChild;
+            Child != GetSentinel(Source);
             Child = Child->Next)
         {
-            CloneVariableLink(DebugState, Dest->Children, Child);
+            CloneVariableLink(DebugState, Dest, Child);
         }
     }
 
     return(Dest);
 }
 
-internal debug_variable_group *
-CloneVariableGroup(debug_state *DebugState, debug_variable_link *Source)
+internal debug_variable_link *
+CloneVariableLink(debug_state *DebugState, debug_variable_link *Source)
 {
-    char *Name = PushString(&DebugState->DebugArena, "Cloned");
-    debug_variable_group *Result = CreateVariableGroup(DebugState, StringLength(Name), Name);
-    CloneVariableLink(DebugState, Result, Source);
-    
+    debug_variable_link *Result = CloneVariableLink(DebugState, 0, Source);
     return(Result);
 }
 
-internal debug_variable_group *
-GetOrCreateGroupWithName(debug_state *DebugState, debug_variable_group *Parent, u32 NameLength, char *Name)
+internal debug_variable_link *
+GetOrCreateGroupWithName(debug_state *DebugState, debug_variable_link *Parent, u32 NameLength, char *Name)
 {
-    debug_variable_group *Result = 0;
-    for(debug_variable_link *Link = Parent->Sentinel.Next;
-        Link != &Parent->Sentinel;
+    debug_variable_link *Result = 0;
+    for(debug_variable_link *Link = Parent->FirstChild;
+        Link != GetSentinel(Parent);
         Link = Link->Next)
     {
-        if(Link->Children && StringsAreEqual(NameLength, Name, Link->Children->Name))
+        if(StringsAreEqual(NameLength, Name, Link->Name))
         {
-            Result = Link->Children;
+            Result = Link;
             break;
         }
     }
 
     if(!Result)
     {
-        Result = CreateVariableGroup(DebugState, NameLength, Name);
-        AddGroupToGroup(DebugState, Parent, Result);
+        Result = CreateVariableLink(DebugState, NameLength, Name);
+        AddLinkToGroup(DebugState, Parent, Result);
     }
 
     return(Result);
 }
 
-internal debug_variable_group *
-GetGroupForHierarchicalName(debug_state *DebugState, debug_variable_group *Parent, char *Name, b32 CreateTerminal)
+internal debug_variable_link *
+GetGroupForHierarchicalName(debug_state *DebugState, debug_variable_link *Parent, char *Name, b32 CreateTerminal)
 {
-    debug_variable_group *Result = Parent;
+    debug_variable_link *Result = Parent;
 
     char *FirstSeparator = 0;
     char *Scan = Name;
@@ -1626,7 +1592,7 @@ StoreEvent(debug_state *DebugState, debug_element *Element, debug_event *Event)
 }
 
 internal debug_element *
-GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_group *Parent,
+GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_link *Parent,
                     u32 Op)
 {
     Assert(Event->GUID);
@@ -1654,7 +1620,7 @@ GetElementFromEvent(debug_state *DebugState, debug_event *Event, debug_variable_
         Result->NextInHash = DebugState->ElementHash[Index];
         DebugState->ElementHash[Index] = Result;
 
-        debug_variable_group *ParentGroup = Parent;
+        debug_variable_link *ParentGroup = Parent;
         if(Op & DebugElement_CreateHierarchy)
         {
             ParentGroup = GetGroupForHierarchicalName(DebugState, Parent, GetName(Result), false);
@@ -1717,7 +1683,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
             debug_thread *Thread = GetDebugThread(DebugState, Event->ThreadID);
             uint64 RelativeClock = Event->Clock - CollationFrame->BeginClock;
 
-            debug_variable_group *DefaultParentGroup = DebugState->RootGroup;
+            debug_variable_link *DefaultParentGroup = DebugState->RootGroup;
             if(Thread->FirstOpenDataBlock)
             {
                 DefaultParentGroup = Thread->FirstOpenDataBlock->Group;
@@ -1799,7 +1765,7 @@ CollateDebugRecords(debug_state *DebugState, u32 EventCount, debug_event *EventA
                                                                           &Thread->FirstOpenDataBlock);
 
                     debug_parsed_name ParsedName = DebugParseName(Event->GUID);
-                    debug_variable_group *Group = GetGroupForHierarchicalName(DebugState, DefaultParentGroup, ParsedName.Name, true);
+                    debug_variable_link *Group = GetGroupForHierarchicalName(DebugState, DefaultParentGroup, ParsedName.Name, true);
                     DebugBlock->Group = Group;
                 } break;                
 
@@ -1858,8 +1824,8 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
             SubArena(&DebugState->PerFrameArena, &DebugState->DebugArena, 1*1024*512);
 #endif
 
-            DebugState->RootGroup = CreateVariableGroup(DebugState, 4, "Root");
-            DebugState->ProfileGroup = CreateVariableGroup(DebugState, 7, "Profile");
+            DebugState->RootGroup = CreateVariableLink(DebugState, 4, "Root");
+            DebugState->ProfileGroup = CreateVariableLink(DebugState, 7, "Profile");
 
 #if 0
             debug_variable_definition_context Context = {};
@@ -1897,7 +1863,6 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
             DebugState->RootProfileElement = GetElementFromEvent(DebugState, &RootProfileEvent, 0, 0);
 
             DebugState->Paused = false;
-            DebugState->ScopeToRecord = 0;
 
             DebugState->Initialized = true;
 
@@ -1922,8 +1887,6 @@ DEBUGStart(debug_state *DebugState, game_render_commands *Commands,
         Orthographic(&DebugState->RenderGroup, Width, Height, 1.0f);
         DebugState->LeftEdge = -0.5f*Width;
         DebugState->RightEdge = 0.5f*Width;
-
-        DebugState->AtY = 0.5f*Height;        
 
         DebugState->TextTransform = DefaultFlatTransform();
         DebugState->ShadowTransform = DefaultFlatTransform();
@@ -1955,92 +1918,8 @@ DEBUGEnd(debug_state *DebugState, game_input *Input)
 
         DebugState->AltUI = Input->MouseButtons[PlatformMouseButton_Right].EndedDown;
         v2 MouseP = Unproject(RenderGroup, DefaultFlatTransform(), V2((real32)Input->MouseX, (real32)Input->MouseY)).xy;
-        DEBUGDrawMainMenu(DebugState, RenderGroup, MouseP);
+        DrawTrees(DebugState, MouseP);
         DEBUGInteract(DebugState, Input, MouseP);
-
-        loaded_font *Font = DebugState->DebugFont;
-        hha_font *Info = DebugState->DebugFontInfo;
-        if(Font)
-        {
-#if 0
-            for(uint32 CounterIndex = 0;
-                CounterIndex < DebugState->CounterCount;
-                ++CounterIndex)
-            {
-                debug_counter_state *Counter = DebugState->CounterStates + CounterIndex;
-
-                debug_statistic HitCount, CycleCount, CycleOverHit;
-                BeginDebugStatistic(&HitCount);
-                BeginDebugStatistic(&CycleCount);
-                BeginDebugStatistic(&CycleOverHit);
-                
-                for(uint32 SnapshotIndex = 0;
-                    SnapshotIndex < DEBUG_SNAPSHOT_COUNT;
-                    SnapshotIndex++)
-                {
-                    AccumulateDebugStatistic(&HitCount, Counter->Snapshots[SnapshotIndex].HitCount);
-                    AccumulateDebugStatistic(&CycleCount, (uint32)Counter->Snapshots[SnapshotIndex].CycleCount);
-
-                    real64 HOC = 0.0;
-                    if(Counter->Snapshots[SnapshotIndex].HitCount)
-                    {
-                        HOC = (real64)Counter->Snapshots[SnapshotIndex].CycleCount / 
-                            (real64)Counter->Snapshots[SnapshotIndex].HitCount;
-                            
-                    }
-                    AccumulateDebugStatistic(&CycleOverHit, HOC);
-                }
-                EndDebugStatistic(&HitCount);
-                EndDebugStatistic(&CycleCount);
-                EndDebugStatistic(&CycleOverHit);
-
-                if(Counter->BlockName)
-                {
-                    if(CycleCount.Max > 0.0f)
-                    {
-                        real32 BarWidth = 4.0f;
-                        real32 ChartLeft = 150.0f;
-                        real32 ChartMinY = AtY;
-                        real32 ChartHeight = Info->AscenderHeight*FontScale;
-                        real32 Scale = 1.0f / (real32)CycleCount.Max;
-                        for(uint32 SnapshotIndex = 0;
-                            SnapshotIndex < DEBUG_SNAPSHOT_COUNT;
-                            SnapshotIndex++)
-                        {
-                            real32 ThisProportion = Scale*(real32)Counter->Snapshots[SnapshotIndex].CycleCount;
-                            real32 ThisHeight = ChartHeight*ThisProportion;
-                            PushRect(RenderGroup, V3(ChartLeft + BarWidth*(real32)SnapshotIndex + 0.5f*BarWidth, ChartMinY + 0.5f*ThisHeight, 0.0f), 
-                                     V2(BarWidth, ThisHeight), V4(ThisProportion, 1.0f, 0.0f, 1.0f));
-                        }
-                    }
-
-#if 1
-                    char TextBuffer[256];
-                    _snprintf_s(TextBuffer, sizeof(TextBuffer), 
-                                "%s(%d): %ucy %uh %ucy/h\n", 
-                                Counter->BlockName,
-                                Counter->LineNumber,
-                                (uint32)CycleCount.Avg,
-                                (uint32)HitCount.Avg, 
-                                (uint32)CycleOverHit.Avg);
-                    DEBUGTextLine(TextBuffer);
-#endif
-                }
-            }
-#endif
-        }   
-
-        if(WasPressed(Input->MouseButtons[PlatformMouseButton_Left]))
-        {
-            if(HotEvent)
-            {
-                DebugState->ScopeToRecord = HotEvent->GUID;
-            }
-            else
-            {
-                DebugState->ScopeToRecord = 0;
-            }
-        }
 
         EndRenderGroup(RenderGroup);
 

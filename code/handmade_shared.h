@@ -37,19 +37,29 @@ StringsAreEqual(char *A, char *B)
 inline b32
 StringsAreEqual(umm ALength, char *A, char *B)
 {
-    char *At = B;
-    for(umm Index = 0;
-        Index < ALength;
-        Index++, At++)
+    b32 Result = false;
+
+    if(B)
     {
-        if(*At == '\0' ||
-           (A[Index] != *At))
+        char *At = B;
+        for(umm Index = 0;
+            Index < ALength;
+            Index++, At++)
         {
-            return(false);
+            if(*At == '\0' ||
+            (A[Index] != *At))
+            {
+                return(false);
+            }
         }
+
+        Result = (*At == 0);
+    }
+    else
+    {
+        Result = (ALength == 0);
     }
 
-    b32 Result = (*At == 0);
     return(Result);
 }
 

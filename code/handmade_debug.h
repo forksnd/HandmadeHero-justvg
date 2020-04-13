@@ -111,25 +111,32 @@ struct debug_element
 };
 inline char *GetName(debug_element *Element) {char *Result = Element->GUID + Element->NameStartsAt; return(Result);}
 
-struct debug_variable_group;
 struct debug_variable_link
 {
 	debug_variable_link *Next;
 	debug_variable_link *Prev;
-	debug_variable_group *Children;
+
+	debug_variable_link *FirstChild;
+	debug_variable_link *LastChild;
+
+	char *Name;
 	debug_element *Element;
 };
-
-struct debug_variable_group
+inline debug_variable_link *GetSentinel(debug_variable_link *From)
 {
-	char *Name;
-	debug_variable_link Sentinel;
+	debug_variable_link *Result = (debug_variable_link *)(&From->FirstChild);
+	return(Result);
 };
+inline b32 HasChildren(debug_variable_link *Link)
+{
+	b32 Result = (Link->FirstChild != GetSentinel(Link));
+	return(Result);
+}
 
 struct debug_tree
 {
 	v2 UIP;
-	debug_variable_group *Group;
+	debug_variable_link *Group;
 
 	debug_tree *Next;
 	debug_tree *Prev;
@@ -193,7 +200,7 @@ struct open_debug_block
 	debug_stored_event *Node;
 
 	// NOTE(georgy): Only for data blocks?
-	debug_variable_group *Group;
+	debug_variable_link *Group;
 };
 
 struct debug_thread
@@ -236,8 +243,8 @@ struct debug_state
 
 	debug_element *ElementHash[1024];
 	debug_view *ViewHash[4096];
-	debug_variable_group *RootGroup;
-	debug_variable_group *ProfileGroup;
+	debug_variable_link *RootGroup;
+	debug_variable_link *ProfileGroup;
 	debug_tree TreeSentinel;
 
 	v2 LastMouseP;
@@ -249,15 +256,12 @@ struct debug_state
 
 	r32 LeftEdge;
 	r32 RightEdge;
-	r32 AtY;
 	r32 FontScale;
 	font_id FontID;
 	r32 GlobalWidth;
 	r32 GlobalHeight;
 
 	r32 MouseTextStackY;
-
-	char *ScopeToRecord;
 
 	u32 TotalFrameCount;
 
@@ -288,8 +292,9 @@ struct debug_statistic
     u32 Count;
 };
 
-internal debug_variable_group *CreateVariableGroup(debug_state *DebugState, u32 NameLength, char *Name);
-internal debug_variable_group *CloneVariableGroup(debug_state *DebugState, debug_variable_link *Source);
+internal debug_variable_link *CloneVariableLink(debug_state *DebugState, debug_variable_link *DestGroup, debug_variable_link *Source);
+internal debug_variable_link *CreateVariableLink(debug_state *DebugState, u32 NameLength, char *Name);
+internal debug_variable_link *CloneVariableLink(debug_state *DebugState, debug_variable_link *Source);
 
 inline bool32
 DebugIDsAreEqual(debug_id A, debug_id B)
