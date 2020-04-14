@@ -28,6 +28,11 @@ struct debug_view_profile_graph
 	char *GUID;
 };
 
+struct debug_view_arena_graph
+{
+	debug_view_inline_block Block;
+};
+
 struct debug_view_collapsible
 {
 	bool32 ExpandedAlways;
@@ -53,6 +58,7 @@ struct debug_view
 	{
 		debug_view_inline_block InlineBlock;
 		debug_view_profile_graph ProfileGraph;
+		debug_view_arena_graph ArenaGraph;
 		debug_view_collapsible Collapsible;
 	};
 };
@@ -226,6 +232,7 @@ struct debug_state
 	memory_arena DebugArena;
 	memory_arena PerFrameArena;
 
+	u32 DefaultClipRect;
 	render_group RenderGroup;
 	loaded_font *DebugFont;
 	hha_font *DebugFontInfo;
@@ -261,7 +268,7 @@ struct debug_state
 	r32 GlobalWidth;
 	r32 GlobalHeight;
 
-	r32 MouseTextStackY;
+	layout MouseTextLayout;
 
 	u32 TotalFrameCount;
 
@@ -281,6 +288,9 @@ struct debug_state
 
 	// NOTE(georgy): Per-frame storage management
 	debug_stored_event *FirstFreeStoredEvent;
+
+	u32 RootInfoSize;
+	char *RootInfo;
 };
 
 struct debug_statistic

@@ -380,6 +380,17 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         TranState->IsInitialized = true;
     }
 
+    {DEBUG_DATA_BLOCK("Memory");
+        memory_arena *ModeArena = &GameState->ModeArena;
+        DEBUG_VALUE(ModeArena);
+
+        memory_arena *AudioArena = &GameState->AudioArena;
+        DEBUG_VALUE(AudioArena);
+
+        memory_arena *TranArena = &TranState->TranArena;
+        DEBUG_VALUE(TranArena);
+    }
+
     // TODO(georgy): We should probably pull the generation stuff, because
     // if we don't use ground chunks, it's a huge waste of effort!
     if(TranState->MainGenerationID)

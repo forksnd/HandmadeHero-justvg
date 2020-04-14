@@ -71,7 +71,7 @@ struct layout_element
 {
     // NOTE(georgy): Storage
     layout *Layout;
-    v2 *Dim;
+	v2 *Dim;
     v2 *Size;
     debug_interaction Interaction;
 

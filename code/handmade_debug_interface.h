@@ -34,6 +34,7 @@ enum debug_type
 	DebugType_bitmap_id,
 	DebugType_sound_id,
 	DebugType_font_id,
+	DebugType_memory_arena_p,
 
     DebugType_ThreadIntervalGraph,
     DebugType_FrameBarGraph,
@@ -41,7 +42,10 @@ enum debug_type
     DebugType_DebugMemoryInfo,
     DebugType_FrameSlider,
     DebugType_TopClocksList,
+
+    DebugType_ArenaOccupancy
 };
+typedef struct memory_arena *memory_arena_p;
 struct debug_event
 {
 	u64 Clock;
@@ -66,6 +70,7 @@ struct debug_event
     	bitmap_id Value_bitmap_id;
         sound_id Value_sound_id;
         font_id Value_font_id;
+        memory_arena_p Value_memory_arena_p;
     };
 };
 
@@ -185,6 +190,7 @@ DEBUGValueSetEventData_(rectangle3)
 DEBUGValueSetEventData_(bitmap_id)
 DEBUGValueSetEventData_(sound_id)
 DEBUGValueSetEventData_(font_id)
+DEBUGValueSetEventData_(memory_arena_p)
 
 struct debug_data_block
 {
@@ -201,17 +207,24 @@ struct debug_data_block
 };
 
 #define DEBUG_DATA_BLOCK(Name) debug_data_block DataBlock__(DEBUG_NAME(Name))
+#define DEBUG_BEGIN_DATA_BLOCK(Name) RecordDebugEvent(DebugType_OpenDataBlock, DEBUG_NAME(Name))
+#define DEBUG_END_DATA_BLOCK() RecordDebugEvent(DebugType_CloseDataBlock, DEBUG_NAME("End Data Block"))
 
 #define DEBUG_VALUE(Value) \
     { \
         RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
-        DEBUGValueSetEventData(Event, Value, (void *)&Value); \
+        DEBUGValueSetEventData(Event, Value, (void *)&(Value)); \
+    }
+#define DEBUG_NAMED_VALUE(Value) \
+    { \
+        RecordDebugEvent(DebugType_Unknown, __FUNCTION__ #Value); \
+        DEBUGValueSetEventData(Event, Value, (void *)&(Value)); \
     }
 
 #define DEBUG_B32(Value) \
     { \
         RecordDebugEvent(DebugType_Unknown, DEBUG_NAME(#Value)); \
-        DEBUGValueSetEventData(Event, (s32)0, (void *)&Value); \
+        DEBUGValueSetEventData(Event, (s32)0, (void *)&(Value)); \
         Event->Type = DebugType_b32; \
     }
 

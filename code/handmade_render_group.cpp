@@ -39,7 +39,7 @@ GetRenderEntityBasisP(camera_transform CameraTransform,
         }
     }
 
-    Result.SortKey = ObjectTransform.SortBias + 4096.0f*(2.0f*P.z + 1.0f*(r32)ObjectTransform.Upright) - P.y;
+    Result.SortKey = ObjectTransform.SortBias + 4096.0f*(2.0f*P.z + OriginalP.z + 1.0f*(r32)ObjectTransform.Upright) - P.y;
 
     return(Result);
 }
