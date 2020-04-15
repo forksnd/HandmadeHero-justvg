@@ -278,11 +278,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             DEBUG_B32(Global_Renderer_Camera_UseRoomBasedCamera);
         }  
     }
-    {DEBUG_DATA_BLOCK("GroundChunks");
-        DEBUG_B32(Global_GroundChunks_Checkboards);
-        DEBUG_B32(Global_GroundChunks_Outlines);
-        DEBUG_B32(Global_GroundChunksOn);
-    }
     {DEBUG_DATA_BLOCK("Particles");
         DEBUG_B32(Global_Particles_Test);
     }
@@ -342,17 +337,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         // GameState->Music = PlaySound(&GameState->AudioState, GetFirstSoundFrom(TranState->Assets, Asset_Music));
 
-        TranState->GroundBufferCount = 256;
-        TranState->GroundBuffers = PushArray(&TranState->TranArena, TranState->GroundBufferCount, ground_buffer);
-        for(uint32 GroundBufferIndex = 0;
-            GroundBufferIndex < TranState->GroundBufferCount;
-            GroundBufferIndex++)
-        {
-            ground_buffer *GroundBuffer = TranState->GroundBuffers + GroundBufferIndex;
-            GroundBuffer->Bitmap = MakeEmptyBitmap(&TranState->TranArena, GroundBufferWidth, GroundBufferHeight, false);
-            GroundBuffer->P = NullPosition();
-        }
-
         GameState->TestDiffuse = MakeEmptyBitmap(&TranState->TranArena, 256, 256, false);
         GameState->TestNormal = MakeEmptyBitmap(&TranState->TranArena, GameState->TestDiffuse.Width, GameState->TestDiffuse.Height, false);
         MakeSphereNormalMap(&GameState->TestNormal, 0.0f);
@@ -403,19 +387,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         PlayIntroCutScene(GameState, TranState);
     }
-
-#if 0
-    if(Memory->ExecutableReloaded)
-    {
-        for(uint32 GroundBufferIndex = 0;
-            GroundBufferIndex < TranState->GroundBufferCount;
-            GroundBufferIndex++)
-        {
-            ground_buffer *GroundBuffer = TranState->GroundBuffers + GroundBufferIndex;
-            GroundBuffer->P = NullPosition();
-        }
-    }
-#endif
 
     // 
     // NOTE(george): Render

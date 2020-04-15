@@ -396,16 +396,6 @@ CanOverlap(game_mode_world *WorldMode, sim_entity *Mover, sim_entity *Region)
     return(Result);
 }
 
-internal void
-HandleOverlap(game_mode_world *WorldMode, sim_entity *Mover, sim_entity *Region, real32 dt, 
-              real32 *Ground)
-{
-    if(Region->Type == EntityType_Stairwell)
-    {
-        *Ground = GetStairGround(Region, GetEntityGroundPoint(Mover));
-    }
-}
-
 internal bool32
 SpeculativeCollide(sim_entity *Mover, sim_entity *Region, v3 TestP)
 {
@@ -473,10 +463,6 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
     v3 Drag = -MoveSpec->Drag*Entity->dP;
     Drag.z = 0.0f;
     ddP += Drag;
-    if(!IsSet(Entity, EntityFlag_ZSupported))
-    {
-        ddP += V3(0.0f, 0.0f, -9.8f); // NOTE(george): Gravity
-    }
 
     v3 PlayerDelta = (0.5f*ddP*Square(dt)) + Entity->dP*dt;
     Entity->dP = ddP*dt + Entity->dP;
@@ -491,10 +477,12 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
         DistanceRemaining = 10000.0f;
     }
 
-    for(uint32 Iteration = 0; Iteration < 4; Iteration++)
+    for(uint32 Iteration = 0; 
+        Iteration < 4; 
+        Iteration++)
     {
         real32 tMin = 1.0f;
-        real32 tMax = 0.0f;
+        real32 tMax = 1.0f;
 
         real32 PlayerDeltaLength = Length(PlayerDelta);
         // TODO(george): What do we want to do for epsilons here?
@@ -513,7 +501,7 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
             v3 DesiredPosition = Entity->P + PlayerDelta;
 
             // NOTE(george): This is just an optimization to avoid enterring the
-            // loop in the case whaere the test entity is non-spatial!
+            // loop in the case where the test entity is non-spatial!
             if(!IsSet(Entity, EntityFlag_Nonspatial))
             {
                 // TODO(george): Spatial partion here!
@@ -522,9 +510,7 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
                     sim_entity *TestEntity = SimRegion->Entities + TestHighEntityIndex;
 
                     real32 OverlapEpsilon = 0.001f;
-                    if((IsSet(TestEntity, EntityFlag_Traversable) &&
-                        EntitiesOverlap(Entity, TestEntity, OverlapEpsilon*V3(1, 1, 1))) ||
-                        CanCollide(WorldMode, Entity, TestEntity))
+                    if(CanCollide(WorldMode, Entity, TestEntity))
                     {
                         for(uint32 VolumeIndex = 0; 
                             VolumeIndex < Entity->Collision->VolumeCount; 
@@ -556,80 +542,41 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
                                         {MaxCorner.y, Rel.y, Rel.x, PlayerDelta.y, PlayerDelta.x, MinCorner.x, MaxCorner.x, V3(0, 1, 0)}
                                     };
 
-                                    if(IsSet(TestEntity, EntityFlag_Traversable))
-                                    {
-                                        real32 tMaxTest = tMax;
-                                        bool32 HitThis = false;
+                                    real32 tMinTest = tMin;
+                                    bool32 HitThis = false;
+                                    v3 TestWallNormal = {}; 
 
-                                        v3 TestWallNormal = {}; 
-                                        for(uint32 WallIndex = 0;
+                                    for(uint32 WallIndex = 0;
                                         WallIndex < ArrayCount(Walls);
                                         WallIndex++)
-                                        {
-                                            test_wall *Wall = Walls + WallIndex;
+                                    {
+                                        test_wall *Wall = Walls + WallIndex;
 
-                                            real32 tEpsilon = 0.0001f;
-                                            if(Wall->DeltaX != 0.0f)
+                                        real32 tEpsilon = 0.0001f;
+                                        if(Wall->DeltaX != 0.0f)
+                                        {
+                                            real32 tResult = (Wall->X - Wall->RelX) / Wall->DeltaX;
+                                            real32 Y = Wall->RelY + tResult*Wall->DeltaY;
+                                            if((tResult >= 0.0f) && (tMinTest > tResult))
                                             {
-                                                real32 tResult = (Wall->X - Wall->RelX) / Wall->DeltaX;
-                                                real32 Y = Wall->RelY + tResult*Wall->DeltaY;
-                                                if((tResult >= 0.0f) && (tMaxTest < tResult))
+                                                if((Y >= Wall->MinY) && (Y <= Wall->MaxY))
                                                 {
-                                                    if((Y >= Wall->MinY) && (Y <= Wall->MaxY))
-                                                    {
-                                                        tMaxTest = Maximum(0.0f, tResult - tEpsilon);
-                                                        TestWallNormal = Wall->Normal;
-                                                        HitThis = true;
-                                                    }
+                                                    tMinTest = Maximum(0.0f, tResult - tEpsilon);
+                                                    TestWallNormal = Wall->Normal;
+                                                    HitThis = true;
                                                 }
                                             }
-                                        }
-
-                                        if(HitThis)
-                                        {
-                                            tMax = tMaxTest;
-                                            WallNormalMax = TestWallNormal;
-                                            HitEntityMax = TestEntity;
                                         }
                                     }
-                                    else
+
+                                    if(HitThis)
                                     {
-                                        real32 tMinTest = tMin;
-                                        bool32 HitThis = false;
-                                        v3 TestWallNormal = {}; 
-
-                                        for(uint32 WallIndex = 0;
-                                            WallIndex < ArrayCount(Walls);
-                                            WallIndex++)
+                                        v3 TestP = Entity->P + tMinTest*PlayerDelta;
+                                        if(SpeculativeCollide(Entity, TestEntity, TestP))
                                         {
-                                            test_wall *Wall = Walls + WallIndex;
-
-                                            real32 tEpsilon = 0.0001f;
-                                            if(Wall->DeltaX != 0.0f)
-                                            {
-                                                real32 tResult = (Wall->X - Wall->RelX) / Wall->DeltaX;
-                                                real32 Y = Wall->RelY + tResult*Wall->DeltaY;
-                                                if((tResult >= 0.0f) && (tMinTest > tResult))
-                                                {
-                                                    if((Y >= Wall->MinY) && (Y <= Wall->MaxY))
-                                                    {
-                                                        tMinTest = Maximum(0.0f, tResult - tEpsilon);
-                                                        TestWallNormal = Wall->Normal;
-                                                        HitThis = true;
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        if(HitThis)
-                                        {
-                                            v3 TestP = Entity->P + tMinTest*PlayerDelta;
-                                            if(SpeculativeCollide(Entity, TestEntity, TestP))
-                                            {
-                                                tMin = tMinTest;
-                                                WallNormalMin = TestWallNormal;
-                                                HitEntityMin = TestEntity;
-                                            }
+                                            tMin = tMinTest;
+                                            WallNormalMin = TestWallNormal;
+                                            HitEntityMin = TestEntity;
                                         }
                                     }
                                 }
@@ -677,43 +624,6 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
         {
             break;
         }      
-    }
-
-
-    real32 Ground = 0.0f;
-
-    // NOTE(george): Handle events based on area overlapping
-    // TODO(george): Handle overlapping precisely by moving it into the collision loop?
-    {
-        // TODO(george): Spatial partion here!
-        for(uint32 TestHighEntityIndex = 0; TestHighEntityIndex < SimRegion->EntityCount; TestHighEntityIndex++)
-        {
-            sim_entity *TestEntity = SimRegion->Entities + TestHighEntityIndex;
-            if(CanOverlap(WorldMode, Entity, TestEntity) &&
-               EntitiesOverlap(Entity, TestEntity))
-            {
-                HandleOverlap(WorldMode, Entity, TestEntity, dt, &Ground);                    
-            }
-        }
-    }
-
-    // NOTE(george): We use one stairwell for two floors. So when we on the "first" floor,
-    // the stairwell has its coordinates related to the "first" floor, so the coords are positive,
-    // and when we step to the stairwell, Ground > 0 (we interpolate between MinZ and MaxZ of the stairwell coords).
-    // But when we on the "second" floor, the stairwell's coordinates are related to the "second" floor,
-    // so the coords are negative, and when we step to the stairwell, Ground < 0
-    // TODO(george): This has to become real height handling / ground collision / etc.
-    Ground += Entity->P.z - GetEntityGroundPoint(Entity).z;
-    if((Entity->P.z <= Ground) || 
-       (IsSet(Entity, EntityFlag_ZSupported) && Entity->dP.z == 0))
-    {
-        Entity->P.z = Ground;
-        Entity->dP.z = 0;
-        AddFlags(Entity, EntityFlag_ZSupported);
-    }
-    else
-    {
-        ClearFlags(Entity, EntityFlag_ZSupported);        
     }
 
     if(Entity->DistanceLimit != 0)

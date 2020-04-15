@@ -315,14 +315,6 @@ struct controlled_hero
     real32 dZ;
 };
 
-struct ground_buffer
-{
-    // NOTE(george): An invalid P tells us that this ground has not been filled
-    world_position P; // NOTE(george): This is the center of the bitmap
-    loaded_bitmap Bitmap;
-    float X, Y;
-};
-
 struct hero_bitmap_ids
 {
     bitmap_id Head;
@@ -382,8 +374,6 @@ struct transient_state
     game_assets *Assets;
     u32 MainGenerationID;
 
-    uint32 GroundBufferCount;
-    ground_buffer *GroundBuffers;
     platform_work_queue *HighPriorityQueue;
     platform_work_queue *LowPriorityQueue;
 
