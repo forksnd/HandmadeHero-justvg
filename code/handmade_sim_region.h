@@ -12,7 +12,9 @@ enum entity_type
 {
     EntityType_Null,
 
-    EntityType_Hero,
+    EntityType_HeroBody,
+    EntityType_HeroHead,
+
     EntityType_Wall,
     EntityType_Floor, 
     EntityType_Familiar,
@@ -101,6 +103,7 @@ struct sim_entity
     hit_point HitPoint[16];
 
     entity_reference Sword;
+    entity_reference Head;
 
     // TODO(george): Only for stairwells
     v2 WalkableDim;

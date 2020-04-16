@@ -61,7 +61,8 @@ struct game_mode_world
     sim_entity_collision_volume_group *NullCollision;
     sim_entity_collision_volume_group *SwordCollision;
     sim_entity_collision_volume_group *StairCollision;
-    sim_entity_collision_volume_group *PlayerCollision;
+    sim_entity_collision_volume_group *HeroBodyCollision;
+    sim_entity_collision_volume_group *HeroHeadCollision;
     sim_entity_collision_volume_group *MonstarCollision;
     sim_entity_collision_volume_group *FamiliarCollision;
     sim_entity_collision_volume_group *WallCollision;
