@@ -1217,8 +1217,8 @@ RenderCommandsToBitmap(game_render_commands *Commands, loaded_bitmap *OutputTarg
 			{
 				render_entry_clear *Entry = (render_entry_clear *)Data;
 
-                DrawRectangle(OutputTarget, V2(0, 0), V2((real32)OutputTarget->Width, (real32)OutputTarget->Height), Entry->Color,
-                              ClipRect);
+                DrawRectangle(OutputTarget, V2(0, 0), V2((real32)OutputTarget->Width, (real32)OutputTarget->Height), 
+                              V4(Entry->Color.xyz, 1.0f), ClipRect);
 			} break;
 
             case RenderGroupEntryType_render_entry_bitmap:
