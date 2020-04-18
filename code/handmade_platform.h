@@ -216,6 +216,7 @@ introspect(category:"math") struct rectangle3
 #define global_variable static
 
 #define Pi32 3.14159265359f
+#define Tau32 (2.0f*3.14159265359f)
 
 #if HANDMADE_SLOW
 #define Assert(Expresion) if (!(Expresion)) { *(int *) 0 = 0; }

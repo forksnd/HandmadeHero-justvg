@@ -790,6 +790,9 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
                             v3 BodyDelta = ClosestP - Entity->P;
                             r32 BodyDistance = LengthSq(BodyDelta);
+                            Entity->tBob = 0.0f;
+
+                            Entity->FacingDirection = Head->FacingDirection;
 
                             switch(Entity->MovementMode)
                             {
@@ -806,16 +809,39 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
 
                                 case MovementMode_Hopping:
                                 {
-                                    Entity->tMovement += 6.0f*dt;
-                                    r32 t = Entity->tMovement;
-                                    v3 a = V3(0, -2.0f, 0);
-                                    v3 b = (Entity->MovementTo - Entity->MovementFrom) - a;
-                                    Entity->P = a*t*t + b*t + Entity->MovementFrom;
+                                    r32 tJump = 0.2f;
+                                    r32 tMid = 0.5f;
+                                    r32 tLand = 0.8f;
+                                    if(Entity->tMovement < tMid)
+                                    {
+                                        r32 t = Clamp01MapToRange(0.0f, Entity->tMovement, tMid);
+                                        Entity->tBob = -0.1f*Sin(t*Tau32);
+                                    }
+
+                                    if(Entity->tMovement < tLand)
+                                    {
+                                        r32 t = Clamp01MapToRange(tJump, Entity->tMovement, tLand);
+                                        v3 a = V3(0, -2.0f, 0);
+                                        v3 b = (Entity->MovementTo - Entity->MovementFrom) - a;
+                                        Entity->P = a*t*t + b*t + Entity->MovementFrom;
+                                    }
+                                    else
+                                    {
+                                        r32 t = Clamp01MapToRange(tLand, Entity->tMovement, 1.0f);
+                                        Entity->tBob = -0.1f*Sin(t*Pi32);
+                                        Entity->P = Entity->MovementTo;
+                                    }
+
                                     Entity->dP = V3(0, 0, 0);
 
                                     if(Entity->tMovement >= 1.0f)
                                     {
                                         Entity->MovementMode = MovementMode_Planted;
+                                    }
+                                    Entity->tMovement += 5.0f*dt;
+                                    if(Entity->tMovement > 1.0f)
+                                    {
+                                        Entity->tMovement = 1.0f;
                                     }
                                 } break;
                             }   
@@ -888,7 +914,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                     {
                         real32 HeroSizeC = 1.15f;
                         PushBitmap(RenderGroup, EntityTransform, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
-                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, 0, 0));  
+                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, Entity->tBob, 0));  
                         PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
                         DrawHitpoints(Entity, RenderGroup, EntityTransform);
                     } break;
