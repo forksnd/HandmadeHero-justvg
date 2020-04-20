@@ -4,8 +4,8 @@
 struct move_spec
 {
     bool32 UnitMaxAccelVector;
-    real32 Speed;
-    real32 Drag;
+    r32 Speed;
+    r32 Drag;
 };
 
 enum entity_type
@@ -94,12 +94,13 @@ struct sim_entity
 	v3 P; 
     v3 dP;
 
-    real32 DistanceLimit;
+    r32 DistanceLimit;
 
     sim_entity_collision_volume_group *Collision;
 
-    real32 FacingDirection;
-    real32 tBob;
+    r32 FacingDirection;
+    r32 tBob;
+    r32 dtBob;
 
     int32 dAbsTileZ;
 
@@ -112,7 +113,7 @@ struct sim_entity
 
     // TODO(george): Only for stairwells
     v2 WalkableDim;
-    real32 WalkableHeight;
+    r32 WalkableHeight;
 
     sim_movement_mode MovementMode;
     r32 tMovement;
@@ -132,8 +133,8 @@ introspect(category:"regular butter") struct sim_region
 	// to sim entities
 
 	world *World;
-    real32 MaxEntityRadius;
-    real32 MaxEntityVelocity;
+    r32 MaxEntityRadius;
+    r32 MaxEntityVelocity;
 
 	world_position Origin;
 	rectangle3 Bounds;
