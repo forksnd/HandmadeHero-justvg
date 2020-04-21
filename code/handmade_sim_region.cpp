@@ -645,6 +645,7 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
         Entity->DistanceLimit = DistanceRemaining;
     }
 
+#if 0
     // TODO(george): Change to using the acceleration vector 
     if((Entity->dP.x == 0.0f) && (Entity->dP.y == 0.0f))
     {
@@ -658,4 +659,5 @@ MoveEntity(game_mode_world *WorldMode, sim_region *SimRegion, sim_entity *Entity
             Entity->FacingDirection += 2.0f*Pi32;
         }
     }
+#endif
 }

@@ -79,13 +79,15 @@ PushRenderElement_(render_group *Group, uint32 Size, render_group_entry_type Typ
 
 inline used_bitmap_dim 
 GetBitmapDim(render_group *Group, object_transform ObjectTransform,
-             loaded_bitmap *Bitmap, real32 Height, v3 Offset, real32 CAlign)
+             loaded_bitmap *Bitmap, real32 Height, v3 Offset, real32 CAlign,
+             v2 XAxis = V2(1, 0), v2 YAxis = V2(0, 1))
 {
     used_bitmap_dim Dim;
 
     Dim.Size = V2(Height*Bitmap->WidthOverHeight, Height);
     Dim.Align = CAlign*Hadamard(Bitmap->AlignPercentage, Dim.Size);
-    Dim.P = Offset - V3(Dim.Align, 0.0f);
+    Dim.P.z = Offset.z;
+    Dim.P.xy = Offset.xy - Dim.Align.x*XAxis - Dim.Align.y*YAxis;
     Dim.Basis = GetRenderEntityBasisP(Group->CameraTransform, ObjectTransform, Dim.P);
 
     return(Dim);
@@ -94,9 +96,9 @@ GetBitmapDim(render_group *Group, object_transform ObjectTransform,
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
            loaded_bitmap *Bitmap, r32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f)
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, v2 XAxis = V2(1, 0), v2 YAxis = V2(0, 1))
 {
-    used_bitmap_dim Dim = GetBitmapDim(Group, ObjectTransform, Bitmap, Height, Offset, CAlign);
+    used_bitmap_dim Dim = GetBitmapDim(Group, ObjectTransform, Bitmap, Height, Offset, CAlign, XAxis, YAxis);
     if(Dim.Basis.Valid)
     {
         render_entry_bitmap *Entry = PushRenderElement(Group, render_entry_bitmap, Dim.Basis.SortKey);
@@ -105,7 +107,9 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
             Entry->Bitmap = Bitmap;
             Entry->P = Dim.Basis.P;
             Entry->Color = Group->GlobalAlpha*Color;    
-            Entry->Size = Dim.Basis.Scale*Dim.Size;
+            v2 Size = Dim.Basis.Scale*Dim.Size;
+            Entry->XAxis = Size.x*XAxis;
+            Entry->YAxis = Size.y*YAxis;
         }
     }
 }
@@ -113,7 +117,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 inline void
 PushBitmap(render_group *Group, object_transform ObjectTransform, 
            bitmap_id ID, real32 Height, v3 Offset, 
-           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f)
+           v4 Color = V4(1, 1, 1, 1), r32 CAlign = 1.0f, v2 XAxis = V2(1, 0), v2 YAxis = V2(0, 1))
 {
     loaded_bitmap *Bitmap = GetBitmap(Group->Assets, ID, Group->GenerationID);
     if(Group->RendersInBackground && !Bitmap)
@@ -124,7 +128,7 @@ PushBitmap(render_group *Group, object_transform ObjectTransform,
 
     if(Bitmap)
     {
-        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign);
+        PushBitmap(Group, ObjectTransform, Bitmap, Height, Offset, Color, CAlign, XAxis, YAxis);
     }
     else
     {

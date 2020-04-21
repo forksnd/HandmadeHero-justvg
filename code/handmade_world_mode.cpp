@@ -344,6 +344,40 @@ MakeNullCollision(game_mode_world *WorldMode)
     return(Group);
 }    
 
+internal b32
+GetClosestTraversable(sim_region *SimRegion, v3 FromP, v3 *Result)
+{
+    b32 Found = false;
+
+    // TODO(george): Make spatial queries easy for things!
+    r32 ClosestDistanceSq = Square(1000.0f);
+    sim_entity *TestEntity = SimRegion->Entities;
+    for(u32 TestEntityIndex = 0; 
+        TestEntityIndex < SimRegion->EntityCount; 
+        TestEntityIndex++, TestEntity++)
+    {
+        sim_entity_collision_volume_group *VolGroup = TestEntity->Collision;
+        for(u32 PIndex = 0;
+            PIndex < VolGroup->TraversableCount;
+            PIndex++)
+        {
+            sim_entity_traversable_point P = GetSimSpaceTraversable(TestEntity, PIndex);
+
+            v3 HeadToPoint = P.P - FromP; 
+
+            r32 TestDSq = LengthSq(HeadToPoint);
+            if(ClosestDistanceSq > TestDSq)
+            {
+                ClosestDistanceSq = TestDSq;
+                *Result = P.P;
+                Found = true;
+            }
+        }
+    }
+
+    return(Found);
+}
+
 internal void
 PlayWorld(game_state *GameState, transient_state *TranState)
 {
@@ -672,9 +706,13 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
     {
         TIMED_BLOCK("EntityRender");
 
-        for(uint32 EntityIndex = 0; EntityIndex < SimRegion->EntityCount; EntityIndex++)
+        for(u32 EntityIndex = 0; 
+            EntityIndex < SimRegion->EntityCount; 
+            EntityIndex++)
         {
             sim_entity *Entity = SimRegion->Entities + EntityIndex;
+            Entity->XAxis = V2(1, 0);
+            Entity->YAxis = V2(1, 0);
 
             debug_id EntityDebugID = DEBUG_POINTER_ID(WorldMode->LowEntities + Entity->StorageIndex);
             if(DEBUG_REQUESTED(EntityDebugID))
@@ -741,24 +779,41 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                                 MoveSpec.Drag = 8.0f;
 
                                 ddP = V3(ConHero->ddP, 0);
-                                sim_entity *Body = Entity->Head.Ptr;
-                                if(Body)
-                                {
-                                    v3 ddP2 = {};
 
+                                // TODO(george): Change to using the acceleration vector 
+                                if((Entity->dP.x == 0.0f) && (Entity->dP.y == 0.0f))
+                                {
+                                    // NOTE(george): Leave FacingDirection whater it was
+                                }
+                                else
+                                {
+                                    Entity->FacingDirection = ATan2(ddP.y, ddP.x);
+                                    if(Entity->FacingDirection < 0.0f)
+                                    {
+                                        Entity->FacingDirection += 2.0f*Pi32;
+                                    }
+                                }
+
+                                v3 ClosestP = Entity->P;
+                                if(GetClosestTraversable(SimRegion, Entity->P, &ClosestP))
+                                {
+                                    b32 AnyPush = (LengthSq(ddP) < 0.1f);
+                                    r32 Cp = AnyPush ? 300.0f : 50.0f;
+                                    v3 ddP2 = {};
                                     for(u32 E = 0;
                                         E < 3;
                                         E++)
                                     {
-                                        if(Square(ddP.E[E]) < 0.01f)
+                                        // if(Square(ddP.E[E]) < 0.01f)
+                                        if(AnyPush)
                                         {
-                                            ddP2.E[E] = 100.0f*(Body->P.E[E] - Entity->P.E[E]) - 30.0f*Entity->dP.E[E];
+                                            ddP2.E[E] = Cp*(ClosestP.E[E] - Entity->P.E[E]) - 30.0f*Entity->dP.E[E];
                                         }
                                     }
 
                                     Entity->dP += dt*ddP2;
                                 }
-
+#if 0
                                 if((ConHero->dSword.x != 0) || (ConHero->dSword.y != 0))
                                 {
                                     sim_entity *Sword = Entity->Sword.Ptr;
@@ -772,6 +827,7 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                                         // PlaySound(&WorldMode->AudioState, GetRandomSoundFrom(TranState->Assets, Asset_Jump, &WorldMode->EffectsEntropy));  
                                     }
                                 }
+#endif
                             }
                         }
                     } break;
@@ -781,32 +837,8 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                         sim_entity *Head = Entity->Head.Ptr;
                         if(Head)
                         {
-                            // TODO(george): Make spatial queries easy for things!
-                            r32 ClosestDistanceSq = Square(1000.0f);
                             v3 ClosestP = Entity->P;
-                            sim_entity *TestEntity = SimRegion->Entities;
-                            for(u32 TestEntityIndex = 0; 
-                                TestEntityIndex < SimRegion->EntityCount; 
-                                TestEntityIndex++, TestEntity++)
-                            {
-                                sim_entity_collision_volume_group *VolGroup = TestEntity->Collision;
-                                for(u32 PIndex = 0;
-                                    PIndex < VolGroup->TraversableCount;
-                                    PIndex++)
-                                {
-                                    sim_entity_traversable_point P = GetSimSpaceTraversable(TestEntity, PIndex);
-
-                                    v3 HeadToPoint = P.P - Head->P; 
-
-                                    r32 TestDSq = LengthSq(HeadToPoint);
-                                    if(ClosestDistanceSq > TestDSq)
-                                    {
-                                        ClosestDistanceSq = TestDSq;
-                                        ClosestP = P.P;
-                                    }
-                                }
-                            }
-
+                            GetClosestTraversable(SimRegion, Head->P, &ClosestP);
                             v3 BodyDelta = ClosestP - Entity->P;
                             r32 BodyDistance = LengthSq(BodyDelta);
 
@@ -814,7 +846,8 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                             Entity->dP = V3(0, 0, 0);
                             r32 ddtBob = 0.0f;
 
-                            r32 HeadDistance = Length(Head->P - Entity->P);
+                            v3 HeadDelta = Head->P - Entity->P;
+                            r32 HeadDistance = Length(HeadDelta);
                             r32 MaxHeadDistance = 0.5f;
                             r32 tHeadDistance = Clamp01MapToRange(0.0f, HeadDistance, MaxHeadDistance);
 
@@ -872,6 +905,9 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                             ddtBob += -Cp*Entity->tBob + -Cv*Entity->dtBob;
                             Entity->tBob += ddtBob*dt*dt + Entity->dtBob*dt;
                             Entity->dtBob += ddtBob*dt;
+
+                            Entity->YAxis = V2(0, 1) + 1.0f*HeadDelta.xy;
+                            // Entity->XAxis = Perp(Entity->YAxis);
                         }
                     } break;
 
@@ -940,9 +976,12 @@ UpdateAndRenderWorld(game_state *GameState, game_mode_world *WorldMode, transien
                     case EntityType_HeroBody:
                     {
                         real32 HeroSizeC = 1.15f;
+                        v4 Color = V4(1, 1, 1, 1);
+                        v2 XAxis = Entity->XAxis;
+                        v2 YAxis = Entity->YAxis;
                         PushBitmap(RenderGroup, EntityTransform, GetFirstBitmapFrom(TranState->Assets, Asset_Shadow), HeroSizeC*0.25f, V3(0, 0, 0), V4(1, 1, 1, ShadowAlpha));                  
-                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, Entity->tBob, 0));  
-                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0));  
+                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Torso, HeroSizeC*1.2f, V3(0, Entity->tBob, 0), Color, 1.0f, XAxis, YAxis);  
+                        PushBitmap(RenderGroup, EntityTransform, HeroBitmaps.Legs, HeroSizeC*1.2f, V3(0, 0, 0), Color, 1.0f, XAxis, YAxis);  
                         DrawHitpoints(Entity, RenderGroup, EntityTransform);
                     } break;
 

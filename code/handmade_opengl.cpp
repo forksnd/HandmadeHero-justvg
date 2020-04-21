@@ -261,10 +261,9 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
                 if(Entry->Bitmap->Width &&
                    Entry->Bitmap->Height)
                 {
-                    v2 XAxis = {1, 0};
-                    v2 YAxis = {0, 1};
+                    v2 XAxis = Entry->XAxis;
+                    v2 YAxis = Entry->YAxis;
                     v2 MinP = Entry->P;
-                    v2 MaxP = MinP + Entry->Size.x*XAxis + Entry->Size.y*YAxis;
 
                     // TODO(georgy): Hold the frame if we are not ready with the texture?
     #if 1
@@ -278,7 +277,37 @@ OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 Window
                     r32 OneTexelV = 1.0f / Entry->Bitmap->Height;
                     v2 MinUV = V2(OneTexelU, OneTexelV);
                     v2 MaxUV = V2(1.0f - OneTexelU, 1.0f - OneTexelV);
-                    OpenGLRectangle(MinP, MaxP, Entry->Color, MinUV, MaxUV);
+
+                    glBegin(GL_TRIANGLES);
+
+                    glColor4fv(Entry->Color.E);
+
+                    v2 MinXMinY = MinP;
+                    v2 MinXMaxY = MinP + YAxis;
+                    v2 MaxXMinY = MinP + XAxis;
+                    v2 MaxXMaxY = MinP + XAxis + YAxis;
+
+                    // NOTE(georgy): Lower triangle
+                    glTexCoord2f(MinUV.x, MinUV.y);
+                    glVertex2fv(MinXMinY.E);
+
+                    glTexCoord2f(MaxUV.x, MinUV.y);
+                    glVertex2fv(MaxXMinY.E);
+
+                    glTexCoord2f(MaxUV.x, MaxUV.y);
+                    glVertex2fv(MaxXMaxY.E);
+
+                    // NOTE(georgy): Upper triangle
+                    glTexCoord2f(MinUV.x, MinUV.y);
+                    glVertex2fv(MinXMinY.E);
+
+                    glTexCoord2f(MaxUV.x, MaxUV.y);
+                    glVertex2fv(MaxXMaxY.E);
+
+                    glTexCoord2f(MinUV.x, MaxUV.y);
+                    glVertex2fv(MinXMaxY.E);
+
+                    glEnd();
                 }
 			} break;
 

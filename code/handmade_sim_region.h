@@ -119,6 +119,9 @@ struct sim_entity
     r32 tMovement;
     v3 MovementFrom;
     v3 MovementTo;
+
+    v2 XAxis;
+    v2 YAxis;
 };
 
 struct sim_entity_hash
