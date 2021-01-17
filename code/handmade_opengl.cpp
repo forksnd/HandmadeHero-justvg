@@ -206,7 +206,8 @@ global_variable u32 TextureBoundCount = 0;
 internal void
 OpenGLRenderCommands(game_render_commands *Commands, s32 WindowWidth, s32 WindowHeight)
 {
-    glViewport(0, 0, Commands->Width, Commands->Height);
+    // glViewport(0, 0, Commands->Width, Commands->Height);
+    glViewport(0, 0, WindowWidth, WindowHeight);
     
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_SCISSOR_TEST);

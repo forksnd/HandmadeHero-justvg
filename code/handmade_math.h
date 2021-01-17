@@ -121,6 +121,14 @@ Clamp01(real32 Value)
 	return(Result);
 }
 
+inline r32
+ClampAboveZero(r32 Value)
+{
+	r32 Result = (Value < 0.0f) ? 0.0f : Value;
+
+	return(Result);
+}
+
 inline real32 
 SafeRatioN(real32 Numerator, real32 Divisor, real32 N)
 {

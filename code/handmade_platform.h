@@ -426,6 +426,13 @@ WasPressed(game_button_state State)
     return(Result);
 }
 
+inline bool32
+IsDown(game_button_state State)
+{
+    bool32 Result = State.EndedDown;
+    return(Result);
+}
+
 struct platform_file_handle
 {
     bool32 NoErrors;

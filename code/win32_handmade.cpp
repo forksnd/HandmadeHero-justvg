@@ -1666,7 +1666,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
        1080 -> 2048 = 2048-1080 -> 968 pixels
        1024 + 128 = 1152
     */  
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1364, 768);
+    Win32ResizeDIBSection(&GlobalBackbuffer, 1920, 1080);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 1366, 768);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 1200, 740);
     // Win32ResizeDIBSection(&GlobalBackbuffer, 960, 540);
