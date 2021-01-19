@@ -44,12 +44,8 @@ struct game_mode_world
     world *World;
     real32 TypicalFloorHeight;
 
-    uint32 CameraFollowingEntityIndex;
+    entity_id CameraFollowingEntityIndex;
     world_position CameraP;
-
-    // TODO(george): Change the name to "Stored entity"
-    uint32 LowEntityCount;
-    low_entity LowEntities[100000];    
 
     real32 MetersToPixels;
     real32 PixelsToMeters;
@@ -59,7 +55,6 @@ struct game_mode_world
     pairwise_collision_rule *FirstFreeCollisionRule;
 
     sim_entity_collision_volume_group *NullCollision;
-    sim_entity_collision_volume_group *SwordCollision;
     sim_entity_collision_volume_group *StairCollision;
     sim_entity_collision_volume_group *HeroBodyCollision;
     sim_entity_collision_volume_group *HeroHeadCollision;
@@ -76,20 +71,11 @@ struct game_mode_world
     uint32 NextParticle;
     particle Particles[256];
     particle_cel ParticleCels[PARTICLE_CEL_DIM][PARTICLE_CEL_DIM];
+
+    b32 CreationBufferLocked; // TODO(georgy): Remove this eventually, just for catching bugs?
+    low_entity CreationBuffer;
+    u32 LastUsedEntityStorageIndex; // TODO(georgy): Worry about this wrapping - free list for IDs?
 };
-
-inline low_entity *
-GetLowEntity(game_mode_world *WorldMode, uint32 Index)
-{
-    low_entity *Result = 0;
-
-    if((Index > 0) && (Index < WorldMode->LowEntityCount))
-    {
-        Result = WorldMode->LowEntities + Index;
-    }
-
-    return(Result);
-}
 
 internal void PlayWorld(game_state *GameState, transient_state *TranState);
 

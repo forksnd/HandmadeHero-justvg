@@ -30,12 +30,17 @@ struct hit_point
     uint8 FilledAmount;
 };
 
+struct entity_id
+{
+    u32 Value;
+};
+
 // TODO(george): Rename sim_entity to entity
 struct sim_entity;
 union entity_reference
 {
 	sim_entity *Ptr;
-	uint32 Index;	
+	entity_id Index;	
 };
 
 enum sim_entity_flags
@@ -83,7 +88,7 @@ struct sim_entity
 {
     // NOTE(george): These are only for the sim region
     world_chunk *OldChunk;
-	uint32 StorageIndex;
+	entity_id StorageIndex;
     bool32 Updatable;
 
     // 
@@ -108,7 +113,6 @@ struct sim_entity
     uint32 HitPointMax;
     hit_point HitPoint[16];
 
-    entity_reference Sword;
     entity_reference Head;
 
     // TODO(george): Only for stairwells
@@ -129,7 +133,7 @@ struct sim_entity
 struct sim_entity_hash
 {
     sim_entity *Ptr;
-    uint32 Index;
+    entity_id Index;
 };
 
 introspect(category:"regular butter") struct sim_region
